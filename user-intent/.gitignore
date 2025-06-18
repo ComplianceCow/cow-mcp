@@ -1,0 +1,13 @@
+
+# Byte-compiled / optimized / DLL files
+__pycache__
+
+#log
+app.log
+
+# Distribution / packaging
+build
+cowmcpservice.egg-info
+
+# Environments
+.venv
