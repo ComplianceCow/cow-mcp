@@ -8,6 +8,7 @@ from typing import Tuple
 from utils import utils
 from utils.debug import logger
 from tools.mcpconfig import mcp
+from constants import constants
 
 
 @mcp.tool(name="fetch_unique_node_data_and_schema",description="Fetch unique node data and schema")
@@ -28,7 +29,7 @@ async def fetch_unique_node_data_and_schema(question: str) -> Tuple[list, list, 
         logger.info("\nget_unique_node_data_and_schema: \n")
         logger.debug("question: {}".format(question))
 
-        output=await utils.make_API_call_to_CCow({"user_question":question},"/v1/llm/retrieve_unique_node_data_and_schema")
+        output=await utils.make_API_call_to_CCow({"user_question":question},constants.URL_RETRIEVE_UNIQUE_NODE_DATA_AND_SCHEMA)
         logger.debug("output: {}\n".format(output))
 
         return output["node_names"],output["unique_property_values"], output["neo4j_schema"]
@@ -52,7 +53,7 @@ async def execute_cypher_query(query: str) -> dict | str:
 
         output=await utils.make_API_call_to_CCow({
             "query": query,
-        },"/v1/llm/execute_cypher_query")
+        },constants.URL_EXECUTE_CYPHER_QUERY)
         logger.debug("output: {}\n".format(output))
 
         # return output["result_in_text"]

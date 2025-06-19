@@ -35,7 +35,7 @@ async def get_dashboard_data(payload : dict) -> dict:
             "includeFrameworkCompliance": True
         }
 
-        output=await utils.make_API_call_to_CCow(data,"/v2/aggregator/ccf-dashboard-framework-summary")
+        output=await utils.make_API_call_to_CCow(data, constants.URL_CCF_DASHBOARD_FRAMEWORK_SUMMARY)
         logger.debug("output: {}\n".format(output))
 
         return output
@@ -95,7 +95,7 @@ async def fetch_ccf_details_and_controls(period: str, framework_name : str) -> d
         logger.debug("payload: {}\n".format(data))
         
 
-        output=await utils.make_API_call_to_CCow(data, constants.API_OVERDUE_AND_NON_COMPLIANT_CONTROLS)
+        output=await utils.make_API_call_to_CCow(data, constants.URL_CCF_DASHBOARD_CONTROL_DETAILS)
         logger.debug("output: {}\n".format(output))
 
         # return list_as_table_prompt(output)
@@ -153,7 +153,7 @@ async def fetch_ccf_dashboard(period: str, framework_name : str) -> dict:
         logger.debug("payload: {}\n".format(data))
         
 
-        output=await utils.make_API_call_to_CCow(data, constants.API_OVERDUE_AND_NON_COMPLIANT_CONTROLS)
+        output=await utils.make_API_call_to_CCow(data, constants.URL_CCF_DASHBOARD_CONTROL_DETAILS)
         logger.debug("output: {}\n".format(output))
 
         return output
@@ -214,7 +214,7 @@ async def get_top_over_due_controls_detail(payload : dict) -> dict | str:
             "pageSize": payload['count']
         }
 
-        output=await utils.make_API_call_to_CCow(data,"/v2/aggregator/ccf-dashboard-control-details")
+        output=await utils.make_API_call_to_CCow(data,constants.URL_CCF_DASHBOARD_CONTROL_DETAILS)
         logger.debug("output: {}\n".format(output))
 
         return output["items"]
@@ -258,7 +258,7 @@ async def get_top_non_compliant_controls_detail(period: str, count= 1, page=1) -
         #     "pageSize": payload['count']
         # }
 
-        output=await utils.make_API_call_to_CCow(data,constants.API_OVERDUE_AND_NON_COMPLIANT_CONTROLS)
+        output=await utils.make_API_call_to_CCow(data,constants.URL_CCF_DASHBOARD_CONTROL_DETAILS)
         logger.debug("output: {}\n".format(output))
 
         return output["items"]

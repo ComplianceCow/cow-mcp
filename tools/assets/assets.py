@@ -20,7 +20,7 @@ async def list_assets() -> list:
     try:
         logger.info("get_assets_list: \n")
 
-        output=await utils.make_GET_API_call_to_CCow(constants.API_LIST_ASSETS)
+        output=await utils.make_GET_API_call_to_CCow(constants.URL_ASSETS)
         # logger.debug("output: {}\n".format(output))
 
         categories=[]
@@ -48,7 +48,7 @@ async def fetch_assets_summary(id: str) -> dict:
         logger.info("fetch_assets_summary: \n")
         output=await utils.make_API_call_to_CCow({
             "planID": id,
-        },constants.API_FETCH_ASSETS_SUMMARY)
+        },constants.URL_FETCH_ASSETS_SUMMARY)
         logger.debug("output: {}\n".format(json.dumps(output)))
 
         output["integrationRunID"]=output["planRunID"]
@@ -93,7 +93,7 @@ async def fetch_resource_types(id: str, page: int=1, pageSize: int=0) -> dict:
             "planRunID": id,
             "page": page,
             "pageSize": pageSize
-        },constants.API_FETCH_RESOURCE_TYPES)
+        },constants.URL_FETCH_RESOURCE_TYPES)
         logger.debug("output: {}\n".format(json.dumps(output)))
 
         if isinstance(output, str):
@@ -152,7 +152,7 @@ async def fetch_checks(id: str, resourceType: str, page: int=1, pageSize: int=0,
             "page": page,
             "pageSize": pageSize,
             "compliantStatus": complianceStatus
-        },constants.API_FETCH_CHECKS)
+        },constants.URL_FETCH_CHECKS)
         logger.debug("output: {}\n".format(json.dumps(output)))
         for item in output["items"]:
             if "controlName" in item:
@@ -206,7 +206,7 @@ async def fetch_resources(id: str, resourceType: str, page: int=1, pageSize: int
             "page": page,
             "pageSize": pageSize,
             "compliantStatus": complianceStatus
-        },constants.API_FETCH_RESOURCES)
+        },constants.URL_FETCH_RESOURCES)
         logger.debug("output: {}\n".format(json.dumps(output)))
 
         output=utils.formatResources(output,True)
@@ -256,7 +256,7 @@ async def fetch_resources_with_this_check(id: str, resourceType: str, check: str
             "checkName": check,
             "page": page,
             "pageSize": pageSize
-        },constants.API_FETCH_RESOURCES)
+        },constants.URL_FETCH_RESOURCES)
         logger.debug("output: {}\n".format(json.dumps(output)))
         if isinstance(output, str):
             return output
@@ -299,17 +299,17 @@ async def fetch_resource_types_summary(id: str) -> dict:
                 "planRunID": id,
                 "page": 1,
                 "pageSize": 10
-            }, constants.API_FETCH_RESOURCE_TYPES),
+            }, constants.URL_FETCH_RESOURCE_TYPES),
             utils.make_API_call_to_CCow({
                 "planRunID": id,
                 "page": 2,
                 "pageSize": 10
-            }, constants.API_FETCH_RESOURCE_TYPES),
+            }, constants.URL_FETCH_RESOURCE_TYPES),
             utils.make_API_call_to_CCow({
                 "planRunID": id,
                 "page": 3,
                 "pageSize": 10
-            }, constants.API_FETCH_RESOURCE_TYPES)
+            }, constants.URL_FETCH_RESOURCE_TYPES)
         )
 
         all_items = []
@@ -358,7 +358,7 @@ async def fetch_checks_summary(id: str, resourceType: str) -> dict | str:
                 "planRunID": id,
                 "resourceType": resourceType,
                 "summaryType": "checks"
-            }, constants.API_FETCH_ASSETS_DETAIL_SUMMARY)
+            }, constants.URL_FETCH_ASSETS_DETAIL_SUMMARY)
 
         logger.debug("output: {}\n".format(json.dumps(output)))
 
@@ -392,7 +392,7 @@ async def fetch_resources_summary(id: str, resourceType: str) -> dict | str:
                 "planRunID": id,
                 "resourceType": resourceType,
                 "summaryType": "resources"
-            }, constants.API_FETCH_ASSETS_DETAIL_SUMMARY)
+            }, constants.URL_FETCH_ASSETS_DETAIL_SUMMARY)
 
         logger.debug("output: {}\n".format(json.dumps(output)))
 
@@ -431,7 +431,7 @@ async def fetch_resources_with_this_check_summary(id: str, resourceType: str, ch
             "resourceType": resourceType,
             "checkName": check,
             "summaryType": "resources"
-        },constants.API_FETCH_ASSETS_DETAIL_SUMMARY)
+        },constants.URL_FETCH_ASSETS_DETAIL_SUMMARY)
         logger.debug("output: {}\n".format(json.dumps(output)))
 
         return output

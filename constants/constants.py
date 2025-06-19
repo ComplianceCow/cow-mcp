@@ -15,18 +15,38 @@ host=os.environ.get('CCOW_HOST',"https://dev.compliancecow.live/api")
 
 
 
-# URLS
-API_OVERDUE_AND_NON_COMPLIANT_CONTROLS = "/v2/aggregator/ccf-dashboard-control-details" 
+# DASHBOARD
+URL_CCF_DASHBOARD_CONTROL_DETAILS= "/v2/aggregator/ccf-dashboard-control-details" 
+URL_CCF_DASHBOARD_FRAMEWORK_SUMMARY = "/v2/aggregator/ccf-dashboard-framework-summary"
+
 
 #ASSESSMENTS
-API_LIST_ASSESSMENT_CATEGORIES = "/v1/assessment-categories"
-API_LIST_ASSESSMENTS = "/v1/plans?page=1&page_size=10&fields=basic"
+URL_ASSESSMENT_CATEGORIES = "/v1/assessment-categories"
+URL_PLANS = "/v1/plans"
+
+# ASSESSMENT RUNS
+URL_PLAN_INSTANCES = "/v1/plan-instances"
+URL_PLAN_INSTANCE_CONTROLS = "/v1/plan-instance-controls"
+URL_PLAN_INSTANCE_EVIDENCES = "/v1/plan-instance-evidences"
+
+URL_DATAHANDLER_FETCH_DATA = "/v1/datahandler/fetch-data" 
+
+#ACTIONS
+URL_FETCH_AVAILABLE_ACTIONS = "/v1/actions/fetch-available-actions"
+URL_ACTIONS_EXECUTIONS = "/v1/actions/executions"
+
+
+#GRAPHDB
+
+URL_RETRIEVE_UNIQUE_NODE_DATA_AND_SCHEMA = "/v1/llm/retrieve_unique_node_data_and_schema"
+URL_EXECUTE_CYPHER_QUERY = "/v1/llm/execute_cypher_query"
 
 
 # ASSETS
-API_LIST_ASSETS = "/v1/plans?fields=basic&type=integration"
-API_FETCH_RESOURCES = "/v1/plan-instances/fetch-resources"
-API_FETCH_RESOURCE_TYPES = "/v1/plan-instances/fetch-resource-types"
-API_FETCH_ASSETS_DETAIL_SUMMARY = "/v1/plan-instances/fetch-integration-detail-summary"
-API_FETCH_ASSETS_SUMMARY = "/v1/plan-instances/integration-summary"
-API_FETCH_CHECKS = "/v1/plan-instances/fetch-checks"
+URL_ASSETS = URL_PLANS + "?fields=basic&type=integration"
+URL_FETCH_RESOURCES = "/v1/plan-instances/fetch-resources"
+URL_FETCH_RESOURCE_TYPES = "/v1/plan-instances/fetch-resource-types"
+URL_FETCH_ASSETS_DETAIL_SUMMARY = "/v1/plan-instances/fetch-integration-detail-summary"
+URL_FETCH_ASSETS_SUMMARY = "/v1/plan-instances/integration-summary"
+URL_FETCH_CHECKS = "/v1/plan-instances/fetch-checks"
+

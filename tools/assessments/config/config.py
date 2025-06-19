@@ -14,7 +14,7 @@ async def list_all_assessment_categories() -> list | str:
     try:
         logger.info("get_all_assessment_categories: \n")
 
-        output=await utils.make_GET_API_call_to_CCow(constants.API_LIST_ASSESSMENT_CATEGORIES)
+        output=await utils.make_GET_API_call_to_CCow(constants.URL_ASSESSMENT_CATEGORIES)
         # logger.debug("output: {}\n".format(output))
 
         if isinstance(output, str):
@@ -43,7 +43,7 @@ async def list_assessments(payload : dict) -> list | str:
         logger.info("get_all_assessments: \n")
         logger.debug("payload: {}\n".format(payload))
 
-        output=await utils.make_GET_API_call_to_CCow(constants.API_LIST_ASSESSMENTS)
+        output=await utils.make_GET_API_call_to_CCow(constants.URL_PLANS + "?page=1&page_size=10&fields=basic")
         # logger.debug("output: {}\n".format(output))
 
         if isinstance(output, str):

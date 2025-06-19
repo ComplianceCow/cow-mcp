@@ -19,7 +19,7 @@ async def fetch_recent_assessment_runs(id: str) -> list | str:
         id: assessment id
     """
     try:
-        output=await utils.make_GET_API_call_to_CCow("/v1/plan-instances?fields=basic&page=1&page_size=10&plan_id="+id)
+        output=await utils.make_GET_API_call_to_CCow(constants. URL_PLAN_INSTANCES + "?fields=basic&page=1&page_size=10&plan_id="+id)
         logger.debug("output: {}\n".format(output))
 
         if isinstance(output, str):
@@ -68,7 +68,7 @@ async def fetch_assessment_runs(id: str, page: int=1, pageSize: int=0) -> list |
         id: assessment id
     """
     try:
-        output=await utils.make_GET_API_call_to_CCow(f"/v1/plan-instances?fields=basic&page={page}&page_size={pageSize}&plan_id={id}")
+        output=await utils.make_GET_API_call_to_CCow(f"{constants.URL_PLAN_INSTANCES}?fields=basic&page={page}&page_size={pageSize}&plan_id={id}")
         logger.debug("output: {}\n".format(output))
 
         if page==0 and pageSize==0:
@@ -125,7 +125,7 @@ async def fetch_assessment_run_details(id: str) -> list:
     """
 
     try:
-        output=await utils.make_GET_API_call_to_CCow("/v1/plan-instance-controls?fields=basic&is_leaf_control=true&plan_instance_id="+id)
+        output=await utils.make_GET_API_call_to_CCow(constants.URL_PLAN_INSTANCE_CONTROLS + "?fields=basic&is_leaf_control=true&plan_instance_id="+id)
         logger.debug("output: {}\n".format(json.dumps(output)))
 
         controls=output["items"]
@@ -156,7 +156,7 @@ async def fetch_assessment_run_leaf_controls(id: str) -> list | str:
         id: assessment run id
     """
     try:
-        output=await utils.make_GET_API_call_to_CCow("/v1/plan-instance-controls?fields=basic&is_leaf_control=true&plan_instance_id="+id)
+        output=await utils.make_GET_API_call_to_CCow(constants.URL_PLAN_INSTANCE_CONTROLS +"?fields=basic&is_leaf_control=true&plan_instance_id="+id)
         logger.debug("output: {}\n".format(json.dumps(output)))
 
         if isinstance(output, str):
@@ -194,7 +194,7 @@ async def fetch_assessment_run_leaf_control_evidence(id: str) -> list | str:
         id: assessment run control id
     """
     try:
-        output=await utils.make_GET_API_call_to_CCow("/v1/plan-instance-evidences?plan_instance_control_id="+id)
+        output=await utils.make_GET_API_call_to_CCow(constants.URL_PLAN_INSTANCE_EVIDENCES + "?plan_instance_control_id="+id)
         logger.debug("output: {}\n".format(json.dumps(output)))
 
         if isinstance(output, str):
@@ -237,7 +237,7 @@ async def fetch_evidence_records(id: str) -> list | str:
             "isUserPriority": True,
             "considerFileSizeRestriction": True,
             "viewEvidenceFlow": True
-        },"/v1/datahandler/fetch-data")
+        },constants.URL_DATAHANDLER_FETCH_DATA)
         logger.debug("output: {}\n".format(json.dumps(output)))
 
         if isinstance(output, str):
@@ -295,7 +295,7 @@ async def fetch_available_actions(assessmentName: str, controlNumber: str = "", 
             "evidenceName": evidenceName,
             "isRulesReq":True,
             "triggerType":"userAction"
-        },"/v1/actions/fetch-available-actions")
+        },constants.URL_FETCH_AVAILABLE_ACTIONS)
         logger.debug("output: {}\n".format(json.dumps(output)))
 
         if isinstance(output, str):
@@ -340,7 +340,7 @@ async def execute_action(assessmentId: str, assessmentRunId: str, actionBindingI
             "planInstanceControlEvidenceID": assessmentRunControlEvidenceId,
             "recordIDs": evidenceRecordIds,
             "rules":[]
-        },"/v1/actions/executions")
+        },constants.URL_ACTIONS_EXECUTIONS)
         logger.debug("output: {}\n".format(json.dumps(output)))
 
         if isinstance(output, str):
