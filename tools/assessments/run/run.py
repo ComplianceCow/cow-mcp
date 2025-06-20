@@ -6,8 +6,10 @@ from typing import Tuple
 
 from utils import utils
 from utils.debug import logger
-from tools.mcpconfig import mcp
+# from tools.mcpconfig import mcp
+from mcpconfig.config import mcp
 from constants import constants
+from tools.graphdb import graphdb
 
 
 @mcp.tool()
@@ -188,14 +190,15 @@ async def fetch_assessment_run_leaf_controls(id: str) -> list | str:
 @mcp.tool()
 async def fetch_run_controls(name: str) -> list | str:
     """
-        use this tool to get all controls matches the given name.
+        use this tool when you there is no result from the tool "execute_cypher_query".
+        use this tool to get all controls that matches the given name.
         Next use fetch control meta data tool if need assessment name, assessment Id, assessment run name, assessment run Id 
         
         Args:
         name: control name
     """
     try:
-        output=await utils.make_GET_API_call_to_CCow(f"{constants.URL_PLAN_INSTANCE_CONTROLS}?fields=basic&is_leaf_control=true&control_name_contains={name}&page=1&page_size=50")
+        output=await utils.make_GET_API_call_to_CCow(f"{constants.URL_PLAN_INSTANCE_CONTROLS}?fields=basic&control_name_contains={name}&page=1&page_size=50")
         logger.debug("output: {}\n".format(json.dumps(output)))
 
         if isinstance(output, str):
@@ -242,6 +245,8 @@ async def fetch_run_control_meta_data(id: str) -> dict | str:
         return "Facing internal error"
 
 
+
+# had to check whether this leaf control is required or not
 @mcp.tool()
 async def fetch_assessment_run_leaf_control_evidence(id: str) -> list | str:
     """
@@ -273,6 +278,42 @@ async def fetch_assessment_run_leaf_control_evidence(id: str) -> list | str:
     except Exception as e:
         logger.error("fetch_assessment_run_leaf_control_evidence error: {}\n".format(e))
         return "Facing internal error"
+
+@mcp.tool()
+async def fetch_controls(control_name:str = "") -> dict:
+    """
+    Function overview to fetch the control using control_name
+    Args:
+        control_name (str): name of the control.
+    
+    Using the control name
+    """
+    
+    node_names, unique_property_values, neo4j_schema = await graphdb.fetch_unique_node_data_and_schema(control_name)
+    
+    result = await generate_cypher_query_for_control(control_name,unique_property_values, neo4j_schema)
+    
+    return result
+
+@mcp.prompt()
+async def generate_cypher_query_for_control(control_name: str =  "", unique_nodes: str = "", schema = "") -> dict:
+    return f"""
+        Using the information below — `control_name`, `unique_nodes`, and `schema` — generate a Cypher query.
+        The query should search both the specified control and its child controls(HAS_CHILD - relationship), and be flexible enough to return results from either, depending on where the match is found.
+        Use contains for the node property filters.
+        If the query returns no results when executed using the "execute_cypher_query" tool, attempt to regenerate the query specifically targeting child controls.
+
+        Inputs:
+        - control_name: {control_name}
+        - unique_nodes: {unique_nodes}
+        - schema: {schema}
+
+        The Cypher query should return:
+        - control_name
+        - displayable_alias
+        - assessment_name (if available)
+        """
+
 
 @mcp.tool()
 async def fetch_evidence_records(id: str) -> list | str:
@@ -323,25 +364,28 @@ async def fetch_evidence_records(id: str) -> list | str:
     except Exception as e:
         logger.error("fetch_evidence_records error: {}\n".format(e))
         return "Facing internal error"
-
+    
+    
 @mcp.tool()
-async def fetch_available_actions(assessmentName: str, controlNumber: str = "", controlAlias: str = "", evidenceName: str = "") -> list | str:
+async def fetch_available_control_actions(assessmentName: str, controlNumber: str = "", controlAlias: str = "", evidenceName: str = "") -> list | str:
     """
-        Use this tool when the user asks about actions such as create, update or other action-related queries.
-        Based on the input, the tool will determine whether to fetch actions at the assessment level, control level, or evidence level.
-        Get actions available at assessment, control, or evidence level based on provided parameters.
-        Once fetched, ask user to confirm to execute the action, then use 'execute_action' tool with appropriate parameters to execute the action.
-        
-        Usage patterns:
-        - Assessment level: provide only assessment_name
-        - Control level: provide assessment_name, control_number, and control_alias
-        - Evidence level: provide all parameters
-        
-        Args:
-        assessmentName: assessment name (required)
-        controlNumber: control number (optional, required for control/evidence level)
-        controlAlias: control alias (optional, required for control/evidence level)  
-        evidenceName: evidence name (optional, required for evidence level only)
+       Use this tool when the user requests an action-related operation such as **create**, **update**, or any other control-specific action.
+
+        Based on the input, determine whether the action should be performed at the **control level**. If so:
+
+        1. Fetch the available actions.
+        2. Prompt the user to confirm the intended action.
+        3. Once confirmed, use the `execute_action` tool with the appropriate parameters to carry out the operation.
+
+        ### Args:
+        - `assessmentName`: Name of the assessment (**required**)
+        - `controlNumber`: Identifier for the control (**required**)
+        - `controlAlias`: Alias of the control (**required**)
+
+        If the above arguments are not available:
+        - Use the `fetch_controls` tool to retrieve control details.
+        - Then generate and execute a query to fetch the related assessment information before proceeding.
+
     """
     try:
         output=await utils.make_API_call_to_CCow({
@@ -370,6 +414,52 @@ async def fetch_available_actions(assessmentName: str, controlNumber: str = "", 
         logger.error("fetch_available_actions error: {}\n".format(e))
         return "Facing internal error"
 
+# @mcp.tool()
+# async def fetch_available_actions(assessmentName: str, controlNumber: str = "", controlAlias: str = "", evidenceName: str = "") -> list | str:
+#     """
+#         Use this tool when the user asks about actions such as create, update or other action-related queries.
+#         Based on the input, the tool will determine whether to fetch actions at the assessment level, control level, or evidence level.
+#         Get actions available at assessment, control, or evidence level based on provided parameters.
+#         Once fetched, ask user to confirm to execute the action, then use 'execute_action' tool with appropriate parameters to execute the action.
+        
+#         Usage patterns:
+#         - Assessment level: provide only assessment_name
+#         - Control level: provide assessment_name, control_number, and control_alias
+#         - Evidence level: provide all parameters
+        
+#         Args:
+#         assessmentName: assessment name (required)
+#         controlNumber: control number (optional, required for control/evidence level)
+#         controlAlias: control alias (optional, required for control/evidence level)  
+#         evidenceName: evidence name (optional, required for evidence level only)
+#     """
+#     try:
+#         output=await utils.make_API_call_to_CCow({
+#             "actionType":"action",
+#             "assessmentName": assessmentName,
+#             "controlNumber" : controlNumber,
+#             "controlAlias": controlAlias,
+#             "evidenceName": evidenceName,
+#             "isRulesReq":True,
+#             "triggerType":"userAction"
+#         },constants.URL_FETCH_AVAILABLE_ACTIONS)
+#         logger.debug("output: {}\n".format(json.dumps(output)))
+
+#         if isinstance(output, str):
+#             return output
+        
+#         actions = output["items"]
+
+#         for item in actions:
+#             if "rules" in item:
+#                 del item["rules"] 
+        
+#         logger.debug("output: {}\n".format(json.dumps(actions)))
+#         return actions
+#     except Exception as e:
+#         logger.error("fetch_available_actions error: {}\n".format(e))
+#         return "Facing internal error"
+
 @mcp.tool()
 async def execute_action(assessmentId: str, assessmentRunId: str, actionBindingId: str , assessmentRunControlId: str="", assessmentRunControlEvidenceId: str="", evidenceRecordIds: List[str]=[] ) -> dict | str:
     """
@@ -379,6 +469,8 @@ async def execute_action(assessmentId: str, assessmentRunId: str, actionBindingI
         Execute or trigger a specific action on an evidence level. use assessment id, assessment run id, action binding id, assessment run control evidence id and evidence record ids.
         use fetch assessment available actions to get action binding id.
         Only once action can be triggered at a time, assessment level or control level or evidence level based on user preference.
+        
+        Please also provide the intended effect when executing actions.
 
         Args:
         assessmentId 

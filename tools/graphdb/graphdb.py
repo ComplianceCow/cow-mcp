@@ -7,7 +7,8 @@ from typing import Tuple
 
 from utils import utils
 from utils.debug import logger
-from tools.mcpconfig import mcp
+# from tools.mcpconfig import mcp
+from mcpconfig.config import mcp
 from constants import constants
 
 
@@ -43,7 +44,6 @@ async def fetch_unique_node_data_and_schema(question: str) -> Tuple[list, list, 
 # async def execute_cypher_query(question,query: str) -> str: 
 async def execute_cypher_query(query: str) -> dict | str: 
     """Given a question and query, execute a cypher query and transform result to human readable format.
-
     Args:
         query: query to execute in graph DB
     """

@@ -5,12 +5,14 @@ import sys
 from utils.debug import logger
 from utils.auth import CCowOAuthProvider
 
-from tools.mcpconfig import mcp
+# from tools.mcpconfig import mcp
+from mcpconfig.config import mcp
 from tools.assessments.config import  config
 from tools.assessments.run import  run
 from tools.graphdb import  graphdb
 from tools.dashboard import  dashboard
 from tools.assets import  assets
+from resources.graphdb import graphdb
 from constants.constants import host
 from mcp.server.auth.settings import AuthSettings
 
