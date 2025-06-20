@@ -151,7 +151,7 @@ async def fetch_checks(id: str, resourceType: str, page: int=1, pageSize: int=0,
             "resourceType": resourceType,
             "page": page,
             "pageSize": pageSize,
-            "compliantStatus": complianceStatus
+            "complianceStatus": complianceStatus
         },constants.URL_FETCH_CHECKS)
         logger.debug("output: {}\n".format(json.dumps(output)))
         for item in output["items"]:
@@ -205,7 +205,7 @@ async def fetch_resources(id: str, resourceType: str, page: int=1, pageSize: int
             "resourceType": resourceType,
             "page": page,
             "pageSize": pageSize,
-            "compliantStatus": complianceStatus
+            "complianceStatus": complianceStatus
         },constants.URL_FETCH_RESOURCES)
         logger.debug("output: {}\n".format(json.dumps(output)))
 

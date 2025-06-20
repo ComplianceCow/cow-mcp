@@ -34,16 +34,21 @@ async def list_all_assessment_categories() -> list | str:
         return "Facing internal error"
 
 @mcp.tool()
-async def list_assessments(payload : dict) -> list | str:
+async def list_assessments(categoryId: str = "", categoryName: str = "") -> list | str:
     """
         Get all assessments
-        Function accepts category id as 'categoryId' and category name as 'categoryName'
+        Function accepts category id and category name both as optional parameters. If both are empty it will return all assessments.
+
+        Args:
+        categoryId: assessment category id (Optional)
+        categoryName: assessment category name (Optional)
     """
     try:
         logger.info("get_all_assessments: \n")
-        logger.debug("payload: {}\n".format(payload))
 
-        output=await utils.make_GET_API_call_to_CCow(constants.URL_PLANS + "?page=1&page_size=10&fields=basic")
+        logger.debug("payload: {} {}\n".format(categoryId, categoryName))
+
+        output=await utils.make_GET_API_call_to_CCow(constants.URL_PLANS+"?fields=basic&category_id="+categoryId+"&category_name_contains="+categoryName)
         # logger.debug("output: {}\n".format(output))
 
         if isinstance(output, str):

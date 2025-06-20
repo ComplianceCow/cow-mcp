@@ -44,7 +44,7 @@ async def get_dashboard_data(payload : dict) -> dict:
         return "Facing internal error"
   
 @mcp.tool()
-async def fetch_ccf_details_and_controls(period: str, framework_name : str) -> dict:
+async def fetch_dashboard_framework_controls(period: str, framework_name : str) -> dict:
     """
     ### Function Overview: Retrieve Control Details for a Given CCF and Review Period
 
@@ -105,7 +105,7 @@ async def fetch_ccf_details_and_controls(period: str, framework_name : str) -> d
         return "Facing internal error"  
     
 @mcp.tool()
-async def fetch_ccf_dashboard(period: str, framework_name : str) -> dict:
+async def fetch_dashboard_framework_summary(period: str, framework_name : str) -> dict:
     """
     ### Function Overview: CCF Dashboard Summary Retrieval
 
@@ -161,6 +161,56 @@ async def fetch_ccf_dashboard(period: str, framework_name : str) -> dict:
         logger.error("get_dashboard_data error: {}\n".format(e))
         return "Facing internal error"  
     
+@mcp.tool()
+async def get_dashboard_common_controls_details(period: str, complianceStatus: str="", controlStatus: str="",  priority: str="", controlCategoryName: str="",page: int=1, pageSize:  int=50) -> dict:
+    """
+    Function accepts compliance period as 'period'. Period donates for which quarter of year dashboard data is needed. Format: Q1 2024. 
+    Use this tool to get Common Control Framework (CCF) dashboard data for a specific compliance period with filters.
+    This function provides detailed information about common controls, including their compliance status, control status, and priority.
+    Use pagination if controls count is more than 50 then use page and pageSize to get control data pagewise, Once 1st page is fetched,then more pages available suggest to get next page data then increase page number.
+    Args:
+    period (str): Compliance period for which dashboard data is needed. Format: 'Q1 2024'. (Required)
+    complianceStatus (str): Compliance status filter (Optional, possible values: 'COMPLIANT', 'NON_COMPLIANT', 'NOT_DETERMINED"). Default is empty string (fetch all Compliance statuses).
+    controlStatus (str): Control status filter (Optional, possible values: 'Pending', 'InProgress', 'Completed', 'Unassigned', 'Overdue'). Default is empty string (fetch all statuses).
+    priority (str): Priority of the controls. (Optional, possible values: 'High', 'Medium', 'Low'). Default is empty string (fetch all priorities).
+    controlCategoryName (str): Control category name filter (Optional). Default is empty string (fetch all categories).
+    page (int): Page number for pagination (Optional). Default is 1 (fetch first page).
+    pageSize (int): Number of items per page (Optional). Default is 50.
+    """
+    try:
+        logger.info("get_dashboard: \n")
+
+        includeNonCompliantControls = complianceStatus == "NON_COMPLIANT"
+        includeOverDueControls = controlStatus == "Overdue"
+        # fetchleafControls = False if not controlStatus else True
+
+        status = "" if includeOverDueControls else controlStatus
+        complianceStatusField = "" if includeNonCompliantControls else complianceStatus
+
+        data = {
+        "ccfPeriod": period,
+        "includeOverDueControls": includeOverDueControls,
+        "includeNonCompliantControls": includeNonCompliantControls,
+        "fetchleafControls": True,
+        # "authorityDocumentName": authorityDocumentName,
+        "status": status,
+        "complianceStatus": complianceStatusField,
+        "controlCategoryName" : controlCategoryName,
+        "priority": priority,
+        "page": page,
+        "pageSize": pageSize
+        };
+
+        logger.debug("payload: {}\n".format(data))
+
+        output=await utils.make_API_call_to_CCow(data,constants.URL_CCF_DASHBOARD_CONTROL_DETAILS)
+        logger.debug("output: {}\n".format(output))
+
+        return output
+    except Exception as e:
+        logger.error("get_dashboard_data error: {}\n".format(e))
+        return "Facing internal error"
+
 
 @mcp.prompt()
 def list_as_table_prompt(response: dict) -> dict:
