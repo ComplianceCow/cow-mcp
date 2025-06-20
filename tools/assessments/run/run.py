@@ -413,6 +413,70 @@ async def fetch_available_control_actions(assessmentName: str, controlNumber: st
     except Exception as e:
         logger.error("fetch_available_actions error: {}\n".format(e))
         return "Facing internal error"
+    
+@mcp.tool()
+async def fetch_assessment_available_actions(name: str = "") -> list | str:
+    """
+        Get actions available on assessment for given assessment name. 
+        
+        Args: 
+        name: assessment name
+    """
+    try:
+        output=await utils.make_API_call_to_CCow({
+            "actionType":"action",
+            "assessmentName": name,
+            "isRulesReq":True,
+            "triggerType":"userAction"
+        },constants.URL_FETCH_AVAILABLE_ACTIONS)
+        logger.debug("output: {}\n".format(json.dumps(output)))
+
+        if isinstance(output, str):
+            return output
+        
+        actions = output["items"]
+
+        for item in actions:
+            if "rules" in item:
+                del item["rules"] 
+        
+        logger.debug("output: {}\n".format(json.dumps(actions)))
+        return actions
+    except Exception as e:
+        logger.error("fetch_assessment_available_actions error: {}\n".format(e))
+        return "Facing internal error"
+    
+@mcp.tool()
+async def fetch_automated_controls_of_an_assessment(assessment_id: str = "") -> dict:
+    
+    """
+    Function to fetch the automated controls of a given assessment.
+    If assessment_id is not provided use other tools to get the assessment and its id.
+    
+    Args:
+        - assessment_id (str, required): assessment id or plan id.
+    """
+    
+    try:
+        logger.info("fetch_automated_controls: \n")
+
+        output=await utils.make_GET_API_call_to_CCow(constants.URL_PLAN_CONTROLS + 
+         "?is_automated=true&fields=basic&skip_prereq_ctrl_priv_check=false&page=1&page_size=100&plan_id=" + assessment_id)
+        logger.debug("output: {}\n".format(output))
+        
+        # categories=[]
+        # for item in output["items"]:
+        #     if "name" in item:
+        #         categories.append({"id":item["id"],"name":item["name"]})
+        
+        logger.debug("automated control: {}\n",output )
+
+        return output
+    except Exception as e:
+        logger.error(traceback.format_exc())
+        logger.error("fetch_automated_controls error: {}\n".format(e))
+        return "Facing internal error"
+    
 
 # @mcp.tool()
 # async def fetch_available_actions(assessmentName: str, controlNumber: str = "", controlAlias: str = "", evidenceName: str = "") -> list | str:
@@ -463,13 +527,13 @@ async def fetch_available_control_actions(assessmentName: str, controlNumber: st
 @mcp.tool()
 async def execute_action(assessmentId: str, assessmentRunId: str, actionBindingId: str , assessmentRunControlId: str="", assessmentRunControlEvidenceId: str="", evidenceRecordIds: List[str]=[] ) -> dict | str:
     """
-        use this to trigger action for assessment level or control level or evidence level.
+        
         Execute or trigger a specific action on an assessment run. use assessment id, assessment run id and action binding id.
         Execute or trigger a specific action on an control run. use assessment id, assessment run id, action binding id and assessment run control id .
         Execute or trigger a specific action on an evidence level. use assessment id, assessment run id, action binding id, assessment run control evidence id and evidence record ids.
-        use fetch assessment available actions to get action binding id.
+        Use fetch assessment available actions to get action binding id.
         Only once action can be triggered at a time, assessment level or control level or evidence level based on user preference.
-        
+        Use this to trigger action for assessment level or control level or evidence level.
         Please also provide the intended effect when executing actions.
 
         Args:

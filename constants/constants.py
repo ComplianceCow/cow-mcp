@@ -24,6 +24,9 @@ URL_CCF_DASHBOARD_FRAMEWORK_SUMMARY = "/v2/aggregator/ccf-dashboard-framework-su
 URL_ASSESSMENT_CATEGORIES = "/v1/assessment-categories"
 URL_PLANS = "/v1/plans"
 
+# ASSESSMENT CONTROLS
+URL_PLAN_CONTROLS = "/v1/plan-controls"
+
 # ASSESSMENT RUNS
 URL_PLAN_INSTANCES = "/v1/plan-instances"
 URL_PLAN_INSTANCE_CONTROLS = "/v1/plan-instance-controls"

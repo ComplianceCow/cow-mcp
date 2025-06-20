@@ -38,8 +38,6 @@ async def list_all_assessment_categories() -> list | str:
 async def list_assessments(categoryId: str = "", categoryName: str = "") -> list | str:
     """
         Get all assessments
-        Function accepts category id and category name both as optional parameters. If both are empty it will return all assessments.
-
         Args:
         categoryId: assessment category id (Optional)
         categoryName: assessment category name (Optional)

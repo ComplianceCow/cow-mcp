@@ -13,7 +13,7 @@ from constants import constants
 
 
 @mcp.tool()
-async def get_dashboard_data(payload : dict) -> dict:
+async def get_dashboard_data(period: str = "Q1 2024") -> dict:
     """
     Function accepts compliance period as 'period'. Period denotes for which quarter of year dashboard data is needed. Format: Q1 2024. 
 
@@ -23,18 +23,23 @@ async def get_dashboard_data(payload : dict) -> dict:
     'overall control status' can be fetched from 'controlStatus'
     'control category wise' can be fetched from 'controlSummary'
     'control framework wise' can be fetched from 'frameworks'
+    
+    Args:
+        - period (str, required) - Period denotes for which quarter of year dashboard data is needed. Format: Q1 2024. 
 
     """
     try:
-        logger.info("get_dashboard: \n")
-        logger.debug("payload: {}\n".format(payload))
+
 
         data={
-            "ccfPeriod":payload["period"],
+            "ccfPeriod": period,
             "includeCompliancePerformance": True,
             "includeControlSummary": True,
             "includeFrameworkCompliance": True
         }
+        
+        logger.info("get_dashboard: \n")
+        logger.debug("payload: {}\n".format(data))
 
         output=await utils.make_API_call_to_CCow(data, constants.URL_CCF_DASHBOARD_FRAMEWORK_SUMMARY)
         logger.debug("output: {}\n".format(output))
@@ -245,25 +250,28 @@ def list_as_table_prompt(response: dict) -> dict:
 # async def get_top_over_due_controls(count: int) -> dict:
 
 @mcp.tool()
-async def get_top_over_due_controls_detail(payload : dict) -> dict | str: 
+async def get_top_over_due_controls_detail(period: str = "Q1 2024", count: int = 10) -> dict | str: 
     """
         Fetch controls with top over due (over-due)
         Function accepts count as 'count'
         Function accepts compliance period as 'period'. Period donates for which quarter of year dashboard data is needed. Format: Q1 2024. 
+        
+        Args:
+            - period (str, required) - Compliance period
+            - count (int, required) - page content size, defaults to 10
+        
     """
     try:
-        logger.info("get_top_over_due_controls: \n")
-        logger.debug("payload: {}\n".format(payload))
-
-        if 'count' not in payload:
-            payload['count']=10
 
         data={
-            "ccfPeriod":payload["period"],
+            "ccfPeriod": period,
             "includeOverDueControls": True,
             "page": 1,
-            "pageSize": payload['count']
+            "pageSize": count
         }
+        
+        logger.info("get_top_over_due_controls: \n")
+        logger.debug("payload: {}\n".format(data))
 
         output=await utils.make_API_call_to_CCow(data,constants.URL_CCF_DASHBOARD_CONTROL_DETAILS)
         logger.debug("output: {}\n".format(output))

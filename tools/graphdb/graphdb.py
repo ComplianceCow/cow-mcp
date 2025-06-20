@@ -15,7 +15,7 @@ from constants import constants
 @mcp.tool(name="fetch_unique_node_data_and_schema",description="Fetch unique node data and schema")
 # async def f1(question: str) -> Tuple[list, list, str]:
 async def fetch_unique_node_data_and_schema(question: str) -> Tuple[list, list, str]:
-    """Given a question get unique node data and schema from CCow system. Here question is the user question.
+    """Given a question get unique node data and schema.
 
     Args:
         question: user question
