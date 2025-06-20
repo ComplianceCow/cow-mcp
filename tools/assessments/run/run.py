@@ -524,6 +524,52 @@ async def fetch_automated_controls_of_an_assessment(assessment_id: str = "") -> 
 #         logger.error("fetch_available_actions error: {}\n".format(e))
 #         return "Facing internal error"
 
+# @mcp.tool()
+# async def fetch_available_actions(assessmentName: str, controlNumber: str = "", controlAlias: str = "", evidenceName: str = "") -> list | str:
+#     """
+#         Use this tool when the user asks about actions such as create, update or other action-related queries.
+#         Based on the input, the tool will determine whether to fetch actions at the assessment level, control level, or evidence level.
+#         Get actions available at assessment, control, or evidence level based on provided parameters.
+#         Once fetched, ask user to confirm to execute the action, then use 'execute_action' tool with appropriate parameters to execute the action.
+        
+#         Usage patterns:
+#         - Assessment level: provide only assessment_name
+#         - Control level: provide assessment_name, control_number, and control_alias
+#         - Evidence level: provide all parameters
+        
+#         Args:
+#         assessmentName: assessment name (required)
+#         controlNumber: control number (optional, required for control/evidence level)
+#         controlAlias: control alias (optional, required for control/evidence level)  
+#         evidenceName: evidence name (optional, required for evidence level only)
+#     """
+#     try:
+#         output=await utils.make_API_call_to_CCow({
+#             "actionType":"action",
+#             "assessmentName": assessmentName,
+#             "controlNumber" : controlNumber,
+#             "controlAlias": controlAlias,
+#             "evidenceName": evidenceName,
+#             "isRulesReq":True,
+#             "triggerType":"userAction"
+#         },constants.URL_FETCH_AVAILABLE_ACTIONS)
+#         logger.debug("output: {}\n".format(json.dumps(output)))
+
+#         if isinstance(output, str):
+#             return output
+        
+#         actions = output["items"]
+
+#         for item in actions:
+#             if "rules" in item:
+#                 del item["rules"] 
+        
+#         logger.debug("output: {}\n".format(json.dumps(actions)))
+#         return actions
+#     except Exception as e:
+#         logger.error("fetch_available_actions error: {}\n".format(e))
+#         return "Facing internal error"
+
 @mcp.tool()
 async def execute_action(assessmentId: str, assessmentRunId: str, actionBindingId: str , assessmentRunControlId: str="", assessmentRunControlEvidenceId: str="", evidenceRecordIds: List[str]=[] ) -> dict | str:
     """
