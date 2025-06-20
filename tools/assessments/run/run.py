@@ -184,7 +184,64 @@ async def fetch_assessment_run_leaf_controls(id: str) -> list | str:
     except Exception as e:
         logger.error("fetch_assessment_run_leaf_controls error: {}\n".format(e))
         return "Facing internal error"
-    
+
+@mcp.tool()
+async def fetch_run_controls(name: str) -> list | str:
+    """
+        use this tool to get all controls matches the given name.
+        Next use fetch control meta data tool if need assessment name, assessment Id, assessment run name, assessment run Id 
+        
+        Args:
+        name: control name
+    """
+    try:
+        output=await utils.make_GET_API_call_to_CCow(f"{constants.URL_PLAN_INSTANCE_CONTROLS}?fields=basic&is_leaf_control=true&control_name_contains={name}&page=1&page_size=50")
+        logger.debug("output: {}\n".format(json.dumps(output)))
+
+        if isinstance(output, str):
+            return output
+        
+        leftControls = []
+
+        for item in output["items"]:
+            if "id" in item and "name" in item:
+                filtered_item = {
+                    "id": item.get("id"),
+                    "name": item.get("name"),
+                    "controlNumber": item.get("displayable"),
+                    "alias": item.get("alias"),
+                    "priority": item.get("priority"),
+                    "status": item.get("status"),
+                    "dueDate": item.get("dueDate"),
+                    "complianceStatus": item.get("complianceStatus")
+                }
+                leftControls.append(filtered_item)
+
+        logger.debug("Modified output: {}\n".format(json.dumps(leftControls)))
+        return leftControls 
+    except Exception as e:
+        logger.error("fetch_assessment_run_leaf_controls error: {}\n".format(e))
+        return "Facing internal error"
+
+@mcp.tool()
+async def fetch_run_control_meta_data(id: str) -> dict | str:
+    """
+        use this tool to get control meta data (assessment & assessment run) for given control id.
+
+        Args:
+        id: control id
+    """
+    try:
+        output = await utils.make_GET_API_call_to_CCow(f"{constants.URL_PLAN_INSTANCE_CONTROLS}/{id}/plan-data")
+        logger.debug("output: {}\n".format(json.dumps(output)))
+
+        return output
+
+    except Exception as e:
+        logger.error("fetch_control_meta_data error: {}\n".format(e))
+        return "Facing internal error"
+
+
 @mcp.tool()
 async def fetch_assessment_run_leaf_control_evidence(id: str) -> list | str:
     """
