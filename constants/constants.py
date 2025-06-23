@@ -24,6 +24,9 @@ URL_CCF_DASHBOARD_FRAMEWORK_SUMMARY = "/v2/aggregator/ccf-dashboard-framework-su
 URL_ASSESSMENT_CATEGORIES = "/v1/assessment-categories"
 URL_PLANS = "/v1/plans"
 
+# ASSESSMENT CONTROLS
+URL_PLAN_CONTROLS = "/v1/plan-controls"
+
 # ASSESSMENT RUNS
 URL_PLAN_INSTANCES = "/v1/plan-instances"
 URL_PLAN_INSTANCE_CONTROLS = "/v1/plan-instance-controls"
@@ -37,7 +40,6 @@ URL_ACTIONS_EXECUTIONS = "/v1/actions/executions"
 
 
 #GRAPHDB
-
 URL_RETRIEVE_UNIQUE_NODE_DATA_AND_SCHEMA = "/v1/llm/retrieve_unique_node_data_and_schema"
 URL_EXECUTE_CYPHER_QUERY = "/v1/llm/execute_cypher_query"
 
