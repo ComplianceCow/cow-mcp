@@ -8,3 +8,7 @@ dependencies = [
     "httpx>=0.28.1",
     "mcp[cli]>=1.9.3",
 ]
+[tool.setuptools.packages.find]
+where = ["."]
+include = ["tools*", "utils*", "mcpconfig*", "constants*", "resources*"]
+
