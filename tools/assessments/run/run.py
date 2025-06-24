@@ -451,44 +451,44 @@ async def fetch_assessment_available_actions(name: str = "") -> list | str:
         logger.error("fetch_assessment_available_actions error: {}\n".format(e))
         return "Facing internal error"
     
-# @mcp.tool()
-# async def fetch_evidence_available_actions(assessment_name: str = "", control_number: str="", control_alias: str ="", evidence_name: str ="") -> list | str:
-#     """
-#         Get actions available on evidence for given evidence name. 
-#         If the required parameters are not provided, use the existing tools to retrieve them.
-#         Once fetched, ask user to confirm to execute the action, then use 'execute_action' tool with appropriate parameters to execute the action.
-#         Args: 
-#         assessment_name: assessment name (required)
-#         control_number: control number (required)
-#         control_alias: control alias (required)  
-#         evidence_name: evidence name (required)
-#     """
-#     try:
-#         output=await utils.make_API_call_to_CCow({
-#             "actionType":"action",
-#             "assessmentName": assessment_name,
-#             "controlNumber" : control_number,
-#             "controlAlias": control_alias,
-#             "evidenceName": evidence_name,
-#             "isRulesReq":True,
-#             "triggerType":"userAction"
-#         },constants.URL_FETCH_AVAILABLE_ACTIONS)
-#         logger.debug("output: {}\n".format(json.dumps(output)))
+@mcp.tool()
+async def fetch_evidence_available_actions(assessment_name: str = "", control_number: str="", control_alias: str ="", evidence_name: str ="") -> list | str:
+    """
+        Get actions available on evidence for given evidence name. 
+        If the required parameters are not provided, use the existing tools to retrieve them.
+        Once fetched, ask user to confirm to execute the action, then use 'execute_action' tool with appropriate parameters to execute the action.
+        Args: 
+        assessment_name: assessment name (required)
+        control_number: control number (required)
+        control_alias: control alias (required)  
+        evidence_name: evidence name (required)
+    """
+    try:
+        output=await utils.make_API_call_to_CCow({
+            "actionType":"action",
+            "assessmentName": assessment_name,
+            "controlNumber" : control_number,
+            "controlAlias": control_alias,
+            "evidenceName": evidence_name,
+            "isRulesReq":True,
+            "triggerType":"userAction"
+        },constants.URL_FETCH_AVAILABLE_ACTIONS)
+        logger.debug("output: {}\n".format(json.dumps(output)))
 
-#         if isinstance(output, str):
-#             return output
+        if isinstance(output, str):
+            return output
         
-#         actions = output["items"]
+        actions = output["items"]
 
-#         for item in actions:
-#             if "rules" in item:
-#                 del item["rules"] 
+        for item in actions:
+            if "rules" in item:
+                del item["rules"] 
         
-#         logger.debug("output: {}\n".format(json.dumps(actions)))
-#         return actions
-#     except Exception as e:
-#         logger.error("fetch_assessment_available_actions error: {}\n".format(e))
-#         return "Facing internal error"
+        logger.debug("output: {}\n".format(json.dumps(actions)))
+        return actions
+    except Exception as e:
+        logger.error("fetch_evidence_available_actions error: {}\n".format(e))
+        return "Facing internal error"
     
 @mcp.tool()
 async def fetch_evidence_available_actions(assessment_name: str = "", control_number: str="", control_alias: str ="", evidence_name: str ="") -> list | str:
