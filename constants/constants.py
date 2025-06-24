@@ -15,8 +15,6 @@ host=os.environ.get('CCOW_HOST',"https://dev.compliancecow.live")
 if not host.endswith("/api"):
     host += "/api"
 
-# host=(os.environ.get('CCOW_HOST',"https://dev.compliancecow.live")+"/api")
-
 
 # DASHBOARD
 URL_CCF_DASHBOARD_CONTROL_DETAILS= "/v2/aggregator/ccf-dashboard-control-details" 
