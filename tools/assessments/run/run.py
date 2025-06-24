@@ -321,12 +321,14 @@ async def generate_cypher_query_for_control(control_name: str =  "", unique_node
 
 
 @mcp.tool()
-async def fetch_evidence_records(id: str) -> dict | str:
+async def fetch_evidence_records(id: str, compliantStatus: str = "") -> dict | str:
     """
-    Get evidence records for a given evidence ID.
+    Get evidence records for a given evidence ID with optional compliance status filtering.
+    Returns max 100 records but counts all records for the summary.
 
     Args:
     id: Evidence ID
+    compliantStatus: Compliance status to filter "COMPLIANT", "NON_COMPLIANT", "NOT_DETERMINED" (optional).
     """
     try:
         output=await utils.make_API_call_to_CCow({
@@ -351,19 +353,54 @@ async def fetch_evidence_records(id: str) -> dict | str:
         obj_list = json.loads(decoded_string)
 
         evidenceRecords = []
-        for item in obj_list[:100]:
-            if "id" in item:
-                filtered_item = {
-                    "id": item.get("id"),
-                    "ResourceID": item.get("ResourceID"),
-                    "ResourceName": item.get("ResourceName"),
-                    "ResourceType": item.get("ResourceType"),
-                    "ComplianceStatus": item.get("ComplianceStatus")
-                }
-                evidenceRecords.append(filtered_item)
+        compliantCount = nonCompliantCount = notDeterminedCount = 0
 
-        logger.debug("Modified output: {}\n".format(json.dumps(evidenceRecords)))
-        return evidenceRecords        
+
+        for item in obj_list:
+            if "id" not in item:
+                continue
+
+            status = item.get("ComplianceStatus", "NOT_DETERMINED")
+            if status not in ["COMPLIANT", "NON_COMPLIANT", "NOT_DETERMINED"]:
+                status = "NOT_DETERMINED"
+
+            if status == "COMPLIANT":
+                compliantCount += 1
+            elif status == "NON_COMPLIANT":
+                nonCompliantCount += 1
+            else:
+                notDeterminedCount += 1
+        for item in obj_list:
+            if "id" not in item:
+                continue
+
+            status = item.get("ComplianceStatus", "NOT_DETERMINED")
+            if status not in ["COMPLIANT", "NON_COMPLIANT", "NOT_DETERMINED"]:
+                status = "NOT_DETERMINED"
+
+            if compliantStatus and status != compliantStatus:
+                continue
+
+            evidenceRecords.append({
+                "id": item.get("id"),
+                "ResourceID": item.get("ResourceID"),
+                "ResourceName": item.get("ResourceName"),
+                "ResourceType": item.get("ResourceType"),
+                "ComplianceStatus": status
+            })
+
+            if len(evidenceRecords) >= 100:
+                break
+        result = {
+            "totalRecords": len(obj_list),
+            "compliantRecords": compliantCount,
+            "nonCompliantRecords": nonCompliantCount,
+            "notDeterminedRecords": notDeterminedCount,
+            "records": evidenceRecords
+        }
+
+        logger.debug("Modified output: {}\n".format(json.dumps(result)))
+        return result
     
     except Exception as e:
         logger.error("fetch_evidence_records error: {}\n".format(e))
