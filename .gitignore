@@ -4,6 +4,7 @@ __pycache__
 
 #log
 app.log
+app.log.*
 
 # Distribution / packaging
 build
