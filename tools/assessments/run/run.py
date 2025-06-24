@@ -512,11 +512,12 @@ async def fetch_evidence_available_actions(assessment_name: str = "", control_nu
         if isinstance(output, str):
             return output
         
-        actions = output["items"]
-
-        for item in actions:
-            if "rules" in item:
-                del item["rules"] 
+        actions = []
+        for item in output.get("items", []):
+            if not item.get("actionBindingID"):
+                continue
+            item.pop("rules", None)
+            actions.append(item)
         
         logger.debug("output: {}\n".format(json.dumps(actions)))
         return actions
