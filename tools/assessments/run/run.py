@@ -321,12 +321,14 @@ async def generate_cypher_query_for_control(control_name: str =  "", unique_node
 
 
 @mcp.tool()
-async def fetch_evidence_records(id: str) -> dict | str:
+async def fetch_evidence_records(id: str, compliantStatus: str = "") -> dict | str:
     """
-    Get evidence records for a given evidence ID.
+    Get evidence records for a given evidence ID with optional compliance status filtering.
+    Returns max 50 records but counts all records for the summary.
 
     Args:
     id: Evidence ID
+    compliantStatus: Compliance status to filter "COMPLIANT", "NON_COMPLIANT", "NOT_DETERMINED" (optional).
     """
     try:
         output=await utils.make_API_call_to_CCow({
@@ -351,19 +353,50 @@ async def fetch_evidence_records(id: str) -> dict | str:
         obj_list = json.loads(decoded_string)
 
         evidenceRecords = []
-        for item in obj_list[:100]:
-            if "id" in item:
-                filtered_item = {
-                    "id": item.get("id"),
-                    "ResourceID": item.get("ResourceID"),
-                    "ResourceName": item.get("ResourceName"),
-                    "ResourceType": item.get("ResourceType"),
-                    "ComplianceStatus": item.get("ComplianceStatus")
-                }
-                evidenceRecords.append(filtered_item)
+        compliantCount = nonCompliantCount = notDeterminedCount = 0
 
-        logger.debug("Modified output: {}\n".format(json.dumps(evidenceRecords)))
-        return evidenceRecords        
+
+        for item in obj_list:
+            if "id" not in item:
+                continue
+
+            status = item.get("ComplianceStatus", "NOT_DETERMINED")
+            if status not in ["COMPLIANT", "NON_COMPLIANT", "NOT_DETERMINED"]:
+                status = "NOT_DETERMINED"
+
+            if status == "COMPLIANT":
+                compliantCount += 1
+            elif status == "NON_COMPLIANT":
+                nonCompliantCount += 1
+            else:
+                notDeterminedCount += 1
+        for item in obj_list:
+            if "id" not in item:
+                continue
+
+            status = item.get("ComplianceStatus", "NOT_DETERMINED")
+            if status not in ["COMPLIANT", "NON_COMPLIANT", "NOT_DETERMINED"]:
+                status = "NOT_DETERMINED"
+
+            if compliantStatus and status != compliantStatus:
+                continue
+
+            new_item = {k: v for k, v in item.items() if not k.endswith("__")}
+
+            evidenceRecords.append(new_item)
+
+            if len(evidenceRecords) >= 50:
+                break
+        result = {
+            "totalRecords": len(obj_list),
+            "compliantRecords": compliantCount,
+            "nonCompliantRecords": nonCompliantCount,
+            "notDeterminedRecords": notDeterminedCount,
+            "records": evidenceRecords
+        }
+
+        logger.debug("Modified output: {}\n".format(json.dumps(result)))
+        return result
     
     except Exception as e:
         logger.error("fetch_evidence_records error: {}\n".format(e))
@@ -406,11 +439,12 @@ async def fetch_available_control_actions(assessmentName: str, controlNumber: st
         if isinstance(output, str):
             return output
         
-        actions = output["items"]
-
-        for item in actions:
-            if "rules" in item:
-                del item["rules"] 
+        actions = []
+        for item in output.get("items", []):
+            if not item.get("actionBindingID"):
+                continue
+            item.pop("rules", None)
+            actions.append(item)
         
         logger.debug("output: {}\n".format(json.dumps(actions)))
         return actions
@@ -437,12 +471,13 @@ async def fetch_assessment_available_actions(name: str = "") -> list | str:
 
         if isinstance(output, str):
             return output
-        
-        actions = output["items"]
 
-        for item in actions:
-            if "rules" in item:
-                del item["rules"] 
+        actions = []
+        for item in output.get("items", []):
+            if not item.get("actionBindingID"):
+                continue
+            item.pop("rules", None)
+            actions.append(item)
         
         logger.debug("output: {}\n".format(json.dumps(actions)))
         return actions
@@ -477,11 +512,12 @@ async def fetch_evidence_available_actions(assessment_name: str = "", control_nu
         if isinstance(output, str):
             return output
         
-        actions = output["items"]
-
-        for item in actions:
-            if "rules" in item:
-                del item["rules"] 
+        actions = []
+        for item in output.get("items", []):
+            if not item.get("actionBindingID"):
+                continue
+            item.pop("rules", None)
+            actions.append(item)
         
         logger.debug("output: {}\n".format(json.dumps(actions)))
         return actions
