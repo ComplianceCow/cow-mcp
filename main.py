@@ -45,8 +45,10 @@ if __name__ == "__main__":
 
     try:
         portInInt = int(port)
+        print(f"Starting the server with SSE on port {portInInt}")
     except ValueError:
-        print(f"Environment variable 'CCOW_MCP_SERVER_PORT' is not a valid integer: {port}")
+        print("Starting the server with stdio.")
+        # print(f"Environment variable 'CCOW_MCP_SERVER_PORT' is not a valid integer: {port}")
     
     # Initialize and run the server
     
