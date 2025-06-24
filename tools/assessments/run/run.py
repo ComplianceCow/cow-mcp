@@ -270,7 +270,7 @@ async def fetch_assessment_run_leaf_control_evidence(id: str) -> list | str:
         controlEvidences = []
 
         for item in output["items"]:
-            if "id" in item and "name" in item:
+            if "id" in item and "name" in item and "status" in item and item.get("status") == "Completed" and item.get("evidenceFileInfos"):
                 filtered_item = {
                     "id": item.get("id"),
                     "name": item.get("name"),
@@ -321,20 +321,18 @@ async def generate_cypher_query_for_control(control_name: str =  "", unique_node
 
 
 @mcp.tool()
-async def fetch_evidence_records(id: str) -> list | str:
+async def fetch_evidence_records(id: str) -> dict | str:
     """
-        Get evidence record for given evidence id.
+    Get evidence records for a given evidence ID.
 
-        Args:
-        id: evidence id
+    Args:
+    id: Evidence ID
     """
     try:
         output=await utils.make_API_call_to_CCow({
             "evidenceID": id,
             "templateType": "evidence",
-            "status": [
-                "active"
-            ],
+            "status": ["active"],
             "returnFormat": "json",
             "isSrcFetchCall": True,
             "isUserPriority": True,
@@ -345,14 +343,12 @@ async def fetch_evidence_records(id: str) -> list | str:
 
         if isinstance(output, str):
             return output
-        
         decoded_bytes = base64.b64decode(output["fileBytes"])
         decoded_string = decoded_bytes.decode('utf-8')
         obj_list = json.loads(decoded_string)
 
         evidenceRecords = []
-
-        for item in obj_list:
+        for item in obj_list[:100]:
             if "id" in item:
                 filtered_item = {
                     "id": item.get("id"),
@@ -617,7 +613,12 @@ async def fetch_automated_controls_of_an_assessment(assessment_id: str = "") -> 
 @mcp.tool()
 async def execute_action(assessmentId: str, assessmentRunId: str, actionBindingId: str , assessmentRunControlId: str="", assessmentRunControlEvidenceId: str="", evidenceRecordIds: List[str]=[] ) -> dict | str:
     """
-        
+        Use this tool when the user asks about actions such as create, update or other action-related queries.
+
+        IMPORTANT: This tool MUST ONLY be executed after explicit user confirmation. 
+        Always describe the intended action and its effects to the user, then wait for their explicit approval before proceeding.
+        Do not execute this tool without clear user consent, as it performs actual operations that modify system state.
+
         Execute or trigger a specific action on an assessment run. use assessment id, assessment run id and action binding id.
         Execute or trigger a specific action on an control run. use assessment id, assessment run id, action binding id and assessment run control id .
         Execute or trigger a specific action on an evidence level. use assessment id, assessment run id, action binding id, assessment run control evidence id and evidence record ids.
@@ -626,6 +627,14 @@ async def execute_action(assessmentId: str, assessmentRunId: str, actionBindingI
         Use this to trigger action for assessment level or control level or evidence level.
         Please also provide the intended effect when executing actions.
 
+        WORKFLOW:
+        1. First fetch the available actions based on user preference assessment level or control level or evidence level
+        2. Present the available actions to the user
+        3. Ask user to confirm which specific action they want to execute
+        4. Explain what the action will do and its expected effects
+        5. Wait for explicit user confirmation before calling this tool
+        6. Only then execute the action with this tool
+        
         Args:
         assessmentId 
         assessmentRunId
