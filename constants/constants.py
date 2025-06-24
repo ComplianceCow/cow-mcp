@@ -11,7 +11,11 @@ if cid == "" or cs == "" :
 else :
     headers={"Authorization": "Basic "+base64.b64encode((cid+":"+cs).encode("ascii")).decode("ascii")}
 
-host=(os.environ.get('CCOW_HOST',"https://dev.compliancecow.live")+"/api")
+host=os.environ.get('CCOW_HOST',"https://dev.compliancecow.live")
+if not host.endswith("/api"):
+    host += "/api"
+
+# host=(os.environ.get('CCOW_HOST',"https://dev.compliancecow.live")+"/api")
 
 
 # DASHBOARD
