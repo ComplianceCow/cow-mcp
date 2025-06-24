@@ -343,6 +343,9 @@ async def fetch_evidence_records(id: str) -> dict | str:
 
         if isinstance(output, str):
             return output
+        
+        if(output.get("Message") == "CANNOT_FIND_THE_FILE"):
+            return "No data available to display"
         decoded_bytes = base64.b64decode(output["fileBytes"])
         decoded_string = decoded_bytes.decode('utf-8')
         obj_list = json.loads(decoded_string)
