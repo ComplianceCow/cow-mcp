@@ -25,7 +25,7 @@ async def get_graph_schema(question: str = "" ) -> Tuple[list, list, str]:
         nodeNames = 'assessment, control'
         
     try:
-        logger.info("\get_schema_form_control: \n")
+        logger.info("\nget_schema_form_control: \n")
         logger.debug("question: {}".format(question))
 
         output=await utils.make_API_call_to_CCow({"user_question":question},constants.URL_RETRIEVE_UNIQUE_NODE_DATA_AND_SCHEMA)
