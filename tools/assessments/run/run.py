@@ -324,7 +324,7 @@ async def generate_cypher_query_for_control(control_name: str =  "", unique_node
 async def fetch_evidence_records(id: str, compliantStatus: str = "") -> dict | str:
     """
     Get evidence records for a given evidence ID with optional compliance status filtering.
-    Returns max 100 records but counts all records for the summary.
+    Returns max 50 records but counts all records for the summary.
 
     Args:
     id: Evidence ID
@@ -381,15 +381,11 @@ async def fetch_evidence_records(id: str, compliantStatus: str = "") -> dict | s
             if compliantStatus and status != compliantStatus:
                 continue
 
-            evidenceRecords.append({
-                "id": item.get("id"),
-                "ResourceID": item.get("ResourceID"),
-                "ResourceName": item.get("ResourceName"),
-                "ResourceType": item.get("ResourceType"),
-                "ComplianceStatus": status
-            })
+            new_item = {k: v for k, v in item.items() if not k.endswith("__")}
 
-            if len(evidenceRecords) >= 100:
+            evidenceRecords.append(new_item)
+
+            if len(evidenceRecords) >= 50:
                 break
         result = {
             "totalRecords": len(obj_list),
