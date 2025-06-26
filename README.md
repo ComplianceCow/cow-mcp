@@ -71,13 +71,13 @@ The MCP tools and resources of ComplianceCow can be accessed through the <span>O
 1\. In your terminal/console, go to a folder of your choice and clone the git repo.
 
 > ```
-> <pre class="EnlighterJSRAW" data-enlighter-language="bash">git clone https://github.com/ComplianceCow/cow-mcp.git
+> git clone https://github.com/ComplianceCow/cow-mcp.git
 > ```
 
 2\. Switch to the repository’s main folder.
 
 > ```
-> <pre class="EnlighterJSRAW" data-enlighter-language="bash">cd cow-mcp
+> cd cow-mcp
 > ```
 
 This directory will be referred to as **PATH\_TO\_THE\_MCP\_SERVER\_REPO\_CLONE** in the subsequent sections.
@@ -85,15 +85,15 @@ This directory will be referred to as **PATH\_TO\_THE\_MCP\_SERVER\_REPO\_CLONE*
 3\. Run the following commands to install the dependencies. Only then, the MCP Host will be able to start the MCP server successfully.
 
 > ```
-> <pre class="EnlighterJSRAW" data-enlighter-language="bash">uv venv .venv
+> uv venv .venv
 > ```
 
 > ```
-> <pre class="EnlighterJSRAW" data-enlighter-language="bash">source .venv/bin/activate
+> source .venv/bin/activate
 > ```
 
 > ```
-> <pre class="EnlighterJSRAW" data-enlighter-language="bash">uv pip install .
+> uv pip install .
 > ```
 
 #### Server configuration
@@ -107,7 +107,7 @@ We use **uv** as the package manager. You can specify the **uv** command along w
 <span style="text-decoration: underline;">**args**</span>
 
 > ```
-> <pre class="EnlighterJSRAW" data-enlighter-language="bash">−−directory <PATH_TO_THE_MCP_SERVER_REPO_CLONE> run main.py
+> −−directory <PATH_TO_THE_MCP_SERVER_REPO_CLONE> run main.py
 > ```
 
 PATH\_TO\_THE\_MCP\_SERVER\_REPO\_CLONE: The folder/path in which you have cloned the ComplianceCow MCP Github repo (in a step above). Example: /Users/UserXYZ/Documents/code/cow-mcp
@@ -133,7 +133,24 @@ Update the following json in the Claude desktop config file ( &lt;*Claude deskto
 
 
 ```
-<pre class="EnlighterJSRAW" data-enlighter-language="json">{  "mcpServers": {    "ComplianceCow": {      "args": [        "--directory",        "PATH_TO_THE_MCP_SERVER_REPO_CLONE",        "run",        "main.py"      ],      "command": "UV_BIN_PATH",      "env": {        "CCOW_HOST": "YOUR_CCOW_HOST",        "CCOW_CLIENT_ID": "YOUR_CCOW_CLIENT_ID",        "CCOW_CLIENT_SECRET": "YOUR_CCOW_CLIENT_SECRET"      }    }  }}
+{
+  "mcpServers": {
+    "ComplianceCow": {
+      "args": [
+        "--directory",
+        "PATH_TO_THE_MCP_SERVER_REPO_CLONE",
+        "run",
+        "main.py"
+      ],
+      "command": "UV_BIN_PATH",
+      "env": {
+        "CCOW_HOST": "YOUR_CCOW_HOST",
+        "CCOW_CLIENT_ID": "YOUR_CCOW_CLIENT_ID",
+        "CCOW_CLIENT_SECRET": "YOUR_CCOW_CLIENT_SECRET"
+      }
+    }
+  }
+}
 ```
 
 <span style="text-decoration: underline;">**Goose Desktop**</span>
@@ -145,7 +162,7 @@ Follow the steps given in this [link](https://block.github.io/goose/docs/getting
 To verify that the MCP server is properly set up with all dependencies and can be started by the MCP host without issues, you can run the command to check if the server runs correctly in a local environment.
 
 > ```
-> <pre class="EnlighterJSRAW" data-enlighter-language="bash">uv run main.py
+> uv run main.py
 > ```
 
 
