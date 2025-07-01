@@ -240,7 +240,7 @@ async def fetch_resources(id: str, resourceType: str, page: int=1, pageSize: int
             - complianceStatus (str): Compliance status
             
         Returns:
-            - resource (List[ResourceVO]): A list of resources.
+            - resources (List[ResourceVO]): A list of resources.
                 - name (str): Name of the resource.
                 - resourceType (str): Type of the resource.
                 - complianceStatus (str): Compliance status of the resource.
@@ -320,7 +320,7 @@ async def fetch_resources_by_check_name(id: str,  checkName: str, page: int=1, p
             - checkName: Check name.
 
         Returns:
-            - resource (List[ResourceVO]): A list of resources.
+            - resources (List[ResourceVO]): A list of resources.
                 - name (str): Name of the resource.
                 - resourceType (str): Type of the resource.
                 - complianceStatus (str): Compliance status of the resource.

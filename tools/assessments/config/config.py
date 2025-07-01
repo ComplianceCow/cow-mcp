@@ -52,7 +52,7 @@ async def list_assessments(categoryId: str = "", categoryName: str = "") -> vo.A
         
         Returns:
             - assessments (List[Assessments]): A list of assessments objects, where each assessment includes:
-                - id (str): Unique identifier of the assessmen.
+                - id (str): Unique identifier of the assessment.
                 - name (str): Name of the assessment.
                 - category_name (str): Name of the category.
             - error (Optional[str]): An error message if any issues occurred during retrieval.

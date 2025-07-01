@@ -79,20 +79,17 @@ async def get_dashboard_data(period: str = "Q1 2024") -> vo.DashboardSummaryVO:
 @mcp.tool()
 async def fetch_dashboard_framework_controls(period: str, framework_name : str) -> vo.FrameworkControlListVO:
     """
-    ### Function Overview: Retrieve Control Details for a Given CCF and Review Period
+    Function Overview: Retrieve Control Details for a Given CCF and Review Period
 
     This function retrieves detailed control-level data for a specified **Common Control Framework (CCF)** during a specific **review period**. 
 
-    #### Parameters
-
-    - **`review_period`**:  
-    The compliance period (typically a quarter) for which the control-level data is requested.  
-    **Format**: `"Q1 2024"`
-
-    - **`framework_name`**:  
+    Args:
+    - review_period: The compliance period (typically a quarter) for which the control-level data is requested.  
+    Format: `"Q1 2024"`
+    - framework_name:  
     The name of the Common Control Framework to fetch data for.
 
-    #### Purpose
+    Purpose
 
     This function is used to fetch a list of controls and their associated data for a specific CCF and review period.  
     It does not return an aggregated overview — instead, it retrieves detailed, item-level data for each control via an API call.
@@ -156,21 +153,20 @@ async def fetch_dashboard_framework_controls(period: str, framework_name : str) 
 @mcp.tool()
 async def fetch_dashboard_framework_summary(period: str, framework_name : str) -> vo.FrameworkControlListVO:
     """
-    ### Function Overview: CCF Dashboard Summary Retrieval
+    Function Overview: CCF Dashboard Summary Retrieval
 
     This function returns a summary dashboard for a specified **compliance period** and **Common Control Framework (CCF)**.
     It is designed to provide a high-level view of control statuses within a given framework and period, making it useful for compliance tracking, reporting, and audits.
 
-    #### Parameters
-
-    - **`period`**:  
+    
+    Args:
+    - period:  
     The compliance quarter for which the dashboard data is requested.  
-    **Format**: `"Q1 2024"`
-
-    - **`framework_name`**:  
+    Format: `"Q1 2024"`
+    - framework_name:  
     The name of the Common Control Framework whose data is to be retrieved.
 
-    #### Dashboard Overview
+    Dashboard Overview
 
     The dashboard provides a consolidated view of all controls under the specified framework and period.
     It includes key information such as assignment status, compliance progress, due dates, and risk scoring to help stakeholders monitor and manage compliance posture.

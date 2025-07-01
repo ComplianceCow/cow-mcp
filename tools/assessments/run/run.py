@@ -391,7 +391,7 @@ async def fetch_controls(control_name:str = "") -> vo.ControlPromptVO:
     Args:
         control_name (str): name of the control.
     
-    Return:
+    Returns:
         - prompt (str): The input prompt used to generate the Cypher query for fetching the control.
     """
     try:
@@ -694,6 +694,16 @@ async def fetch_automated_controls_of_an_assessment(assessment_id: str = "") -> 
     
     Args:
         - assessment_id (str, required): Assessment id or plan id.
+
+    Returns:
+        - controls (List[AutomatedControlVO]): List of controls
+            - id (str): Control ID.
+            - displayable (str): Displayable name or label.
+            - alias (str): Alias of the control.
+            - activationStatus (str): Activation status.
+            - ruleName (str): Associated rule name.
+            - assessmentId (str): Assessment identifier.
+        - error (Optional[str]): An error message if any issues occurred during retrieval.
     """
     
     try:
