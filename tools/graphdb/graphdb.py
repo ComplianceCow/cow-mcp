@@ -7,57 +7,78 @@ from typing import Tuple
 
 from utils import utils
 from utils.debug import logger
-# from tools.mcpconfig import mcp
+from mcptypes.graph_tool_types import UniqueNodeDataVO , CypherQueryVO
 from mcpconfig.config import mcp
 from constants import constants
 
 
 @mcp.tool(name="fetch_unique_node_data_and_schema",description="Fetch unique node data and schema")
-# async def f1(question: str) -> Tuple[list, list, str]:
-async def fetch_unique_node_data_and_schema(question: str) -> Tuple[list, list, str]:
-    """Given a question get unique node data and schema.
-
-    Args:
-        question: user question
-    
-    Results:
-        node_names: graph node names
-        unique_property_values: unique value of each property of nodes
-        neo4j_schema: graph node schema details
+async def fetch_unique_node_data_and_schema(question: str) -> UniqueNodeDataVO:
 
     """
+    Fetch unique node data and corresponding schema for a given question.
+
+    Args:
+        question (str): The user's input question.
+
+    Returns:
+        - node_names (List[str]): List of unique node names involved.
+        - unique_property_values (list[any]): Unique property values per node.
+        - neo4j_schema (str): The Neo4j schema associated with the nodes.
+        - error (Optional[str]): Error message if any issues occurred during processing.
+    """
+
     try:
         logger.info("\nget_unique_node_data_and_schema: \n")
         logger.debug("question: {}".format(question))
 
         output=await utils.make_API_call_to_CCow({"user_question":question},constants.URL_RETRIEVE_UNIQUE_NODE_DATA_AND_SCHEMA)
         logger.debug("output: {}\n".format(output))
-
-        return output["node_names"],output["unique_property_values"], output["neo4j_schema"]
+        
+        if isinstance(output, str) or  "error" in output:
+            logger.error("fetch_unique_node_data_and_schema error: {}\n".format(output))
+            return UniqueNodeDataVO(error="Facing internal error")
+        
+        uniqueNodeDataVO = UniqueNodeDataVO(
+            node_names=output["node_names"],
+            unique_property_values=output["unique_property_values"],
+            neo4j_schema=output["neo4j_schema"]
+        )
+        return uniqueNodeDataVO
     except Exception as e:
+        logger.error(traceback.format_exc())
         logger.error("fetch_unique_node_data_and_schema error: {}\n".format(e))
-        return "Facing internal error"
+        return  UniqueNodeDataVO(error='Facing internal server error')
 
 
 
-@mcp.tool()
-# async def execute_cypher_query(question,query: str) -> str: 
-async def execute_cypher_query(query: str) -> dict | str: 
-    """Given a question and query, execute a cypher query and transform result to human readable format.
+@mcp.tool() 
+async def execute_cypher_query(query: str) -> CypherQueryVO: 
+    """
+    Given a question and query, execute a cypher query and transform result to human readable format.
+    
     Args:
-        query: query to execute in graph DB
+    query (str): The Cypher query to execute against the graph database.
+    
+    Returns:
+        - result (Any): The formatted, human-readable result of the Cypher query.
+        - error (Optional[str]): An error message if the query execution fails or encounters issues.
     """
     try:
-        logger.info("\nrun_cypher_query: \n")
+        logger.info("\nexecute_cypher_query: \n")
         logger.debug("query: {}".format(query))
 
         output=await utils.make_API_call_to_CCow({
             "query": query,
         },constants.URL_EXECUTE_CYPHER_QUERY)
         logger.debug("output: {}\n".format(output))
+        
+        if isinstance(output, str) or  "error" in output:
+            logger.error("\nexecute_cypher_query error: {}\n".format(output))
+            return CypherQueryVO(error="Facing internal error")
 
-        # return output["result_in_text"]
-        return output["result"]
+        return CypherQueryVO(result=output['result'])
     except Exception as e:
-        logger.error("execute_cypher_query error: {}\n".format(e))
-        return "Facing internal error"
+        logger.error(traceback.format_exc())
+        logger.error("\nexecute_cypher_query error: {}\n".format(e))
+        return CypherQueryVO(error="Facing internal error")

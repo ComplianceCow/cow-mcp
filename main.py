@@ -1,6 +1,7 @@
 import os
 import signal
 import sys
+import traceback
 
 from utils.debug import logger
 from utils.auth import CCowOAuthProvider
@@ -56,6 +57,7 @@ if __name__ == "__main__":
         try:
             mcp.run(transport='stdio')
         except KeyboardInterrupt:
+            logger.error(traceback.format_exc())
             print("\nExiting due to Ctrl+C")
             exit(0)
     else :
