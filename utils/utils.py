@@ -22,7 +22,11 @@ async def make_API_call_to_CCow(request_body: dict,uriSuffix: str) -> dict[str, 
             # response = await client.post("http://localhost:14600/v1/llm/"+uriSuffix,json=request_body, headers={"Authorization": "db4f39f2-45b1-445c-9b05-5cd4d5f04990"}, timeout=300.0)
             response = await client.post(host+uriSuffix,json=request_body, headers=requestHeader, timeout=60.0)
             if response.status_code < 200 or response.status_code > 299:
-                logger.error("make_API_call_to_CCow unexpected status code: error: {}\n".format(response.json()))
+                error = response.json()
+                logger.error("make_API_call_to_CCow unexpected status code: error: {}\n".format(error))
+                if (("Description" in error and "No recent run for ccf plans" in error["Description"])
+                    or ( "description" in error  and "No recent run for ccf plans" in error["description"])):
+                    return ErrorVO(error="NO_DATA_FOUND").model_dump()
                 return ErrorVO(error=f"Unexpected response status: {response.status_code}").model_dump()
             return response.json()
         except httpx.TimeoutException:

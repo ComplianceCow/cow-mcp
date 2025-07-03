@@ -68,6 +68,8 @@ async def get_dashboard_data(period: str = "Q1 2024") -> vo.DashboardSummaryVO:
         
         if isinstance(output, str) or  "error" in output:
             logger.error("get_dashboard_data error: {}\n".format(output))
+            if "NO_DATA_FOUND" in output["error"]:
+                return vo.DashboardSummaryVO(error=f"There is no data found for the review period: {period}")
             return vo.DashboardSummaryVO(error="Facing internal error")
 
         return vo.DashboardSummaryVO.model_validate(output)
