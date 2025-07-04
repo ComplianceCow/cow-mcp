@@ -13,6 +13,7 @@ from tools.assessments.run import  run
 from tools.graphdb import  graphdb
 from tools.dashboard import  dashboard
 from tools.assets import  assets
+from tools.help import help
 from resources.graphdb import graphdb
 from constants.constants import host
 from mcp.server.auth.settings import AuthSettings

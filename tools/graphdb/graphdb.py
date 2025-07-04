@@ -56,13 +56,38 @@ async def fetch_unique_node_data_and_schema(question: str) -> UniqueNodeDataVO:
 async def execute_cypher_query(query: str) -> CypherQueryVO: 
     """
     Given a question and query, execute a cypher query and transform result to human readable format.
+        
+    This tool queries a Neo4j graph database containing compliance controls, frameworks, and evidence.
     
+    Key database structure:
+        - Controls have hierarchical relationships via HAS_CHILD edges
+        - Evidence nodes are attached to leaf controls (controls with no children)
+        - Use recursive patterns [HAS_CHILD*] for traversing control hierarchies
+        - Controls may have multiple levels of nesting
+        - Evidence contains records
+        
+    Query guidelines:
+        - For control hierarchies: Use MATCH (parent)-[HAS_CHILD*]->(child) patterns
+        - For evidence: Evidence is only available on leaf controls (Always check last child of control for evidence) (no outgoing HAS_CHILD relationships)
+        - For control depth: Calculate hierarchy depth when analyzing control structures
+        - Use APOC procedures for complex graph operations when available
+        - While list assessment run always include assessment name
+        - For large datasets from query: Provide overview summary & suggest refinement suggestion   
+        
+
     Args:
     query (str): The Cypher query to execute against the graph database.
     
     Returns:
         - result (Any): The formatted, human-readable result of the Cypher query.
         - error (Optional[str]): An error message if the query execution fails or encounters issues.
+
+    Example queries:
+        - Find all root controls: MATCH (c:Control) WHERE NOT ()-[:HAS_CHILD]->(c) RETURN c
+        - Get control hierarchy: MATCH (root)-[:HAS_CHILD*]->(leaf) RETURN root, leaf
+        - Find evidence for controls (leaf control): MATCH (c:Control)-[:HAS_EVIDENCE]->(e:Evidence) RETURN c, e
+        - Find leaf control: MATCH (c:Control) WHERE NOT (c)-[:HAS_CHILD]->(:Control) RETURN c
+        - Find records: MATCH (e:Evidence)-[:HAS_RECORD]-(:Record) RETURN e
     """
     try:
         logger.info("\nexecute_cypher_query: \n")

@@ -43,6 +43,7 @@ URL_ACTIONS_EXECUTIONS = "/v1/actions/executions"
 #GRAPHDB
 URL_RETRIEVE_UNIQUE_NODE_DATA_AND_SCHEMA = "/v1/llm/retrieve_unique_node_data_and_schema"
 URL_EXECUTE_CYPHER_QUERY = "/v1/llm/execute_cypher_query"
+URL_RETRIEVE_GRAPH_SCHEMA_RELATIONSHIP = "/v1/llm/retrieve_schema_and_relationship"
 
 
 # ASSETS

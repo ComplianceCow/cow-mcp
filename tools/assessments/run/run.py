@@ -34,6 +34,8 @@ async def fetch_recent_assessment_runs(id: str) -> vo.AssessmentRunListVO:
                 - computedScore (str): Computed score.
                 - computedWeight (str): Computed weight.
                 - complianceStatus (str): Compliance status.
+                - compliancePCT (str): Compliance percentage.
+                - complianceWeight (str): Compliance weight.
                 - createdAt (str): Time and date when the assessement run was created. 
             - error (Optional[str]): An error message if any issues occurred during retrieval.
     """
@@ -64,6 +66,8 @@ async def fetch_recent_assessment_runs(id: str) -> vo.AssessmentRunListVO:
                     computedScore =  item.get("computedScore"),
                     computedWeight = item.get("computedWeight"),
                     complianceStatus = item.get("complianceStatus"),
+                    compliancePCT = item.get("compliancePCT__"),
+                    complianceWeight = item.get("complianceWeight__"),
                     createdAt = item.get("createdAt"),
                 )
                 recentAssessmentRuns.append(filtered_item)
@@ -101,6 +105,8 @@ async def fetch_assessment_runs(id: str, page: int=1, pageSize: int=0) -> vo.Ass
                 - computedScore (str): Computed score.
                 - computedWeight (str): Computed weight.
                 - complianceStatus (str): Compliance status.
+                - compliancePCT (str): Compliance percentage.
+                - complianceWeight (str): Compliance weight.
                 - createdAt (str): Time and date when the assessement run was created. 
             - error (Optional[str]): An error message if any issues occurred during retrieval.
     """
@@ -143,6 +149,8 @@ async def fetch_assessment_runs(id: str, page: int=1, pageSize: int=0) -> vo.Ass
                     computedScore =  item.get("computedScore"),
                     computedWeight = item.get("computedWeight"),
                     complianceStatus = item.get("complianceStatus"),
+                    compliancePCT = item.get("compliancePCT__"),
+                    complianceWeight = item.get("complianceWeight__"),
                     createdAt = item.get("createdAt"),
                 )
                 assessmentRuns.append(filtered_item)
@@ -532,7 +540,53 @@ async def fetch_evidence_records(id: str, compliantStatus: str = "") -> vo.Recor
         logger.error("fetch_evidence_records error: {}\n".format(e))
         return vo.RecordListVO(error="Facing internal error")
     
+@mcp.tool()
+async def fetch_evidence_record_schema(id: str) -> vo.RecordSchemaListVO:
+    """
+    Get evidence record schema for a given evidence ID.
+    Returns the schema of evidence record.
+
+    Args:
+        - id (str): Evidence ID
     
+    Returns:
+        - records (List[RecordListVO]): List of evidence record schema.
+        - error (Optional[str]): An error message if any issues occurred during retrieval.
+    """
+    try:
+        output=await utils.make_API_call_to_CCow({
+            "evidenceID": id,
+            "templateType": "evidence",
+            "status": ["active"],
+            "returnFormat": "json",
+            "isSrcFetchCall": True,
+            "isUserPriority": True,
+            "considerFileSizeRestriction": True,
+            "viewEvidenceFlow": True
+        },constants.URL_DATAHANDLER_FETCH_DATA)
+        logger.debug("output: {}\n".format(json.dumps(output)))
+
+        if isinstance(output, str) or  "error" in output:
+            logger.error("fetch_evidence_record_schema error: {}\n".format(output))
+            return vo.RecordSchemaListVO(error="Facing internal error")
+        
+        if(output.get("Message") == "CANNOT_FIND_THE_FILE"):
+            return vo.RecordSchemaListVO(error="No data available to display")
+        
+        evidence_record_schema: List[vo.RecordSchemaVO]= []
+
+        for item in output["config"]["srcConfig"]:
+            if "name" in item and "type" in item:
+                evidence_record_schema.append(vo.RecordSchemaVO.model_validate(item))
+
+        RecordSchemaListVO = vo.RecordSchemaListVO(schema=evidence_record_schema)
+        logger.debug("Modified output: {}\n".format(RecordSchemaListVO.model_dump()))
+        return RecordSchemaListVO.model_dump()
+    
+    except Exception as e:
+        logger.error("fetch_evidence_record_schema error: {}\n".format(e))
+        return vo.RecordSchemaListVO(error="Facing internal error")       
+
 @mcp.tool()
 async def fetch_available_control_actions(assessmentName: str, controlNumber: str = "", controlAlias: str = "", evidenceName: str = "") -> vo.RecordListVO:
     """

@@ -61,7 +61,17 @@ class RecordListVO(BaseModel):
     notDeterminedRecords:  Optional[int] = ""
     records:  Optional[List[Any]] = None
 
+class RecordSchemaVO(BaseModel):
+    name: Optional[str] = ""
+    type: Optional[str] = ""
+    model_config = {
+        "extra": "ignore"
+    }
+    
 
+class RecordSchemaListVO(BaseModel):
+    schema: Optional[List[RecordSchemaVO]] = None
+    error: Optional[str] = ""
 
 @dataclass
 class ControlPromptVO:
