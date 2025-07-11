@@ -28,6 +28,7 @@ class ActionsVO(BaseModel):
     actionSpecID: Optional[str] = ""
     actionBindingID: Optional[str] = ""
     target: Optional[str] = ""
+    ruleInputs: Optional[dict[str, Any]] = None
     
     model_config = {
         "extra": "ignore"
@@ -140,6 +141,8 @@ class AssessmentRunVO:
     computedScore: Optional[str] = ""
     computedWeight: Optional[str] = ""
     complianceStatus: Optional[str] = ""
+    compliancePCT: Optional[float] = ""
+    complianceWeight: Optional[float] = ""
     createdAt: Optional[str] = ""
 
 

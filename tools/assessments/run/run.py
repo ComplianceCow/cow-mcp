@@ -689,7 +689,7 @@ async def fetch_assessment_available_actions(name: str = "") -> vo.RecordListVO:
         logger.error("fetch_assessment_available_actions error: {}\n".format(e))
         return vo.ActionsListVO(error="Facing internal error")
     
-    
+
 @mcp.tool()
 async def fetch_evidence_available_actions(assessment_name: str = "", control_number: str="", control_alias: str ="", evidence_name: str ="") -> vo.ActionsListVO:
     """
@@ -739,7 +739,61 @@ async def fetch_evidence_available_actions(assessment_name: str = "", control_nu
     except Exception as e:
         logger.error("fetch_evidence_available_actions error: {}\n".format(e))
         return vo.ActionsListVO(error="Facing internal error")
-    
+
+@mcp.tool()
+async def fetch_general_available_actions(type: str = "") -> vo.ActionsListVO:
+    """
+        Get general actions available on assessment, control & evidence. 
+        Once fetched, ask user to confirm to execute the action, then use 'execute_action' tool with appropriate parameters to execute the action.
+        For inputs use default value as sample, based on that generate the inputs for the action.
+        Args: 
+            - type (str): Type of the action, can be "assessment", "control" or "evidence".
+
+        Returns:
+            - actions (List[ActionsVO]): List of actions
+                - actionName (str):  Action name.
+                - actionDescription (str): Action description.
+                - actionSpecID (str): Action specific id.
+                - actionBindingID (str): Action binding id.
+                - target (str):  Target.
+                - ruleInputs: Optional[dict[str, Any]]: Rule inputs for the action, if applicable.
+            - error (Optional[str]): An error message if any issues occurred during retrieval.
+    """
+    try:
+        output=await utils.make_API_call_to_CCow({
+            "actionType":"action",
+            "targetType" : type,
+            "isRulesReq":True,
+            "triggerType":"userAction"
+        },constants.URL_FETCH_AVAILABLE_ACTIONS)
+        logger.debug("output: {}\n".format(json.dumps(output)))
+
+        if isinstance(output, str) or  "error" in output:
+            logger.error("fetch_evidence_available_actions error: {}\n".format(output))
+            return vo.ActionsListVO(error="Facing internal error")
+                
+        actions: List[vo.ActionsVO] = []
+        for item in output.get("items", []):
+            if not item.get("actionBindingID"):
+                continue
+            rules = item.get("rules", [])
+            if rules and isinstance(rules, list):
+                rule_inputs = rules[0].get("ruleInputs", {})
+                filtered_inputs = {
+                    key: value for key, value in rule_inputs.items()
+                    if not key.endswith("__")
+                }
+                item["ruleInputs"] = filtered_inputs
+
+            item.pop("rules", None)
+            actions.append(vo.ActionsVO.model_validate(item))
+        
+        logger.debug("output: {}\n".format(vo.ActionsListVO(actions=actions).model_dump()))
+        return vo.ActionsListVO(actions=actions)
+    except Exception as e:
+        logger.error("fetch_evidence_available_actions error: {}\n".format(e))
+        return vo.ActionsListVO(error="Facing internal error")
+     
 @mcp.tool()
 async def fetch_automated_controls_of_an_assessment(assessment_id: str = "") -> vo.AutomatedControlListVO:
     
@@ -796,7 +850,7 @@ async def fetch_automated_controls_of_an_assessment(assessment_id: str = "") -> 
 
 
 @mcp.tool()
-async def execute_action(assessmentId: str, assessmentRunId: str, actionBindingId: str , assessmentRunControlId: str="", assessmentRunControlEvidenceId: str="", evidenceRecordIds: List[str]=[] ) -> vo.TriggerActionVO:
+async def execute_action(assessmentId: str, assessmentRunId: str, actionBindingId: str , assessmentRunControlId: str="", assessmentRunControlEvidenceId: str="", evidenceRecordIds: List[str]=[], inputs: dict[str, any] = None) -> vo.TriggerActionVO:
     """
         Use this tool when the user asks about actions such as create, update or other action-related queries.
 
@@ -811,6 +865,8 @@ async def execute_action(assessmentId: str, assessmentRunId: str, actionBindingI
         Only once action can be triggered at a time, assessment level or control level or evidence level based on user preference.
         Use this to trigger action for assessment level or control level or evidence level.
         Please also provide the intended effect when executing actions.
+        For inputs use default value as sample, based on that generate the inputs for the action. Format key - inputName value - inputValue.
+        If inputs are provided, Always ensure to show all inputs to the user before executing the action, and also user to make changes to the inputs and also confirm modified inputs before executing the action.
 
         WORKFLOW:
         1. First fetch the available actions based on user preference assessment level or control level or evidence level
@@ -827,20 +883,35 @@ async def execute_action(assessmentId: str, assessmentRunId: str, actionBindingI
             - assessmentRunControlId - needed for control level action
             - assessmentRunControlEvidenceId - needed for evidence level action
             - evidenceRecordIds - needed for evidence level action
+            - inputs (Optional[dict[str, any]]): Additional inputs for the action, if required by the action's rules.
         
         Returns:
             - id (str): id of triggered action.
     """
     try:
-        output=await utils.make_API_call_to_CCow({
+        input_dict = {}
+        if inputs:
+            input_dict = {
+                key: {
+                    "name": key,
+                    "value": value
+                }
+                for key, value in inputs.items()
+            }
+        
+        req_body = {
             "actionBindingID": actionBindingId,
             "planInstanceID":assessmentRunId,
             "planID": assessmentId,
             "planInstanceControlID": assessmentRunControlId,
             "planInstanceControlEvidenceID": assessmentRunControlEvidenceId,
             "recordIDs": evidenceRecordIds,
-            "rules":[]
-        },constants.URL_ACTIONS_EXECUTIONS)
+            "actionInputs": input_dict
+        }
+
+        logger.debug("execute_action request body: {}\n".format(json.dumps(req_body)))
+
+        output=await utils.make_API_call_to_CCow(req_body,constants.URL_ACTIONS_EXECUTIONS)
         logger.debug("output: {}\n".format(json.dumps(output)))
 
         if isinstance(output, str) or  "error" in output:

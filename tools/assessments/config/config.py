@@ -43,13 +43,13 @@ async def list_all_assessment_categories() -> vo.CategoryListVO:
         return vo.CategoryListVO(error="Facing internal error")
 
 @mcp.tool()
-async def list_assessments(categoryId: str = "", categoryName: str = "") -> vo.AssessmentListVO:
+async def list_assessments(categoryId: str = "", categoryName: str = "", assessmentName: str = "") -> vo.AssessmentListVO:
     """
         Get all assessments
         Args:
         categoryId: assessment category id (Optional)
         categoryName: assessment category name (Optional)
-        
+        assessmentName: assessment name (Optional)
         Returns:
             - assessments (List[Assessments]): A list of assessments objects, where each assessment includes:
                 - id (str): Unique identifier of the assessment.
@@ -62,7 +62,7 @@ async def list_assessments(categoryId: str = "", categoryName: str = "") -> vo.A
 
         logger.debug("payload: {} {}\n".format(categoryId, categoryName))
 
-        output=await utils.make_GET_API_call_to_CCow(constants.URL_PLANS+"?fields=basic&category_id="+categoryId+"&category_name_contains="+categoryName)
+        output=await utils.make_GET_API_call_to_CCow(constants.URL_PLANS+"?fields=basic&category_id="+categoryId+"&category_name_contains="+categoryName+"&name_contains="+assessmentName)
         if isinstance(output, str) or  "error" in output:
             logger.error("list_assessments error: {}\n".format(output))
             return vo.AssessmentListVO(error="Facing internal error")
