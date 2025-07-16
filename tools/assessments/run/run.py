@@ -637,6 +637,15 @@ async def fetch_available_control_actions(assessmentName: str, controlNumber: st
         for item in output.get("items", []):
             if not item.get("actionBindingID"):
                 continue
+            rules = item.get("rules", [])
+            if rules and isinstance(rules, list):
+                rule_inputs = rules[0].get("ruleInputs", {})
+                filtered_inputs = {
+                    key: value for key, value in rule_inputs.items()
+                    if not key.endswith("__")
+                }
+                item["ruleInputs"] = filtered_inputs
+
             item.pop("rules", None)
             actions.append(vo.ActionsVO.model_validate(item))
         
@@ -680,6 +689,15 @@ async def fetch_assessment_available_actions(name: str = "") -> vo.RecordListVO:
         for item in output.get("items", []):
             if not item.get("actionBindingID"):
                 continue
+            rules = item.get("rules", [])
+            if rules and isinstance(rules, list):
+                rule_inputs = rules[0].get("ruleInputs", {})
+                filtered_inputs = {
+                    key: value for key, value in rule_inputs.items()
+                    if not key.endswith("__")
+                }
+                item["ruleInputs"] = filtered_inputs
+
             item.pop("rules", None)
             actions.append(vo.ActionsVO.model_validate(item))
         
@@ -731,6 +749,15 @@ async def fetch_evidence_available_actions(assessment_name: str = "", control_nu
         for item in output.get("items", []):
             if not item.get("actionBindingID"):
                 continue
+            rules = item.get("rules", [])
+            if rules and isinstance(rules, list):
+                rule_inputs = rules[0].get("ruleInputs", {})
+                filtered_inputs = {
+                    key: value for key, value in rule_inputs.items()
+                    if not key.endswith("__")
+                }
+                item["ruleInputs"] = filtered_inputs
+
             item.pop("rules", None)
             actions.append(vo.ActionsVO.model_validate(item))
         
@@ -855,6 +882,8 @@ async def execute_action(assessmentId: str, assessmentRunId: str, actionBindingI
         Use this tool when the user asks about actions such as create, update or other action-related queries.
 
         IMPORTANT: This tool MUST ONLY be executed after explicit user confirmation. 
+        Always prompt for REQUIRED-FROM-USER field from user and get inputs from user.
+        Always confirm the inputs below execute action.
         Always describe the intended action and its effects to the user, then wait for their explicit approval before proceeding.
         Do not execute this tool without clear user consent, as it performs actual operations that modify system state.
 

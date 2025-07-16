@@ -17,6 +17,12 @@ class ControlAssignmentStatusVO(BaseModel):
     categoryName: Optional[str] = ""
     controlStatus: Optional[List[ComplianceStatusSummaryVO]] = None
     
+class FrameworkSummaryVO(BaseModel):
+    name: Optional[str] = ""
+    compliancePCT: Optional[float] = 0.0
+    leafControls: Optional[int] = 0
+    complianceStatusSummary: Optional[List[ComplianceStatusSummaryVO]] = None
+
 class DashboardSummaryVO(BaseModel): 
     totalControls: Optional[int] = 0
     controlStatus: Optional[List[ComplianceStatusSummaryVO]] = None
@@ -24,6 +30,7 @@ class DashboardSummaryVO(BaseModel):
     compliancePCT: Optional[float] = 0.0
     controlSummary: Optional[List[ControlSummaryVO]] = None
     complianceStatusSummary: Optional[List[ComplianceStatusSummaryVO]] = None
+    frameworks: Optional[List[FrameworkSummaryVO]] = None
     error: Optional[str] = ""
 
 class UserVO(BaseModel):
