@@ -18,6 +18,7 @@ from tools.workflow import workflow
 from resources.graphdb import graphdb
 from constants.constants import host
 from mcp.server.auth.settings import AuthSettings
+from prompts.workflow import workflow
 
 
 def signal_handler(sig, frame):

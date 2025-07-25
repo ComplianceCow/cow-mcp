@@ -232,7 +232,7 @@ def ccow_workflow_knowelege() -> str:
             value: Form assigned with ID {{Activity.Assign Form.formAssignmentID}}.
 
             7) User Actions:
-            use below user action example as reference and use this know for create further workflow
+            use below user action example as reference and use this knowledge for create further workflow
             → Example of User action for Get File:
             ----------------------------------------------------
             (event - transition):
@@ -353,7 +353,83 @@ def ccow_workflow_knowelege() -> str:
                         Slack notification that prompts specified users to choose an action
                         from a list of available options.
 
-                        
+            8) Condition Mapping
+            use below condition example as reference and use this knowledge for create further workflow
+
+            Example:
+            ----------------------------------------------------
+            conditions:
+                Condition 1:
+                groupName: Ungrouped
+                action:
+                    type: Expression
+                    expr: '{{Event.Event 4.formName}} == "testform"'
+            transitions:
+                - from: Activity 1
+                    to: Condition 1
+                    label: ''
+                    type: PassThrough
+                - from: Condition 1
+                    to: Activity 2
+                    label: 'Yes'
+                    type: Outcome
+                    outcomeValue: 'Yes'
+                - from: Condition 1
+                    to: Activity 3
+                    label: 'No'
+                    type: Outcome
+                    outcomeValue: 'No'
+                    (Actitivy)
+            ----------
+            9) Rules
+            use below rule example as reference and use this knowledge for create further workflow
+            → Example of get assessment run details:
+            ----------------------------------------------------
+            Activity 1:
+                groupName: Ungrouped
+                action:
+                  type: Rule
+                  reference:
+                    id: {{id}}
+                    displayable: FetchAssessmentRunDetails
+                    name: FetchAssessmentRunDetails
+                    desc: FetchAssessmentRunDetails
+                    appScopeName: ComplianceCowAppScope
+                    inputs:
+                    - name: AssessmentRunID
+                        type: Text
+                        desc: >-
+                        This is the unique identifier for the assessment run whose
+                        details are to be fetched.
+                        optional: false
+                        mapValueFrom:
+                        outputField: runId
+                        source:
+                            label: Assessment Run Completed
+                            id: {{id}}
+                            displayable: When an assessment run is completed
+                            categoryId: '3'
+                            type: RESOURCE_BASED_EVENT
+                            specInput:
+                              expr: >-
+                                assessmentName ==
+                                "{{assessment_name}}"
+                        type: Event
+                    outputs:
+                    - name: AssessmentDetails
+                        type: File
+                        desc: >-
+                        This output contains detailed metadata regarding the overall
+                        assessment for the provided AssessmentRunID.
+                    - name: AssessmentRunDetails
+                        type: File
+                        desc: >-
+                        This output contains detailed metadata regarding the assessment
+                        run for the provided AssessmentRunID.
+                    - name: Error
+                        type: Text
+                        desc: Error that have occurred while executing rule.
+                                
             INPUT GUIDENCE :
             ------------------------
                 - For type textarray use string seprated by comma's 
