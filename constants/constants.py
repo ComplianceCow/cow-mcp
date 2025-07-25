@@ -54,3 +54,14 @@ URL_FETCH_ASSETS_DETAIL_SUMMARY = "/v1/plan-instances/fetch-integration-detail-s
 URL_FETCH_ASSETS_SUMMARY = "/v1/plan-instances/integration-summary"
 URL_FETCH_CHECKS = "/v1/plan-instances/fetch-checks"
 
+
+# WORKFLOW
+
+URL_WORKFLOW_EVENT_CATEGORIES = "/v1/workflow-catalog/event-categories"
+URL_WORKFLOW_EVENTS = "/v1/workflow-catalog/events"
+URL_WORKFLOW_ACTIVITY_CATEGORIES = "/v1/workflow-catalog/activity-categories"
+URL_WORKFLOW_ACTIVITIES = "/v1/workflow-catalog/activities"
+URL_WORKFLOW_CONDITION_CATEGORIES = "/v1/workflow-catalog/condition-categories"
+URL_WORKFLOW_CONDITIONS = "/v1/workflow-catalog/conditions"
+URL_WORKFLOW_PREBUILD_TASKS = "/v1/workflow-catalog/tasks"
+URL_WORKFLOW_PREBUILD_RULES= "/v1/rules?name_contains=fet"

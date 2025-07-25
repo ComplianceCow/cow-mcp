@@ -65,6 +65,8 @@ async def execute_cypher_query(query: str) -> CypherQueryVO:
         - Use recursive patterns [HAS_CHILD*] for traversing control hierarchies
         - Controls may have multiple levels of nesting
         - Evidence contains records
+        - RiskItem nodes are attached to control-config via HAS_RISK & HAS_MAPPED_CONTROL edges 
+        - RiskItemAttribute nodes are attached to RiskItem via HAS_ATTRIBUTE edges
         
     Query guidelines:
         - For control hierarchies: Use MATCH (parent)-[HAS_CHILD*]->(child) patterns
@@ -102,7 +104,7 @@ async def execute_cypher_query(query: str) -> CypherQueryVO:
             logger.error("\nexecute_cypher_query error: {}\n".format(output))
             return CypherQueryVO(error="Facing internal error")
 
-        return CypherQueryVO(result=output['result'])
+        return CypherQueryVO(result=output.get('result'))
     except Exception as e:
         logger.error(traceback.format_exc())
         logger.error("\nexecute_cypher_query error: {}\n".format(e))
