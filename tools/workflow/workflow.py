@@ -4,6 +4,7 @@ import base64
 import asyncio
 from typing import List
 from typing import Tuple
+import base64
 
 
 from utils import utils
@@ -40,14 +41,13 @@ async def list_workflow_event_categories() -> vo.WorkflowEventCategoryListVO:
             if "type" in item and "displayable" in item:
                 eventCategories.append(vo.WorkflowEventCategoryItemVO.model_validate(item))
         
-        logger.debug("modified event categories: {}\n".format(vo.WorkflowEventCategoryListVO(eventCategories=eventCategories).model_dump))
+        logger.debug("modified event categories: {}\n".format(vo.WorkflowEventCategoryListVO(eventCategories=eventCategories).model_dump()))
 
         return vo.WorkflowEventCategoryListVO(eventCategories=eventCategories)
     except Exception as e:
         logger.error(traceback.format_exc())
         logger.error("workflow event categories: {}\n".format(e))
         return vo.WorkflowEventCategoryListVO(error="Facing internal error")
-
 
 @mcp.tool()
 async def list_workflow_events() -> vo.WorkflowEventListVO:
@@ -79,7 +79,7 @@ async def list_workflow_events() -> vo.WorkflowEventListVO:
             if "type" in item and "displayable" in item and item.get("status") == "Active":
                 events.append(vo.WorkflowEventVO.model_validate(item))
         
-        logger.debug("modified events: {}\n".format(vo.WorkflowEventListVO(events=events).model_dump))
+        logger.debug("modified events: {}\n".format(vo.WorkflowEventListVO(events=events).model_dump()))
 
         return vo.WorkflowEventListVO(events=events)
     except Exception as e:
@@ -100,7 +100,7 @@ async def list_workflow_activity_types() -> List[str]:
         return vo.WorkflowActivityCategoryListVO(error="Facing internal error")
 
 @mcp.tool()
-async def list_workflow_prebuild_function_categories() -> vo.WorkflowActivityCategoryListVO:
+async def list_workflow_function_categories() -> vo.WorkflowActivityCategoryListVO:
     """
         List workflow activity prebuild function categories
 
@@ -125,7 +125,7 @@ async def list_workflow_prebuild_function_categories() -> vo.WorkflowActivityCat
             if "displayable" in item:
                 activityCategories.append(vo.WorkflowActivityCategoryItemVO.model_validate(item))
         
-        logger.debug("modified activity categories: {}\n".format(vo.WorkflowActivityCategoryListVO(activityCategories=activityCategories).model_dump))
+        logger.debug("modified activity categories: {}\n".format(vo.WorkflowActivityCategoryListVO(activityCategories=activityCategories).model_dump()))
 
         return vo.WorkflowActivityCategoryListVO(activityCategories=activityCategories)
     except Exception as e:
@@ -134,7 +134,7 @@ async def list_workflow_prebuild_function_categories() -> vo.WorkflowActivityCat
         return vo.WorkflowActivityCategoryListVO(error="Facing internal error")
 
 @mcp.tool()
-async def list_workflow_prebuild_functions() -> vo.WorkflowActivityListVO:
+async def list_workflow_functions() -> vo.WorkflowActivityListVO:
     """
         List workflow activity prebuild functions
 
@@ -164,7 +164,7 @@ async def list_workflow_prebuild_functions() -> vo.WorkflowActivityListVO:
             if "displayable" in item and item.get("status") == "Active":
                 activities.append(vo.WorkflowActivityVO.model_validate(item))
         
-        logger.debug("modified activities: {}\n".format(vo.WorkflowActivityListVO(activities=activities).model_dump))
+        logger.debug("modified activities: {}\n".format(vo.WorkflowActivityListVO(activities=activities).model_dump()))
 
         return vo.WorkflowActivityListVO(activities=activities)
     except Exception as e:
@@ -173,7 +173,7 @@ async def list_workflow_prebuild_functions() -> vo.WorkflowActivityListVO:
         return vo.WorkflowActivityListVO(error="Facing internal error")
 
 @mcp.tool()
-async def list_workflow_prebuild_rules() -> vo.WorkflowRuleListVO:
+async def list_workflow_rules() -> vo.WorkflowRuleListVO:
     """
         List workflow activity prebuild rules
 
@@ -217,7 +217,7 @@ async def list_workflow_prebuild_rules() -> vo.WorkflowRuleListVO:
             if "name" in item:
                 rules.append(vo.WorkflowRuleVO.model_validate(item))
         
-        logger.debug("modified rules: {}\n".format(vo.WorkflowRuleListVO(rules=rules).model_dump))
+        logger.debug("modified rules: {}\n".format(vo.WorkflowRuleListVO(rules=rules).model_dump()))
 
         return vo.WorkflowRuleListVO(rules=rules)
     except Exception as e:
@@ -226,7 +226,7 @@ async def list_workflow_prebuild_rules() -> vo.WorkflowRuleListVO:
         return vo.WorkflowRuleListVO(error="Facing internal error")
 
 @mcp.tool()
-async def list_workflow_prebuild_tasks() -> vo.WorkflowTaskListVO:
+async def list_workflow_tasks() -> vo.WorkflowTaskListVO:
     """
         List workflow activity prebuild tasks
 
@@ -254,14 +254,13 @@ async def list_workflow_prebuild_tasks() -> vo.WorkflowTaskListVO:
             if "name" in item:
                 tasks.append(vo.WorkflowTaskVO.model_validate(item))
         
-        logger.debug("modified tasks: {}\n".format(vo.WorkflowTaskListVO(tasks=tasks).model_dump))
+        logger.debug("modified tasks: {}\n".format(vo.WorkflowTaskListVO(tasks=tasks).model_dump()))
 
         return vo.WorkflowTaskListVO(tasks=tasks)
     except Exception as e:
         logger.error(traceback.format_exc())
         logger.error("prebuild tasks error: {}\n".format(e))
         return vo.WorkflowTaskListVO(error="Facing internal error")
-
 
 @mcp.tool()
 async def list_workflow_condition_categories() -> vo.WorkflowConditionCategoryListVO:
@@ -289,7 +288,7 @@ async def list_workflow_condition_categories() -> vo.WorkflowConditionCategoryLi
             if "displayable" in item:
                 conditionCategories.append(vo.WorkflowConditionCategoryItemVO.model_validate(item))
         
-        logger.debug("modified condition categories: {}\n".format(vo.WorkflowConditionCategoryListVO(conditionCategories=conditionCategories).model_dump))
+        logger.debug("modified condition categories: {}\n".format(vo.WorkflowConditionCategoryListVO(conditionCategories=conditionCategories).model_dump()))
 
         return vo.WorkflowConditionCategoryListVO(conditionCategories=conditionCategories)
     except Exception as e:
@@ -328,10 +327,78 @@ async def list_workflow_conditions() -> vo.WorkflowConditionListVO:
             if "displayable" in item and item.get("status") == "Active":
                 conditions.append(vo.WorkflowConditionVO.model_validate(item))
         
-        logger.debug("modified conditions: {}\n".format(vo.WorkflowConditionListVO(conditions=conditions).model_dump))
+        logger.debug("modified conditions: {}\n".format(vo.WorkflowConditionListVO(conditions=conditions).model_dump()))
 
         return vo.WorkflowConditionListVO(conditions=conditions)
     except Exception as e:
         logger.error(traceback.format_exc())
         logger.error("workflow conditions: {}\n".format(e))
         return vo.WorkflowConditionListVO(error="Facing internal error")
+
+@mcp.tool()
+async def fetch_workflow_resource_data(resource: str) -> List[any]:
+    """
+        Fetch workflow resource data for given resource
+
+        Returns:
+            - List of resource data
+    """
+    try:
+        logger.info("list_user_blocks: \n")
+
+        output=await utils.make_API_call_to_CCow({"resource":resource},constants.URL_WORKFLOW_RESOURCE_DATA)
+        logger.debug("list_user_blocks outputs : {}\n".format(output))
+        
+        if isinstance(output, str) or  "error" in output or "items" not in output:
+            logger.error("list_user_blocks error: {}\n".format(output))
+            return output
+        
+        return output
+    
+    except Exception as e:
+        logger.error(traceback.format_exc())
+        logger.error("list_user_blocks error: {}\n".format(e))
+        return "Facing internal error";
+
+@mcp.tool()
+async def create_workflow(workflow_yaml_base64: str) -> str:
+    """
+        Create work flow with yaml base64 content
+        Always pass the generate yaml in base64 format
+        Input base64 yaml content
+        Always show the workflow diagram and confirm with user then execute the tool to create workflow
+        Returns:
+            - message
+            - Error
+    """
+    try:
+        logger.info("create_workflow: \n")
+
+        logger.debug("Input workFlowYaml base64: {}\n".format(workflow_yaml_base64))
+
+        yaml_string = ""
+
+        try:
+          decoded_bytes = base64.b64decode(workflow_yaml_base64)
+          yaml_string = decoded_bytes.decode('utf-8')
+        except (base64.binascii.Error, UnicodeDecodeError) as e:
+          print(f"Base64 decode error: {e}")
+          return e
+
+        output=await utils.make_API_call_to_CCow(yaml_string,constants.URL_WORKFLOW_CREATE,type="yaml")
+        logger.debug("create workflow output: {}\n".format(output))
+        
+        if output and output.get("status") and output["status"].get("id"):
+            workflow_id = output["status"]["id"]
+            logger.info(f"Workflow created successfully, id:{workflow_id}")
+            return f"Workflow created successfully, id:{workflow_id}"
+        else:
+            logger.error("Failed to create workflow: Missing workflow ID in response.")
+            return "Failed to create workflow."
+    
+    except Exception as e:
+        logger.error(traceback.format_exc())
+        logger.error("create_workflow: {}\n".format(e))
+        return "Facing internal error"
+
+

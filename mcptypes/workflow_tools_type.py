@@ -41,6 +41,7 @@ class WorkflowInputsVO(BaseModel):
     type: Optional[str] = ""
     options: Optional[str] = ""
     optional: Optional[bool] = False
+    resource: Optional[str] = ""
     model_config = {
         "extra": "ignore"
     }
@@ -49,7 +50,7 @@ class WorkflowOutputsVO(BaseModel):
     name: Optional[str] = ""
     desc: Optional[str] = ""
     type: Optional[str] = ""
-    possible_values: Optional[List[str]] = ""
+    possible_values: Optional[List[str]] = None
     isPrimaryOutcome: Optional[bool] = False
     model_config = {
         "extra": "ignore"

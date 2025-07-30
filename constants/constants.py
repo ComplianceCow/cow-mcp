@@ -65,3 +65,7 @@ URL_WORKFLOW_CONDITION_CATEGORIES = "/v1/workflow-catalog/condition-categories"
 URL_WORKFLOW_CONDITIONS = "/v1/workflow-catalog/conditions"
 URL_WORKFLOW_PREBUILD_TASKS = "/v1/workflow-catalog/tasks"
 URL_WORKFLOW_PREBUILD_RULES= "/v1/rules?page_size=100&page=1"
+
+URL_WORKFLOW_CREATE = "/v3/workflow-configs"
+
+URL_WORKFLOW_RESOURCE_DATA = "/v2/aggregator/fetch-resource-data"

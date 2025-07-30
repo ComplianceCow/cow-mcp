@@ -10,7 +10,7 @@ from mcptypes.error_type import ErrorVO
 
 
 
-async def make_API_call_to_CCow(request_body: dict,uriSuffix: str) -> dict[str, Any] | str  :
+async def make_API_call_to_CCow(request_body: dict | str,uriSuffix: str, type: str = "json") -> dict[str, Any] | str  :
     logger.info(f"uriSuffix: {uriSuffix}")
     async with httpx.AsyncClient() as client:
         try:
@@ -19,8 +19,14 @@ async def make_API_call_to_CCow(request_body: dict,uriSuffix: str) -> dict[str, 
             if accessToken is not None:
                 requestHeader=headers.copy()
                 requestHeader["Authorization"]=accessToken.token
+
+            response = None
+            if type=="yaml":
+                requestHeader["Content-Type"] = "application/x-yaml"
+                response = await client.post(host+uriSuffix,data=request_body, headers=requestHeader, timeout=60.0)
+            else:
             # response = await client.post("http://localhost:14600/v1/llm/"+uriSuffix,json=request_body, headers={"Authorization": "db4f39f2-45b1-445c-9b05-5cd4d5f04990"}, timeout=300.0)
-            response = await client.post(host+uriSuffix,json=request_body, headers=requestHeader, timeout=60.0)
+                response = await client.post(host+uriSuffix,json=request_body, headers=requestHeader, timeout=60.0)
             if response.status_code < 200 or response.status_code > 299:
                 error = response.json()
                 logger.error("make_API_call_to_CCow unexpected status code: error: {}\n".format(error))
