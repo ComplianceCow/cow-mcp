@@ -361,11 +361,9 @@ async def fetch_workflow_resource_data(resource: str) -> List[any]:
         return "Facing internal error";
 
 @mcp.tool()
-async def create_workflow(workflow_yaml_base64: str) -> str:
+async def create_workflow(workflow_yaml) -> str:
     """
-        Create work flow with yaml base64 content
-        Always pass the generate yaml in base64 format
-        Input base64 yaml content
+        Create workflow with yaml
         Always show the workflow diagram and confirm with user then execute the tool to create workflow
         Returns:
             - message
@@ -374,18 +372,9 @@ async def create_workflow(workflow_yaml_base64: str) -> str:
     try:
         logger.info("create_workflow: \n")
 
-        logger.debug("Input workFlowYaml base64: {}\n".format(workflow_yaml_base64))
+        logger.debug("Input workFlowYaml: {}\n".format(workflow_yaml))
 
-        yaml_string = ""
-
-        try:
-          decoded_bytes = base64.b64decode(workflow_yaml_base64)
-          yaml_string = decoded_bytes.decode('utf-8')
-        except (base64.binascii.Error, UnicodeDecodeError) as e:
-          print(f"Base64 decode error: {e}")
-          return e
-
-        output=await utils.make_API_call_to_CCow(yaml_string,constants.URL_WORKFLOW_CREATE,type="yaml")
+        output=await utils.make_API_call_to_CCow(workflow_yaml,constants.URL_WORKFLOW_CREATE,type="yaml")
         logger.debug("create workflow output: {}\n".format(output))
         
         if output and output.get("status") and output["status"].get("id"):
