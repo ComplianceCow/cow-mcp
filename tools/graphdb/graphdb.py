@@ -65,6 +65,7 @@ async def execute_cypher_query(query: str) -> CypherQueryVO:
         - Use recursive patterns [HAS_CHILD*] for traversing control hierarchies
         - Controls may have multiple levels of nesting
         - Evidence contains records
+        - RiskItem contains RiskItemAttributes
         
     Query guidelines:
         - For control hierarchies: Use MATCH (parent)-[HAS_CHILD*]->(child) patterns

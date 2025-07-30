@@ -158,7 +158,8 @@ async def get_graph_schema_relationship() -> dict | str:
                 "progressive_refinement": "Enable users to iteratively narrow their focus through guided questions",
                 "actionable_examples": "Provide concrete, ready-to-use query phrases that users can immediately apply",
                 "visual_formatting": "Use clear structure, emojis, and hierarchy to make responses scannable"
-            }
+            },
+            "Risks": "RiskItem nodes are attached to control-config via HAS_RISK & HAS_MAPPED_CONTROL edges and RiskItemAttribute nodes are attached to RiskItem via HAS_ATTRIBUTE edges, Both nodes are always linked"
         }
 
         # return {"Important": "If you need to check control, find try to find how much nested level of controls available then query according", "output": output}
