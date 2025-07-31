@@ -73,11 +73,19 @@ def ccow_workflow_knowledge() -> str:
             IMPORTANT 
             ----------------
 
+            ## Each time after getting all required complianceCow components, show your plan to the user and ask for confirmation or if they would like to make changes. If they choose to modify the plan, then ask for the required details.
+
+            ## You can suggest improvements to the workflow, but make it clear that these are your suggestions based on the user's requirements.
+
             ## Summarize the workflow and prompt the user to enter the required details or inputs one by one to build the workflow.
             
             ## You are building a workflow interactively. First, ask the user only for the first required input. After the user responds, ask for the next input. Continue this step-by-step until all required inputs are collected. Do not ask for all inputs at once.
 
-            ## Use Custom label to make workflow more meaningful and easy to understand
+            ## Indicate which activity, condition or state need this input.
+            
+            ## Ensure a clear plan with all necessary mappings is in place before generating the YAML.
+            
+            ## Use Custom label to make workflow more meaningful and easy to understand.
             
             ## Must Only use activity, condition, state within compliancecow to create workflow,
                 -  Use only the exisitng inputs and outputs available on them
@@ -129,14 +137,12 @@ def ccow_workflow_knowledge() -> str:
             -----------------------------------------------
 
             inputs:
-            - name: AssessmentRunID
-                type: Text
-                desc: >- 
-                    This is the unique identifier for the assessment run whose
-                    details are to be fetched.
+              - name: <<input_name>>
+                type: <<input_datatype>>
+                desc: <<input_desc>>
                 optional: false
                 mapValueFrom:
-                    outputField: runId
+                    outputField: <<output_name>>
                     source:
                         label: <<event_label>>
                         id: <<event_id>>
@@ -145,32 +151,32 @@ def ccow_workflow_knowledge() -> str:
                         type: <<type>>
                         specInput:
                             expr: >-
-                                assessmentName == "[[assessment_name]]"
+                                <<payload_name>> == "[[payload_value]]"
                     type: Event
 
             → Example of Input Mapping: (from activity)
             -----------------------------------------------
 
             inputs:
-            - name: DataFile
-              type: File
-              desc: The input file from which the field will be extracted.
+            - name: <<input_name>>
+              type: <<input_datatype>>
+              desc: <<input_desc>>
               optional: false
               mapValueFrom:
-                outputField: AssessmentRunDetails
+                outputField: <<output_name>>
                 source:
-                  label: Activity 1
+                  label: <<activity_label>>
                   id: <<activity_id>>
-                  displayable: FetchAssessmentRunDetails
-                  name: FetchAssessmentRunDetails
-                  desc: FetchAssessmentRunDetails
+                  displayable: <<activity_displayable>>
+                  name: <<activity_name>>
+                  desc: <<activity_desc>>
                   appScopeName: <<appscope>>
                 type: Activity
             
             6) You can reference outputs from previous nodes within any value or expr field. These will be automatically filled when the workflow runs.
             EXAMPLE
             --------------------
-            expr: '{{Activity.Activity 2.ExtractedValue}} == "FALSE"'
+            expr: '{{Activity.<<activity_customlabel>>.ExtractedValue}} == "FALSE"'
             value: Assessment {{Event.Assessment Run Completed.assessmentName}} has been completed.
             value: Form assigned with ID {{Activity.Assign Form.formAssignmentID}}.
 
@@ -192,10 +198,6 @@ def ccow_workflow_knowledge() -> str:
                 status: Active
                 desc: <<event_description>>
                 type: <<event_type>>
-                payload:
-                  - name: <<payload_name>>
-                    type: <<payload_data_type>>
-                    desc: <<payload_desc_type>>
 
                 specInput:
                    expr: action == "[[action_input_value_from_user_action]]"
@@ -231,23 +233,23 @@ def ccow_workflow_knowledge() -> str:
             Example: (Conditional expression)
             ----------------------------------------------------
             conditions:
-                Condition 1:
+              <<condition_customlabel>>:
                 groupName: Ungrouped
                 action:
                     type: Expression
-                    expr: {{Event.Event 4.formName}} == "[[form_name]]"
+                    expr: {{Event.<<event_customlabel>>.formName}} == "[[form_name]]"
             transitions:
-                - from: Activity 1
-                    to: Condition 1
+                - from: <<activity_customlabel>
+                    to: <condition_customlabel>
                     label: ''
                     type: PassThrough
-                - from: Condition 1
-                    to: Activity 2
+                - from: <condition_customlabel>
+                    to: <<activity_customlabel>
                     label: 'Yes'
                     type: Outcome
                     outcomeValue: 'Yes'
-                - from: Condition 1
-                    to: Activity 3
+                - from: <condition_customlabel>
+                    to: <<activity_customlabel>
                     label: 'No'
                     type: Outcome
                     outcomeValue: 'No'
@@ -255,7 +257,7 @@ def ccow_workflow_knowledge() -> str:
             Example: (Funtions)
             ---------------------------------------
 
-                  Condition 2:
+                  <<condition_customlabel>>:
                     groupName: Ungrouped
                     action:
                       type: Function
@@ -291,23 +293,25 @@ def ccow_workflow_knowledge() -> str:
                             isPrimaryOutcome: true
 
             9) Event
-            Always a workflow is triggered when an event is occur
-
+            A workflow is always triggered when an event occurs. Select one of the available events from the event tool list.
+            Each event includes a payload, which becomes available at runtime and can be used as output for other nodes in the workflow.
+            The Start Event acts as the foundation of the workflow—when an external system triggers the workflow, the payload data is passed in and can be used directly.
+            Ask the user to confirm the selected event, or show a list of suitable events and let the user choose one. Then, use the selected event's payload to plan the workflow.
 
             10) Rules
             use below rule example as reference and use this knowledge for create further workflow
             → Example of get assessment run details:
             ----------------------------------------------------
-            Activity 1:
+            <<activity_customlabel>>:
                 groupName: Ungrouped
                 action:
                   type: Rule
                   reference:
-                    id: <<activity_id>>
-                    displayable: FetchAssessmentRunDetails
-                    name: FetchAssessmentRunDetails
-                    desc: FetchAssessmentRunDetails
-                    appScopeName: ComplianceCowAppScope
+                    id: <<rule_id>>
+                    displayable: <<rule_displayable>>
+                    name: <<rule_name>>
+                    desc: <<rule__desc>>
+                    appScopeName: <<app_scope>>
                     inputs:
                       - name: <<input_name>>
                         type: <<input_type>>
@@ -324,8 +328,7 @@ def ccow_workflow_knowledge() -> str:
                             type: <<event_type>
                             specInput:
                               expr: >-
-                                assessmentName ==
-                                "[[assessment_name]]"
+                                <<payload_name>> == "[[payload_value]]"
                         type: Event
                     outputs:
                       - name: <<output_name>>
@@ -339,7 +342,7 @@ def ccow_workflow_knowledge() -> str:
 
             EXAMPLE
             --------------------
-            Below is the workflow sample yaml for send notification to user after assessment run completed, Use this as reference to create further workflows (Always show the workflow diagram)
+            Below is the workflow sample yaml, Use this as reference to create further workflows (Always show the workflow diagram)
 
             generalvo:
                 domainid: ""
@@ -363,9 +366,9 @@ def ccow_workflow_knowledge() -> str:
                         type: Function
                         reference:
                         id: <<function_id>>
-                        displayable: Send Email Notification (in HTML)
+                        displayable: <<function_displayable>
                         desc: <<function_desc>>
-                        name: SendEmailNotification
+                        name: <<function_name>>
                         categoryId: <<category_id>>
                         inputs:
                           - name: <<input_value>>
@@ -384,7 +387,7 @@ def ccow_workflow_knowledge() -> str:
                     categoryId: <<category_id>>
                     type: <<event_type>>
                     specInput:
-                        expr: assessmentName == "[[assessment_name]]"
+                        expr: <<payload_name>> == "[[payload_value]]"
                 - from: Activity 1
                     to: End
                     type: PassThrough
