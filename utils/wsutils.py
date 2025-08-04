@@ -157,8 +157,7 @@ def make_call_and_process_response_with_resource_type(request_method: str = None
     if isinstance(response_dict, dict):
         error_vo = exception.ErrorVO.from_dict(response_dict)
 
-    logger.error(
-        f"Error while getting responses: {response.status_code}, {response.reason}, {path}, {response.co}")
+    logger.error(f"Error while getting responses: {response.status_code}, {response.reason}, {path}")
     match (response.status_code):
         case 500:
             if error_vo and (error_vo.description or error_vo.message) and response.status_code:
