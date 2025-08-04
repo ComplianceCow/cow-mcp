@@ -6,8 +6,55 @@ from constants.constants import headers, host
 
 # from mcpconfig import get_access_token
 from mcp.server.auth.middleware.auth_context import get_access_token
-from mcptypes.error_type import ErrorVO
+from mcptypes.error_type import ErrorVO,ErrorResponseVO
 
+
+async def make_API_call_to_CCow_and_get_response(uriSuffix: str,method: str,request_body: dict | str = None, type: str = "json",return_raw: bool = False):
+    logger.info(f"uriSuffix: {uriSuffix}, Method: {method}, Type: {type}")
+    async with httpx.AsyncClient() as client:
+        try:
+            requestHeader=headers.copy()
+            accessToken=get_access_token()
+            if accessToken is not None:
+                requestHeader=headers.copy()
+                requestHeader["Authorization"]=accessToken.token
+            if accessToken:
+                requestHeader["Authorization"] = accessToken.token
+
+            if type == "yaml":
+                requestHeader["Content-Type"] = "application/x-yaml"
+            else:
+                requestHeader["Content-Type"] = "application/json"
+
+            method = method.upper()
+            request_args = {"url": host + uriSuffix, "headers": requestHeader,"timeout": 60.0}
+
+            if method in ["GET", "DELETE"]:
+                if isinstance(request_body, dict):
+                    request_args["params"] = request_body
+            else:
+                if type == "yaml":
+                    request_args["data"] = request_body
+                else:
+                    request_args["json"] = request_body
+
+            response = await client.request(method, **request_args)
+            if return_raw:
+                return response
+            if response.status_code < 200 or response.status_code > 299:
+                error = response.json()
+                logger.error("make_API_call_to_CCow_and_get_response unexpected error: {}\n".format(error))
+                if ("Message" in error and "Description" in error):
+                    return ErrorResponseVO(Message=error.get("Message"),Description=error.get("Description")).model_dump()
+                return ErrorVO(error=f"Unexpected response status: {response.status_code}").model_dump()
+            return response.json()
+        except httpx.TimeoutException:
+            logger.error(f"make_API_call_to_CCow_and_get_response error: Request timed out after 60 seconds for uriSuffix: {uriSuffix}")
+            return "Facing error : Request timed out."
+        except Exception as e:
+            logger.error(traceback.format_exc())
+            logger.error("make_API_call_to_CCow_and_get_response error: {}\n".format(e))
+            return "Facing error  :  "+str(e)
 
 
 async def make_API_call_to_CCow(request_body: dict | str,uriSuffix: str, type: str = "json") -> dict[str, Any] | str  :

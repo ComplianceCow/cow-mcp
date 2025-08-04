@@ -361,10 +361,10 @@ async def fetch_workflow_resource_data(resource: str) -> List[any]:
         return "Facing internal error";
 
 @mcp.tool()
-async def create_workflow(workflow_yaml) -> str:
+async def create_workflow(workflow_yaml: str) -> str:
     """
-        Create workflow with yaml
-        Always show the workflow diagram and confirm with user then execute the tool to create workflow
+        To create a workflow with YAML
+        Always display the workflow diagram and confirm with the user before executing the tool to create the workflow.
         Returns:
             - message
             - Error
@@ -374,7 +374,7 @@ async def create_workflow(workflow_yaml) -> str:
 
         logger.debug("Input workFlowYaml: {}\n".format(workflow_yaml))
 
-        output=await utils.make_API_call_to_CCow(workflow_yaml,constants.URL_WORKFLOW_CREATE,type="yaml")
+        output=await utils.make_API_call_to_CCow_and_get_response(constants.URL_WORKFLOW_CREATE,"POST",workflow_yaml,type="yaml")
         logger.debug("create workflow output: {}\n".format(output))
         
         if output and output.get("status") and output["status"].get("id"):
@@ -382,8 +382,8 @@ async def create_workflow(workflow_yaml) -> str:
             logger.info(f"Workflow created successfully, id:{workflow_id}")
             return f"Workflow created successfully, id:{workflow_id}"
         else:
-            logger.error("Failed to create workflow: Missing workflow ID in response.")
-            return "Failed to create workflow."
+            logger.error("Failed to create workflow: ",output)
+            return output
     
     except Exception as e:
         logger.error(traceback.format_exc())
@@ -391,3 +391,37 @@ async def create_workflow(workflow_yaml) -> str:
         return "Facing internal error"
 
 
+
+@mcp.tool()
+async def modify_workflow(workflow_yaml: str, workflow_id: str) -> str:
+    """
+        Modify Workflow with YAML
+        To modify a workflow,It need the workflow ID and the corresponding YAML definition.
+        Always display the workflow diagram and confirm with the user before executing the tool to modify the workflow.
+
+        Returns:
+            - message
+            - Error
+    """
+    try:
+        logger.info("modify_workflow: \n")
+
+        logger.debug("Input workFlowYaml: {}\n".format(workflow_yaml))
+
+        response =await utils.make_API_call_to_CCow_and_get_response(f"{constants.URL_WORKFLOW_CREATE}/{workflow_id}","PUT",workflow_yaml,type="yaml",return_raw=True)
+        logger.debug("create workflow output: {}\n".format(response))
+
+        if response.status_code == 204:
+            return "Workflow upadted" 
+        else:
+            try:
+                error_msg = response.json().get("ErrorMessage", response.text)
+            except Exception:
+                error_msg = response.text or f"HTTP {response.status_code}"
+            logger.error(f"Failed to modify workflow: {error_msg}")
+            return f"Failed to update workflow: {error_msg}"
+    
+    except Exception as e:
+        logger.error(traceback.format_exc())
+        logger.error("modify_workflow: {}\n".format(e))
+        return "Facing internal error"
