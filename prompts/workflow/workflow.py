@@ -334,6 +334,42 @@ def ccow_workflow_knowledge() -> str:
                       - name: <<output_name>>
                         type: <<output_type>>
                         desc: <<output_desc>>
+
+            11) Workflows
+            use below example as reference to add existing workflow to create further workflow
+            ----------------------------------------------------
+            <<activity_customlabel>>:
+                groupName: Ungrouped
+                action:
+                  type: Rule
+                  reference:
+                    id: <<workflow_id>>
+                    displayable: <<workflow_name>>
+                    name: <<workflow_name>>
+                    desc: <<workflow_desc>>
+                    eventName: <<workflow_start_event>>
+                    inputs:
+                      - name: <<input_name>>
+                        type: <<input_type>>
+                        desc: <<input_desc>>
+                        optional: false
+                        options: <<input_available_options_if_available>>
+                        mapValueFrom:
+                          outputField: <<output_name>>
+                          source:
+                            label: <<event_label>>
+                            id: <<event_id>>
+                            displayable: <<event_displayable>
+                            categoryId: <<category_id>>
+                            type: <<event_type>
+                            specInput:
+                              expr: >-
+                                <<payload_name>> == "[[payload_value]]"
+                        type: Event
+                    outputs:
+                      - name: <<output_name>>
+                        type: <<output_type>>
+                        desc: <<output_desc>>
                                 
             INPUT GUIDENCE :
             ------------------------

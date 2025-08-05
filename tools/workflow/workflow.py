@@ -390,7 +390,81 @@ async def create_workflow(workflow_yaml: str) -> str:
         logger.error("create_workflow: {}\n".format(e))
         return "Facing internal error"
 
+@mcp.tool()
+async def list_workflows() -> dict | str:
+    try:
+        logger.info("get_workflows: \n")
 
+        output=await utils.make_GET_API_call_to_CCow("/v3/workflow-configs?fields=meta")
+        logger.debug("get_workflows output: {}\n".format(output))
+        
+        if isinstance(output, str) or  "error" in output:
+            logger.error("get_workflows error: {}\n".format(output))
+            return "Facing internal error"
+        if "items" in output:
+            for item in output["items"]:
+                utils.deleteKey(item,"domainId")
+                utils.deleteKey(item,"orgId")
+                utils.deleteKey(item,"groupId")
+                utils.deleteKey(item,"spec")
+                if "status" in item:
+                    utils.deleteKey(item["status"],"filePathHash")
+        logger.debug("get_workflows output: {}\n".format(output))
+        return output["items"]
+    except Exception as e:
+        logger.error(traceback.format_exc())
+        logger.error("create_workflow: {}\n".format(e))
+        return "Facing internal error"
+
+@mcp.tool()
+async def fetch_workflow_details(id:str) -> dict | str:
+    """
+        Args:
+            - id (str): workflow id. This can be fetched from path /status/id of 'get_workflows' output
+    """
+    try:
+        logger.info(f"get_workflow_details: {id}\n")
+
+        output=await utils.make_GET_API_call_to_CCow("/v3/workflow-configs/"+id)
+        logger.debug("get_workflows output: {}\n".format(output))
+        
+        if isinstance(output, str) or  "error" in output:
+            logger.error("get_workflows error: {}\n".format(output))
+            return "Facing internal error"
+        return output
+    except Exception as e:
+        logger.error(traceback.format_exc())
+        logger.error("create_workflow: {}\n".format(e))
+        return "Facing internal error"
+
+@mcp.tool()
+async def update_workflow_summary(id:str,summary:str) -> dict | str:
+    """
+        Args:
+            - id (str): workflow id. This can be fetched from path /status/id of 'get_workflows' output
+            - summary (str): workflow summary
+    """
+    try:
+        logger.info(f"update_workflow_summary: {id}, {summary}\n")
+
+        req=[
+            {
+                "op":"add",
+                "path": "/metadata/summary",
+                "value": summary
+            }
+        ]
+        output=await utils.make_API_call_to_CCow_and_get_response("/v3/workflow-configs/"+id,"PATCH",req)
+        logger.debug("get_workflows output: {}\n".format(output))
+        
+        if isinstance(output, str) or  "error" in output:
+            logger.error("get_workflows error: {}\n".format(output))
+            return "Facing internal error"
+        return output
+    except Exception as e:
+        logger.error(traceback.format_exc())
+        logger.error("create_workflow: {}\n".format(e))
+        return "Facing internal error"
 
 @mcp.tool()
 async def modify_workflow(workflow_yaml: str, workflow_id: str) -> str:
