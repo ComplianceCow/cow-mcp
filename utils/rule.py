@@ -1,16 +1,16 @@
-from typing import Any, Dict, List
 import base64
-import re
 import json
-from ruamel.yaml import YAML
-import toml
-from io import StringIO
+import re
 from datetime import datetime
+from io import StringIO
+from typing import Any, Dict, List
 
+import toml
+from ruamel.yaml import YAML
+
+from constants import constants
 from mcptypes.rule_type import TaskInputVO
 from utils import wsutils
-from constants import constants
-
 
 yaml = YAML()
 yaml.indent(mapping=2, sequence=4, offset=2)
@@ -30,6 +30,9 @@ def is_valid_key(element, key, array_check: bool = False):
         return True
 
     return False
+
+def is_valid_array(ele, key):
+    return is_valid_key(ele, key, array_check=True)
 
 
 def decode_content(content: str) -> str:
@@ -599,7 +602,17 @@ def create_rule_api(rule_structure: Dict[str, Any]) -> Dict[str, Any]:
         endpoint=constants.URL_CREATE_RULE), data=json.dumps(rule_structure), header=headers)
     return {"rule_id": rule_id, "status": "created", "message": "Rule created successfully", "timestamp": datetime.now().isoformat()}
 
-# Internal Design Notes Management (Handled by MCP)
+def fetch_rule(rule_name: str) -> Dict[str, Any]:
+    headers = wsutils.create_header()
+    try:
+        rule_fetch_url = wsutils.build_api_url(endpoint=constants.URL_FETCH_RULES)
+        rules_items = wsutils.get(path=f"{rule_fetch_url}?name={rule_name}", header=headers)
+        if is_valid_array(rules_items,"items"):
+            return rules_items[0]
+        else:
+            return {"error": f"unable to find the rule named: {rule_name}"}
+    except Exception as e:
+        return {"error": f"Failed to fetch the rule: {e}"}
 
 
 def store_rule_context(rule_id: str, rule_structure: Dict[str, Any]):
