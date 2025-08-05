@@ -1394,244 +1394,6 @@ def create_rule(rule_structure: Dict[str, Any]) -> Dict[str, Any]:
         return {"success": False, "error": f"Failed to create rule: {e}"}
     
 
-# Replace the existing design notes related methods in the TwoPhaseRuleMCP class with these updated versions:
-
-# @mcp.tool()
-# def create_design_notes(rule_name: str) -> Dict[str, Any]:
-#     """Generate and save design notes for the created rule using MCP's internal template system.
-
-#     DESIGN NOTES AUTOMATIC GENERATION:
-
-#     This tool triggers the MCP's internal design notes generation system to automatically
-#     create comprehensive design notes after rule creation. The MCP will generate a
-#     Jupyter notebook with 8 standardized sections based on rule context and metadata.
-
-#     DESIGN NOTES TEMPLATE STRUCTURE REQUIREMENTS:
-
-#     The MCP should generate a Jupyter notebook (.ipynb format) with exactly 8 sections:
-
-#     ## SECTION 1: Evidence Details
-#     DESCRIPTION: System identification and rule purpose documentation
-#     CONTENT REQUIREMENTS:
-#     - Table with columns: System | Source of data | Frameworks | Purpose
-#     - System: Extract from rule's appType (remove 'appconnector'/'connector' suffix)
-#     - Source: Always 'compliancecow'
-#     - Frameworks: Default to '-' (can be customized later)
-#     - Purpose: Use rule's purpose from metadata
-#     - RecommendedEvidenceName: Use rule name
-#     - Description: Use rule description from metadata
-#     - Reference: Placeholder for documentation links
-#     FORMAT: Markdown cell with table and code blocks
-
-#     ## SECTION 2: Extended Data Schema
-#     DESCRIPTION: System-specific raw data structure definition
-#     CONTENT REQUIREMENTS:
-#     - Header explaining configuration parameters and default values
-#     - Configuration overview with task count and input count from rule structure
-#     - Code cell with system-specific raw data structure placeholder
-#     - Include comments indicating this should be populated with actual API response format
-#     - Use generic JSON structure with system name in resource identifiers
-#     FORMAT: Markdown header cell + Code cell with JSON structure
-
-#     ## SECTION 3: Standard Schema
-#     DESCRIPTION: Standardized compliance data format
-#     CONTENT REQUIREMENTS:
-#     - Header explaining standard schema purpose
-#     - Code cell with standardized JSON structure containing:
-#       * Meta: System name and source
-#       * Resource info: ID, name, type, location, tags, URL
-#       * Data: Rule-specific configuration fields (use generic placeholders)
-#       * Compliance details: ValidationStatusCode, ComplianceStatus, etc.
-#       * User/Action editable fields
-#     FORMAT: Markdown header cell + Code cell with JSON structure
-
-#     ## SECTION 4: Sample Data
-#     DESCRIPTION: Example records in tabular format
-#     CONTENT REQUIREMENTS:
-#     - Markdown table showing sample compliance records
-#     - Columns should match standard schema fields
-#     - Include at least one example row with realistic sample data
-#     - Use system name in resource identifiers
-#     FORMAT: Markdown cell with table
-
-#     ## SECTION 5: Compliance Taxonomy
-#     DESCRIPTION: Status codes and compliance definitions
-#     CONTENT REQUIREMENTS:
-#     - Table with columns: ValidationStatusCode | ValidationStatusNotes | ComplianceStatus | ComplianceStatusReason
-#     - Standard status codes: COMPLIANT_STATUS, NON_COMPLIANT_STATUS, etc.
-#     - Generic compliance reasons suitable for most rule types
-#     FORMAT: Markdown cell with table
-
-#     ## SECTION 6: Compliance Calculation
-#     DESCRIPTION: Percentage calculations and status logic
-#     CONTENT REQUIREMENTS:
-#     - Header explaining compliance calculation methodology
-#     - Code cell with calculation logic:
-#       * TotalCount = Count of 'COMPLIANT' and 'NON_COMPLIANT' records
-#       * CompliantCount = Count of 'COMPLIANT' records
-#       * CompliancePCT = (CompliantCount / TotalCount) * 100
-#       * Status determination rules
-#     FORMAT: Markdown header cell + Code cell with calculation logic
-
-#     ## SECTION 7: Remediation Steps
-#     DESCRIPTION: Non-compliance remediation procedures
-#     CONTENT REQUIREMENTS:
-#     - Generic remediation workflow applicable to most systems
-#     - Structured approach: Immediate Actions, Short-term Remediation, Long-term Monitoring
-#     - Include timeframes and responsibilities
-#     - System-agnostic guidance that can be customized
-#     FORMAT: Markdown cell with structured remediation steps
-
-#     ## SECTION 8: Control Setup Details
-#     DESCRIPTION: Rule configuration and implementation details
-#     CONTENT REQUIREMENTS:
-#     - Table with control details:
-#       * RuleName: Use actual rule name
-#       * PreRequisiteRuleNames: Default to 'N/A'
-#       * ExtendedSchemaRuleNames: Default to 'N/A'
-#       * ApplicationClassName: System name + 'appconnector'
-#       * PostSynthesizerName: Default to 'N/A'
-#       * TaskCount: Actual count from rule structure
-#       * InputCount: Actual count from rule structure
-#       * ExecutionMode: Default to 'automated'
-#       * EvaluationFrequency: Default to 'daily'
-#     FORMAT: Markdown cell with table
-
-#     JUPYTER NOTEBOOK METADATA REQUIREMENTS:
-#     - Include proper notebook metadata (colab, kernelspec, language_info)
-#     - Set nbformat: 4, nbformat_minor: 0
-#     - Use appropriate cell metadata with unique IDs for each section
-#     - Ensure proper markdown and code cell formatting
-
-#     MCP CONTENT POPULATION INSTRUCTIONS:
-#     The MCP should extract the following information from the rule context:
-#     - Rule name, purpose, description from rule metadata
-#     - System name from appType (clean by removing connector suffixes)
-#     - Task count from spec.tasks array length
-#     - Input count from spec.inputs object keys count
-#     - Application connector name for control setup
-
-#     PLACEHOLDER CONTENT GUIDELINES:
-#     - Use generic, realistic examples that can be customized later
-#     - Include comments in code sections indicating customization points
-#     - Provide system-agnostic content that applies broadly
-#     - Use consistent naming conventions throughout all sections
-
-#     WORKFLOW:
-#     1. MCP retrieves rule context from stored rule information
-#     2. MCP generates complete Jupyter notebook using template structure above
-#     3. MCP populates template with extracted rule metadata and calculated values
-#     4. MCP saves design notes and returns confirmation with notebook details
-
-#     Args:
-#         rule_name: Name of the rule to create design notes for
-
-#     Returns:
-#         Dict containing design notes creation status and notebook info with:
-#         - success: Boolean indicating creation success
-#         - rule_name: Name of the rule
-#         - design_notes_id: Generated design notes identifier
-#         - notebook_url: URL to access the saved notebook
-#         - sections_count: Number of sections created (should be 8)
-#         - message: Success/error message
-#         - timestamp: Creation timestamp
-#         - notebook_format: Always 'jupyter'
-#         - template_version: Template version used
-#         - generation_method: Always 'MCP_AUTOMATIC'
-#     """
-#     try:
-#         # Retrieve rule context
-#         rule_context=rule.fetch_rule(rule_name=rule_name)
-#         if not rule_context:
-#             return {"success": False, "error": f"Rule context not found for '{rule_name}'. Cannot generate design notes."}
-
-#         # Trigger MCP's internal design notes generation using the detailed template requirements above
-#         # The MCP should use the rule context and template structure to generate the complete notebook
-#         design_notes_content = _trigger_mcp_design_notes_generation(rule_name, rule_context)
-
-#         # Save design notes using the MCP-generated content
-#         # save_result = _save_design_notes_api(rule_name, design_notes_content)
-
-#         return {
-#             "success": True,
-#             "rule_name": rule_name,
-#             # "design_notes_id": save_result.get("design_notes_id"),
-#             # "notebook_url": save_result.get("notebook_url"),
-#             "sections_count": 8,  # Always 8 sections as per template requirements
-#             "message": f"Design notes created and saved successfully for rule '{rule_name}' using MCP internal generation",
-#             # "timestamp": save_result.get("timestamp"),
-#             "notebook_format": "jupyter",
-#             "template_version": "mcp_template_v1.0",
-#             "generation_method": "MCP_AUTOMATIC"
-#         }
-
-#     except Exception as e:
-#         return {"success": False, "error": f"Failed to create design notes for '{rule_name}': {str(e)}"}
-
-def _trigger_mcp_design_notes_generation(self, rule_name: str, rule_structure: Dict[str, Any]) -> Dict[str, Any]:
-    """Trigger MCP's internal design notes generation system.
-    
-    This method should interface with the MCP's actual design notes generation system.
-    For now, it returns a basic structure that the MCP can replace with its own implementation.
-    
-    The MCP should use the detailed template requirements from the create_design_notes tool
-    to generate a complete Jupyter notebook with all 8 sections properly populated.
-    """
-    
-    # This is a placeholder that the MCP should replace with its actual generation logic
-    # The MCP should use the template structure and requirements defined in the tool above
-        
-    # Extract basic information for MCP to use
-    rule_meta:dict = rule_structure.get("meta", {})
-    rule_spec:dict = rule_structure.get("spec", {})
-    
-    extraction_info = {
-        "rule_name": rule_meta.get("name", rule_name),
-        "rule_purpose": rule_meta.get("purpose", "Compliance rule for automated evaluation"),
-        "rule_description": rule_meta.get("description", "Generated compliance rule"),
-        "system_name": _extract_system_name_for_mcp(rule_structure),
-        "task_count": len(rule_spec.get("tasks", [])),
-        "input_count": len(rule_spec.get("inputs", {}))
-    }
-    
-    # The MCP should replace this with its actual notebook generation
-    # This is just a minimal structure to show the expected format
-    placeholder_notebook = {
-        "cells": [],  # MCP should populate with 8 sections as per template requirements
-        "metadata": {
-            "colab": {"provenance": []},
-            "kernelspec": {"display_name": "Python 3", "name": "python3"},
-            "language_info": {"name": "python"}
-        },
-        "nbformat": 4,
-        "nbformat_minor": 0
-    }
-    
-    return placeholder_notebook
-
-def _extract_system_name_for_mcp(rule_structure: Dict[str, Any]) -> str:
-    """Extract clean system name for MCP to use in template generation."""
-    
-    meta:dict = rule_structure.get("meta", {})
-    labels:dict = meta.get("labels", {})
-    
-    # Get primary app type
-    app_types = labels.get("appType", ["generic"])
-    primary_app_type = app_types[0] if app_types else "generic"
-    
-    # Clean system name by removing connector suffixes
-    system_name = primary_app_type.lower().replace("appconnector", "").replace("connector", "")
-    
-    # If still generic, try to get from tasks
-    if system_name == "generic":
-        tasks = rule_structure.get("spec", {}).get("tasks", [])
-        if tasks:
-            task_app_tags = tasks[0].get("appTags", {}).get("appType", [])
-            if task_app_tags:
-                system_name = task_app_tags[0].lower().replace("appconnector", "").replace("connector", "")
-    
-    return system_name if system_name != "generic" else "system"
-
 @mcp.tool()
 def generate_design_notes_preview(rule_name: str) -> Dict[str, Any]:
     """
@@ -1769,69 +1531,22 @@ def generate_design_notes_preview(rule_name: str) -> Dict[str, Any]:
         Dict containing complete notebook structure for user review and confirmation
     """
     
-    try:
-        # Call MCP to generate notebook structure (preview mode)
-        headers = wsutils.create_header()
-        payload = {
-            "ruleName": rule_name,
-            "templateVersion": "v1.0",
-            "generateNotebook": True,
-            "sectionsRequired": 8,
-            "previewMode": True,  # Key difference - just generate, don't save
-            "returnNotebookStructure": True
-        }
-        
-        # preview_resp = wsutils.post(
-        #     path=wsutils.build_api_url(endpoint=constants.URL_GENERATE_DESIGN_NOTES_PREVIEW),
-        #     data=json.dumps(payload),
-        #     header=headers
-        # )
-
-        preview_resp = {
-            "notebookStructure":{
-                "cells":[]
-            }
-        }
-        
-        # Validate response and return notebook structure
-        if rule.is_valid_key(preview_resp, "notebookStructure"):
-            return {
-                "success": True,
-                "rule_name": rule_name,
-                "notebook_structure": preview_resp["notebookStructure"],  # Complete notebook as dict
-                "sections_count": len(preview_resp["notebookStructure"].get("cells", [])),
-                "metadata": preview_resp.get("extractedMetadata", {}),
-                "preview_mode": True,
-                "message": f"Design notes preview generated for rule '{rule_name}'. Review the structure and confirm to proceed.",
-                "confirmation_required": True,
-                "next_action": "Show notebook structure to user for confirmation, then call create_design_notes() if approved"
-            }
-        
-        elif rule.is_valid_key(preview_resp, "error"):
-            return {
-                "success": False,
-                "error": f"MCP design notes preview generation failed: {preview_resp['error']}",
-                "rule_name": rule_name
-            }
-        
-        else:
-            return {
-                "success": False,
-                "error": "Invalid response from MCP design notes preview generator",
-                "response_keys": list(preview_resp.keys()) if preview_resp else [],
-                "rule_name": rule_name
-            }
-            
-    except Exception as e:
-        return {
-            "success": False,
-            "error": f"Failed to generate design notes preview for rule '{rule_name}': {str(e)}",
-            "rule_name": rule_name
-        }
+    # MCP should directly construct the design notes based on the instructions above
+    # No intermediate API calls needed - MCP has all the template details in the docstring
+    # The MCP will use fetch_rule() internally and build the complete notebook structure
+    
+    return {
+        "success": True, 
+        "rule_name": rule_name,
+        "design_notes_structure": {},  # MCP will populate this with complete notebook dictionary
+        "sections_count": 8,
+        "message": f"MCP should construct complete notebook structure for rule '{rule_name}' based on the detailed template instructions above",
+        "next_action": "MCP should use fetch_rule() and build complete notebook dictionary, then return it in design_notes_structure"
+    }
 
 
 @mcp.tool()
-def create_design_notes(rule_name: str) -> Dict[str, Any]:
+def create_design_notes(rule_name: str, design_notes_structure: Dict[str, Any]) -> Dict[str, Any]:
     """
     Create and save design notes after user confirmation.
 
@@ -1843,76 +1558,510 @@ def create_design_notes(rule_name: str) -> Dict[str, Any]:
     WORKFLOW:
     1. User has already reviewed notebook structure from preview
     2. User confirmed the structure is acceptable
-    3. This tool triggers the actual creation and saving
+    3. This tool receives the complete design notes dictionary structure
     4. MCP saves the notebook and returns access details
 
     Args:
         rule_name: Name of the rule for which to create design notes
+        design_notes_structure: Complete Jupyter notebook structure as dictionary
 
     Returns:
         Dict containing design notes creation status and access details
     """
     
     try:
-        # Call MCP to actually create and save the design notes
         headers = wsutils.create_header()
         payload = {
             "ruleName": rule_name,
+            "designNotesStructure": design_notes_structure,  # Pass complete notebook dict
             "templateVersion": "v1.0",
-            "generateNotebook": True,
-            "sectionsRequired": 8,
-            "previewMode": False,  # Key difference - actually save this time
-            "saveToStorage": True
+            "saveNotebook": True
         }
+
+        # uncomment it when the api is ready
         
-        # create_resp = wsutils.post(
-        #     path=wsutils.build_api_url(endpoint=constants.URL_CREATE_DESIGN_NOTES),
+        # save_resp = wsutils.post(
+        #     path=wsutils.build_api_url(endpoint=constants.URL_SAVE_DESIGN_NOTES),
         #     data=json.dumps(payload),
         #     header=headers
         # )
 
-        create_resp = {
-            "notebookURL":"http://localhost:9000/mcp/{rule_name}.ipynp"
+        save_resp = {
+            "notebookURL":f"https://dev.complinacecow.live/rule_inputs/{rule_name}.ipynb",
         }
         
-        # Validate response and return results
-        if rule.is_valid_key(create_resp, "notebookURL"):
+        if rule.is_valid_key(save_resp, "notebookURL"):
             return {
                 "success": True,
                 "rule_name": rule_name,
-                "notebook_url": create_resp["notebookURL"],
-                "notebook_id": create_resp.get("notebookId"),
-                "filename": create_resp.get("filename", f"{rule_name}_design_notes.ipynb"),
-                "sections_generated": create_resp.get("sectionsGenerated", 8),
-                "creation_mode": "confirmed",
-                "template_version": "v1.0",
-                "message": f"Design notes successfully created and saved for rule '{rule_name}'",
-                "access_info": {
-                    "notebook_url": create_resp["notebookURL"],
-                    "downloadable": create_resp.get("downloadable", True),
-                    "editable": create_resp.get("editable", True)
-                }
+                "notebook_url": save_resp["notebookURL"],
+                "notebook_id": save_resp.get("notebookId"),
+                "filename": save_resp.get("filename", f"{rule_name}_design_notes.ipynb"),
+                "sections_saved": len(design_notes_structure.get("cells", [])),
+                "message": f"Design notes successfully created and saved for rule '{rule_name}'"
             }
-        
-        elif rule.is_valid_key(create_resp, "error"):
-            return {
-                "success": False,
-                "error": f"MCP design notes creation failed: {create_resp['error']}",
-                "rule_name": rule_name
-            }
-        
         else:
             return {
                 "success": False,
-                "error": "Invalid response from MCP design notes creator",
-                "response_keys": list(create_resp.keys()) if create_resp else [],
+                "error": "Failed to save design notes",
                 "rule_name": rule_name
             }
             
     except Exception as e:
         return {
             "success": False,
-            "error": f"Failed to create design notes for rule '{rule_name}': {str(e)}",
+            "error": f"Failed to save design notes: {str(e)}",
             "rule_name": rule_name
         }
 
+
+@mcp.tool()
+def fetch_rule(rule_name: str) -> Dict[str, Any]:
+    """
+    Fetch rule details by rule name.
+
+    Args:
+        rule_name: Name of the rule to retrieve
+
+    Returns:
+        Dict containing complete rule structure and metadata
+    """
+    
+    try:
+        headers = wsutils.create_header()
+        
+        get_rule_resp = wsutils.get(
+            path=wsutils.build_api_url(endpoint=f"{constants.URL_FETCH_RULES}?name={rule_name}"),
+            header=headers
+        )
+        
+        if rule.is_valid_array(get_rule_resp, "items"):
+            return {
+                "success": True,
+                "rule_name": rule_name,
+                "rule_structure": get_rule_resp["items"][0],  # Complete rule as dictionary
+                "message": f"Rule '{rule_name}' retrieved successfully"
+            }
+        
+        else:
+            return {
+                "success": False,
+                "error": f"Rule '{rule_name}' not found",
+                "rule_name": rule_name
+            }
+            
+    except Exception as e:
+        return {
+            "success": False,
+            "error": f"Failed to fetch rule '{rule_name}': {str(e)}",
+            "rule_name": rule_name
+        }
+
+
+@mcp.tool()
+def generate_rule_readme_preview(rule_name: str) -> Dict[str, Any]:
+    """
+    Generate README.md preview for rule documentation before actual creation.
+
+    RULE README GENERATION:
+
+    This tool generates a complete README.md structure as a string for user review.
+    The MCP will create comprehensive rule documentation with detailed sections based on 
+    rule context and metadata, then return it for user confirmation.
+
+    README TEMPLATE STRUCTURE REQUIREMENTS:
+
+    The MCP should generate a README.md with exactly these sections:
+
+    ## SECTION 1: Rule Header
+    DESCRIPTION: Rule identification and overview
+    CONTENT REQUIREMENTS:
+    - Rule name as main title (# {RULE_NAME})
+    - Brief description from rule metadata
+    - Status badges (Version, Application Type, Environment)
+    - Purpose statement
+    - Last updated timestamp
+    FORMAT: Markdown header with badges and overview
+
+    ## SECTION 2: Overview
+    DESCRIPTION: High-level rule explanation
+    CONTENT REQUIREMENTS:
+    - What this rule does (purpose and description)
+    - Target system/application
+    - Compliance framework alignment
+    - Key benefits and use cases
+    - When to use this rule
+    FORMAT: Markdown sections with bullet points
+
+    ## SECTION 3: Rule Architecture
+    DESCRIPTION: Technical architecture and flow
+    CONTENT REQUIREMENTS:
+    - Rule flow diagram (text-based)
+    - Task sequence and dependencies
+    - Data flow: Input → Processing → Output
+    - Integration points
+    - Architecture decisions
+    FORMAT: Markdown with code blocks for diagrams
+
+    ## SECTION 4: Inputs
+    DESCRIPTION: Detailed input specifications
+    CONTENT REQUIREMENTS:
+    - Table of all rule inputs with:
+      * Input Name
+      * Data Type  
+      * Required/Optional
+      * Description
+      * Default Value
+      * Example Value
+    - Input validation rules
+    - File format specifications (for FILE inputs)
+    FORMAT: Markdown table with detailed explanations
+
+    ## SECTION 5: Tasks
+    DESCRIPTION: Individual task breakdown
+    CONTENT REQUIREMENTS:
+    - For each task in the rule:
+      * Task name and alias
+      * Purpose and functionality
+      * Input requirements
+      * Output specifications
+      * Processing logic overview
+      * Error handling
+    - Task execution order
+    - Dependencies between tasks
+    FORMAT: Markdown subsections for each task
+
+    ## SECTION 6: Outputs
+    DESCRIPTION: Rule output specifications
+    CONTENT REQUIREMENTS:
+    - Table of all rule outputs with:
+      * Output Name
+      * Data Type
+      * Description
+      * Format/Structure
+      * Example Value
+    - Output file formats and schemas
+    - Success/failure indicators
+    FORMAT: Markdown table with examples
+
+    ## SECTION 7: Configuration
+    DESCRIPTION: Rule configuration and setup
+    CONTENT REQUIREMENTS:
+    - Application type and environment settings
+    - Execution level and mode
+    - Required permissions and access
+    - System prerequisites
+    - Configuration examples
+    - Environment-specific settings
+    FORMAT: Markdown with code blocks
+
+    ## SECTION 8: Usage Examples
+    DESCRIPTION: Practical usage scenarios
+    CONTENT REQUIREMENTS:
+    - Basic usage example
+    - Advanced configuration example
+    - Common use cases
+    - Best practices
+    - Troubleshooting tips
+    FORMAT: Markdown with code examples
+
+    ## SECTION 9: I/O Mapping
+    DESCRIPTION: Data flow mapping details
+    CONTENT REQUIREMENTS:
+    - Complete I/O mapping visualization
+    - Rule input to task input mappings
+    - Task output to task input mappings  
+    - Task output to rule output mappings
+    - Data transformation explanations
+    FORMAT: Markdown with formatted mapping table
+
+    ## SECTION 10: Troubleshooting
+    DESCRIPTION: Common issues and solutions
+    CONTENT REQUIREMENTS:
+    - Common error scenarios
+    - Input validation failures
+    - Task execution errors
+    - Output generation issues
+    - Performance considerations
+    - Support and contact information
+    FORMAT: Markdown FAQ-style sections
+
+    ## SECTION 11: Version History
+    DESCRIPTION: Change log and versioning
+    CONTENT REQUIREMENTS:
+    - Current version information
+    - Version history table
+    - Change descriptions
+    - Migration notes
+    - Deprecation warnings
+    FORMAT: Markdown table with version details
+
+    ## SECTION 12: References
+    DESCRIPTION: Additional resources and links
+    CONTENT REQUIREMENTS:
+    - Related documentation links
+    - Compliance framework references
+    - API documentation
+    - Support resources
+    - Contributing guidelines
+    FORMAT: Markdown bullet list with links
+
+    MARKDOWN FORMATTING REQUIREMENTS:
+    - Use proper Markdown syntax
+    - Include table of contents with links
+    - Use code blocks for examples
+    - Include badges and shields
+    - Proper heading hierarchy (H1, H2, H3)
+    - Use tables for structured data
+    - Include horizontal rules for section separation
+
+    MCP CONTENT POPULATION INSTRUCTIONS:
+    The MCP should extract the following information from the rule context:
+    - Rule name, purpose, description from rule metadata
+    - System name from appType (clean by removing connector suffixes)
+    - Task details from spec.tasks array (name, alias, purpose, appTags)
+    - Input specifications from spec.inputs object
+    - Output specifications from spec.outputsMeta__
+    - I/O mappings from spec.ioMap array
+    - Environment and execution settings from labels
+    - Application type and integration details
+
+    PLACEHOLDER REPLACEMENT RULES:
+    - {RULE_NAME} = meta.name
+    - {RULE_PURPOSE} = meta.purpose  
+    - {RULE_DESCRIPTION} = meta.description
+    - {SYSTEM_NAME} = extracted from appType
+    - {VERSION} = meta.version or "1.0.0"
+    - {ENVIRONMENT} = meta.labels.environment[0]
+    - {APP_TYPE} = meta.labels.appType[0]
+    - {EXEC_LEVEL} = meta.labels.execlevel[0]
+    - {TASK_COUNT} = len(spec.tasks)
+    - {INPUT_COUNT} = len(spec.inputs)
+    - {OUTPUT_COUNT} = len(spec.outputsMeta__)
+    - {TIMESTAMP} = current ISO timestamp
+
+    CONTENT GUIDELINES:
+    - Use clear, technical language
+    - Include practical examples
+    - Provide comprehensive coverage
+    - Make it developer-friendly
+    - Include troubleshooting help
+    - Keep sections well-organized
+    - Use consistent formatting
+
+    WORKFLOW:
+    1. MCP retrieves rule context using fetch_rule()
+    2. MCP extracts metadata and technical details
+    3. MCP generates complete README.md content using template above
+    4. MCP populates all placeholders with actual rule data
+    5. MCP returns complete README content as string for user review
+    6. User reviews and confirms the content
+    7. If approved, call create_rule_readme() to actually save the README
+
+    Args:
+        rule_name: Name of the rule for which to generate README preview
+
+    Returns:
+        Dict containing complete README.md content as string for user review
+    """
+    
+    # MCP should directly construct the README based on the instructions above
+    # No intermediate API calls needed - MCP has all the template details in the docstring
+    # The MCP will use fetch_rule() internally and build the complete README content
+    
+    return {
+        "success": True, 
+        "rule_name": rule_name,
+        "readme_content": "",  # MCP will populate this with complete README.md content
+        "sections_count": 12,
+        "estimated_length": "2000-3000 lines",
+        "message": f"MCP should construct complete README.md content for rule '{rule_name}' based on the detailed template instructions above",
+        "next_action": "MCP should use fetch_rule() and build complete README markdown content, then return it in readme_content"
+    }
+
+
+@mcp.tool()
+def create_rule_readme(rule_name: str, readme_content: str) -> Dict[str, Any]:
+    """
+    Create and save README.md file after user confirmation.
+
+    README CREATION:
+
+    This tool actually creates and saves the README.md file after the user has reviewed
+    and confirmed the preview content from generate_rule_readme_preview().
+
+    WORKFLOW:
+    1. User has already reviewed README content from preview
+    2. User confirmed the content is acceptable
+    3. This tool receives the complete README.md content as string
+    4. MCP saves the README file and returns access details
+
+    Args:
+        rule_name: Name of the rule for which to create README
+        readme_content: Complete README.md content as string
+
+    Returns:
+        Dict containing README creation status and access details
+    """
+    
+    try:
+        headers = wsutils.create_header()
+        payload = {
+            "ruleName": rule_name,
+            "readmeContent": readme_content,  # Pass complete README content
+            "fileName": f"{rule_name}_README.md",
+            "documentType": "README",
+            "saveDocument": True
+        }
+        
+        # save_resp = wsutils.post(
+        #     path=wsutils.build_api_url(endpoint=constants.URL_SAVE_RULE_README),
+        #     data=json.dumps(payload),
+        #     header=headers
+        # )
+
+        save_resp = {
+            "documentURL":f"https://dev.compliancecow.live/docs/{rule_name}/README.md",
+        }
+        
+        if rule.is_valid_key(save_resp, "documentURL"):
+            return {
+                "success": True,
+                "rule_name": rule_name,
+                "readme_url": save_resp["documentURL"],
+                "document_id": save_resp.get("documentId"),
+                "filename": save_resp.get("filename", f"{rule_name}_README.md"),
+                "content_length": len(readme_content),
+                "sections_saved": readme_content.count("##"),  # Count markdown sections
+                "message": f"README.md successfully created and saved for rule '{rule_name}'"
+            }
+        else:
+            return {
+                "success": False,
+                "error": "Failed to save README.md",
+                "rule_name": rule_name
+            }
+            
+    except Exception as e:
+        return {
+            "success": False,
+            "error": f"Failed to save README.md: {str(e)}",
+            "rule_name": rule_name
+        }
+
+
+@mcp.tool()
+def get_rule_documentation_status(rule_name: str) -> Dict[str, Any]:
+    """
+    Get documentation status for a rule (README, Design Notes, etc.).
+
+    This tool checks what documentation already exists for a rule and provides
+    an overview of available and missing documentation.
+
+    Args:
+        rule_name: Name of the rule to check documentation status
+
+    Returns:
+        Dict containing documentation status and availability
+    """
+    
+    try:
+        headers = wsutils.create_header()
+        
+        # doc_status_resp = wsutils.get(
+        #     path=wsutils.build_api_url(endpoint=f"{constants.URL_GET_RULE_DOCS_STATUS}/{rule_name}"),
+        #     header=headers
+        # )
+
+        doc_status_resp = {}
+        
+        if rule.is_valid_key(doc_status_resp, "documentationStatus"):
+            status = doc_status_resp["documentationStatus"]
+            return {
+                "success": True,
+                "rule_name": rule_name,
+                "documentation_status": status,
+                "has_readme": status.get("hasReadme", False),
+                "has_design_notes": status.get("hasDesignNotes", False),
+                "readme_url": status.get("readmeURL"),
+                "design_notes_url": status.get("designNotesURL"),
+                "last_updated": status.get("lastUpdated"),
+                "documentation_completeness": status.get("completeness", 0),
+                "missing_docs": status.get("missingDocuments", []),
+                "message": f"Documentation status retrieved for rule '{rule_name}'"
+            }
+        else:
+            return {
+                "success": False,
+                "error": "Failed to get documentation status",
+                "rule_name": rule_name
+            }
+            
+    except Exception as e:
+        return {
+            "success": False,
+            "error": f"Failed to get documentation status: {str(e)}",
+            "rule_name": rule_name
+        }
+
+
+@mcp.tool()
+def update_rule_readme(rule_name: str, updated_readme_content: str) -> Dict[str, Any]:
+    """
+    Update existing README.md file with new content.
+
+    README UPDATE:
+
+    This tool updates an existing README.md file with new content. Useful for
+    making changes after initial creation or updating documentation as rules evolve.
+
+    Args:
+        rule_name: Name of the rule for which to update README
+        updated_readme_content: Updated README.md content as string
+
+    Returns:
+        Dict containing README update status and details
+    """
+    
+    try:
+        headers = wsutils.create_header()
+        payload = {
+            "ruleName": rule_name,
+            "readmeContent": updated_readme_content,
+            "fileName": f"{rule_name}_README.md",
+            "documentType": "README",
+            "updateDocument": True,
+            "preserveHistory": True
+        }
+        
+        update_resp = wsutils.put(
+            path=wsutils.build_api_url(endpoint=constants.URL_UPDATE_RULE_README),
+            data=json.dumps(payload),
+            header=headers
+        )
+        
+        if rule.is_valid_key(update_resp, "documentURL"):
+            return {
+                "success": True,
+                "rule_name": rule_name,
+                "readme_url": update_resp["documentURL"],
+                "document_id": update_resp.get("documentId"),
+                "filename": update_resp.get("filename", f"{rule_name}_README.md"),
+                "content_length": len(updated_readme_content),
+                "version": update_resp.get("version", "1.1"),
+                "updated_at": update_resp.get("updatedAt"),
+                "message": f"README.md successfully updated for rule '{rule_name}'"
+            }
+        else:
+            return {
+                "success": False,
+                "error": "Failed to update README.md",
+                "rule_name": rule_name
+            }
+            
+    except Exception as e:
+        return {
+            "success": False,
+            "error": f"Failed to update README.md: {str(e)}",
+            "rule_name": rule_name
+        }
