@@ -9,7 +9,7 @@ from mcp.server.auth.middleware.auth_context import get_access_token
 from mcptypes.error_type import ErrorVO,ErrorResponseVO
 
 
-async def make_API_call_to_CCow_and_get_response(uriSuffix: str,method: str,request_body: dict | str = None, type: str = "json",return_raw: bool = False):
+async def make_API_call_to_CCow_and_get_response(uriSuffix: str,method: str,request_body: dict | list | str = None, type: str = "json",return_raw: bool = False):
     logger.info(f"uriSuffix: {uriSuffix}, Method: {method}, Type: {type}")
     async with httpx.AsyncClient() as client:
         try:
@@ -47,7 +47,10 @@ async def make_API_call_to_CCow_and_get_response(uriSuffix: str,method: str,requ
                 if ("Message" in error and "Description" in error):
                     return ErrorResponseVO(Message=error.get("Message"),Description=error.get("Description")).model_dump()
                 return ErrorVO(error=f"Unexpected response status: {response.status_code}").model_dump()
-            return response.json()
+            if response.content:
+                return response.json()
+            else:
+                return {}
         except httpx.TimeoutException:
             logger.error(f"make_API_call_to_CCow_and_get_response error: Request timed out after 60 seconds for uriSuffix: {uriSuffix}")
             return "Facing error : Request timed out."
@@ -164,3 +167,10 @@ def copyValue(src: dict, dest: dict, srcKey: str, destKey: str=""):
     if srcKey in src:
         dest[destKey]=src[srcKey]
     return dest
+
+def deleteKey(src: dict,key: str):
+    if src is None or str=="":
+        logger.debug("delete is empty")
+        return
+    if key in src:
+        del src[key]
