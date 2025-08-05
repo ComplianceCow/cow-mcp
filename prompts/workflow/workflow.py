@@ -69,6 +69,56 @@ def ccow_workflow_knowledge() -> str:
             - Yes path: If the condition is satisfied
             - No path: If the condition is not satisfied
 
+            
+
+            VARIABLES IN WORKFLOW
+            ----------------------
+            Workflows support two types of variables:
+
+            1. PREDEFINED VARIABLES
+            -----------------------
+            System-level variables mapped to specific operations. When you set a value for a predefined variable, 
+            it automatically triggers the associated system operation (like notifications).
+
+            2. CUSTOM VARIABLES
+            --------------------
+            User-defined variables for storing and passing values between activities. They don't trigger 
+            system operations, just hold data for your workflow logic.
+            
+            Example - Variable:
+            ---------------------------------------------------------
+            Activity:
+              groupName: Ungrouped
+              action:
+                type: Function
+                reference:
+                  categoryId: <<category_id>>
+                  desc: <<desc>>
+                  displayable: <<displayable>>
+                  id: <<id>>
+                  name: SetVariable
+                  inputs:
+                    - name: variableName
+                      type: Text
+                      desc: <<input_desc>>
+                      mapValueFrom:                
+                        type: PreDefinedVariable   
+                      value: <<predefinded_or_custom_varaible_name>>
+                    - name: variableType
+                      type: DropDown
+                      desc: <<input_desc>>
+                      options: <<varaible_type_options>>
+                      value: [[type_value]]
+                    - name: variableValue
+                      type: Text
+                      desc: The value to assign to the variable.
+                      dynamicTypeFrom: variableType
+                      value: [[varaible_value]]
+      
+            spec:
+              variables:
+                - name: <<predefinded_or_custom_varaible_name>>
+                  type: [[type_value]]
 
             IMPORTANT 
             ----------------

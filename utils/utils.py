@@ -6,7 +6,7 @@ from constants.constants import headers, host
 
 # from mcpconfig import get_access_token
 from mcp.server.auth.middleware.auth_context import get_access_token
-from mcptypes.error_type import ErrorVO,ErrorResponseVO
+from mcptypes.error_type import ErrorVO,ErrorResponseVO,ErrorWorkflowVO
 
 
 async def make_API_call_to_CCow_and_get_response(uriSuffix: str,method: str,request_body: dict | list | str = None, type: str = "json",return_raw: bool = False):
@@ -44,8 +44,12 @@ async def make_API_call_to_CCow_and_get_response(uriSuffix: str,method: str,requ
             if response.status_code < 200 or response.status_code > 299:
                 error = response.json()
                 logger.error("make_API_call_to_CCow_and_get_response unexpected error: {}\n".format(error))
-                if ("Message" in error and "Description" in error):
+                if ("Message" in error and "Description" in error ):
                     return ErrorResponseVO(Message=error.get("Message"),Description=error.get("Description")).model_dump()
+                if ("ErrorMessage" in error):
+                    return ErrorVO(error=error.get("ErrorMessage")).model_dump()
+                if ("Message" in error and "ErrorDetails" in error ):
+                    return ErrorWorkflowVO(Message=error.get("Message"),ErrorDetails=error.get("ErrorDetails")).model_dump()
                 return ErrorVO(error=f"Unexpected response status: {response.status_code}").model_dump()
             if response.content:
                 return response.json()

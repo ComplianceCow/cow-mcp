@@ -151,6 +151,7 @@ class WorkflowRuleInputsVO(BaseModel):
     description: Optional[str] = ""
     type: Optional[str] = ""
     isrequired: Optional[bool] = ""
+    format: Optional[str] = ""
     model_config = {
         "extra": "ignore"
     }
@@ -158,7 +159,8 @@ class WorkflowRuleInputsVO(BaseModel):
 class WorkflowRuleOutputsVO(BaseModel):
     name: Optional[str] = ""
     description: Optional[str] = ""
-    dataType: Optional[str] = ""
+    type: Optional[str] = ""
+    format: Optional[str] = ""
     model_config = {
         "extra": "ignore"
     }
@@ -174,4 +176,14 @@ class WorkflowRuleVO(BaseModel):
 
 class WorkflowRuleListVO(BaseModel):
     rules: Optional[List[WorkflowRuleVO]] = None
+    error: Optional[str] = ""
+
+class WorkflowPredefinedVariableVO(BaseModel):
+    id: Optional[str] = ""
+    type: Optional[str] = ""
+    name: Optional[str] = ""
+    desc: Optional[str] = ""
+
+class WorkflowPredefinedVariableListVO(BaseModel):
+    items: Optional[List[WorkflowPredefinedVariableVO]] = None
     error: Optional[str] = ""
