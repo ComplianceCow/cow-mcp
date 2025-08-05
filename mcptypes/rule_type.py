@@ -1,4 +1,5 @@
-from dataclasses import asdict, dataclass, fields, is_dataclass
+import dataclasses
+from dataclasses import MISSING, asdict, dataclass, fields, is_dataclass
 from datetime import datetime
 from typing import Any, Dict, List, get_type_hints
 
@@ -31,8 +32,32 @@ def _from_dict(cls: type, data: Any) -> Any:
         kwargs = {}
         type_hints = get_type_hints(cls)
         for f in fields(cls):
-            value = data.get(f.name, f.default)
-            kwargs[f.name] = _from_dict(type_hints[f.name], value)
+            # Handle missing fields properly
+            if f.name in data:
+                value = data[f.name]
+            elif f.default is not MISSING:
+                # Use the default value if field is missing
+                value = f.default
+            elif f.default_factory is not MISSING:
+                # Use the default factory if available
+                value = f.default_factory()
+            else:
+                # Set sensible defaults for required fields that are missing
+                field_type = type_hints.get(f.name, str)
+                if field_type == bool:
+                    value = False
+                elif field_type == int:
+                    value = 0
+                elif field_type == str:
+                    value = ""
+                elif field_type == list or getattr(field_type, "__origin__", None) == list:
+                    value = []
+                elif field_type == dict or getattr(field_type, "__origin__", None) == dict:
+                    value = {}
+                else:
+                    value = None
+
+            kwargs[f.name] = _from_dict(type_hints.get(f.name, type(value)), value)
         return cls(**kwargs)
     # primitive type
     return data

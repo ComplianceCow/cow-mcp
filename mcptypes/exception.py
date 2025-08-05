@@ -1,4 +1,5 @@
-from typing import List, Optional, Any, Dict
+from typing import Any, Dict, List, Optional
+
 from django.http import JsonResponse
 
 from constants import cowenums
@@ -46,7 +47,7 @@ class ErrorVO:
     @classmethod
     def from_dict(cls, data: Dict[str, Any]) -> "ErrorVO":
         error_details = [ErrorDetailVO.from_dict(
-            detail) for detail in data.get("errorDetails", [])]
+            detail) for detail in data.get("errorDetails", data.get("ErrorDetails", []))]
         return cls(
             service=data.get("service", None),
             component=data.get("component", None),

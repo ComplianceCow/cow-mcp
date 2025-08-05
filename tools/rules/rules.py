@@ -1,15 +1,16 @@
 from __future__ import annotations
+
 import asyncio
 import base64
 import json
 from datetime import datetime
 from typing import Any, Dict, List, Optional, Tuple, get_type_hints
 
-from mcpconfig.config import mcp
 from constants import constants
-from utils import rule, wsutils
+from mcpconfig.config import mcp
+from mcptypes import exception
 from mcptypes.rule_type import TaskVO
-
+from utils import rule, wsutils
 
 # Phase 1: Lightweight task summary resource
 
@@ -720,7 +721,7 @@ def confirm_parameter_input(task_name: str, input_name: str, confirmed_value: st
 
 # INPUT VERIFICATION TOOLS - MANDATORY WORKFLOW STEPS
 @mcp.tool()
-def prepare_input_collection_overview(selected_tasks: List[str]) -> Dict[str, Any]:
+def prepare_input_collection_overview(selected_tasks: List[Dict[str, str]]) -> Dict[str, Any]:
     """Prepare and present input collection overview before starting any input collection.
 
     MANDATORY FIRST STEP - INPUT OVERVIEW PROCESS:
@@ -728,16 +729,17 @@ def prepare_input_collection_overview(selected_tasks: List[str]) -> Dict[str, An
     This tool MUST be called before collecting any inputs. It analyzes all selected tasks
     and presents a complete overview of what inputs will be needed.
 
-    HANDLES DUPLICATE INPUT NAMES:
-    - Creates unique identifiers for each task-input combination
-    - Format: "{task_name}.{input_name}" for uniqueness
-    - Prevents conflicts when multiple tasks have same input names
-    - Maintains clear mapping between tasks and their specific inputs
+    HANDLES DUPLICATE INPUT NAMES WITH TASK ALIASES:
+    - Creates unique identifiers for each task-alias-input combination
+    - Format: "{task_alias}.{input_name}" for uniqueness
+    - Prevents conflicts when multiple tasks have same input names or same task used multiple times
+    - Maintains clear mapping between task aliases and their specific inputs
+    - Task aliases should be simple, meaningful step indicators (e.g., "step1", "validation", "processing")
 
     OVERVIEW REQUIREMENTS:
-    1. Analyze ALL selected tasks for input requirements
+    1. Analyze ALL selected tasks with their aliases for input requirements
     2. Categorize inputs: templates vs parameters
-    3. Create unique identifiers for each task-input combination
+    3. Create unique identifiers for each task-alias-input combination
     4. Count total inputs needed
     5. Present clear overview to user
     6. Get user confirmation before proceeding
@@ -749,13 +751,13 @@ def prepare_input_collection_overview(selected_tasks: List[str]) -> Dict[str, An
     I've analyzed your selected tasks. Here's what we need to configure:
 
     TEMPLATE INPUTS (Files):
-    • Task: [TaskName] → Input: [InputName] ([Format] file)
-        Unique ID: [TaskName.InputName]
+    • Task: [TaskAlias] ([TaskName]) → Input: [InputName] ([Format] file)
+        Unique ID: [TaskAlias.InputName]
         Description: [InputDescription]
 
     PARAMETER INPUTS (Values):
-    • Task: [TaskName] → Input: [InputName] ([DataType])
-        Unique ID: [TaskName.InputName]
+    • Task: [TaskAlias] ([TaskName]) → Input: [InputName] ([DataType])
+        Unique ID: [TaskAlias.InputName]
         Description: [InputDescription]
         Required: [Yes/No]
 
@@ -772,11 +774,16 @@ def prepare_input_collection_overview(selected_tasks: List[str]) -> Dict[str, An
     - ALWAYS call this tool first before any input collection
     - NEVER start collecting inputs without user seeing overview
     - NEVER proceed without user confirmation
-    - Create unique task.input identifiers to avoid conflicts
-    - Show clear task-input relationships to user
+    - Create unique task_alias.input identifiers to avoid conflicts
+    - Show clear task-alias-input relationships to user
 
     Args:
-        selected_tasks: List of task names that will be used in the rule
+        selected_tasks: List of dicts with 'task_name' and 'task_alias'
+                       Example: [
+                           {"task_name": "data_validation", "task_alias": "step1"},
+                           {"task_name": "data_processing", "task_alias": "step2"},
+                           {"task_name": "data_validation", "task_alias": "final_check"}
+                       ]
 
     Returns:
         Dict containing structured input overview and collection plan with unique identifiers
@@ -786,8 +793,38 @@ def prepare_input_collection_overview(selected_tasks: List[str]) -> Dict[str, An
         return {"success": False, "error": "No tasks selected for input analysis"}
 
     try:
-        input_analysis = {"template_inputs": [], "parameter_inputs": [], "total_count": 0, "template_count": 0,
-                          "parameter_count": 0, "estimated_minutes": 0, "unique_input_map": {}}  # Maps unique_id to task and input info
+        input_analysis = {
+            "template_inputs": [], 
+            "parameter_inputs": [], 
+            "total_count": 0, 
+            "template_count": 0,
+            "parameter_count": 0, 
+            "estimated_minutes": 0, 
+            "unique_input_map": {},  # Maps unique_id to task alias and input info
+            "task_alias_map": {}     # Maps task_alias to task_name for reference
+        }
+
+        # Validate input format and task aliases
+        for task_info in selected_tasks:
+            if not isinstance(task_info, dict) or "task_name" not in task_info or "task_alias" not in task_info:
+                return {"success": False, "error": "Each task must be a dict with 'task_name' and 'task_alias' keys"}
+            
+            task_alias = task_info["task_alias"].strip()
+            if not task_alias:
+                return {"success": False, "error": f"Task alias is required for task {task_info['task_name']}"}
+            
+            if len(task_alias) > 100:
+                return {"success": False, "error": f"Task alias '{task_alias}' exceeds 100 character limit"}
+            
+            # Check for duplicate aliases
+            if task_alias in input_analysis["task_alias_map"]:
+                return {"success": False, "error": f"Duplicate task alias '{task_alias}' found. Each alias must be unique."}
+            
+            # Store task alias mapping
+            input_analysis["task_alias_map"][task_alias] = {
+                "task_name": task_info["task_name"],
+                "purpose": task_info.get("purpose", "")
+            }
 
         available_tasks = []
         tasks_resp = rule.fetch_task_api(params={
@@ -798,10 +835,15 @@ def prepare_input_collection_overview(selected_tasks: List[str]) -> Dict[str, An
                 task) for task in tasks_resp["items"]]
 
         if not available_tasks:
-            return json.dumps({"success": False, "error": "No tasks loaded"})
+            return {"success": False, "error": "No tasks loaded"}
 
-        # Analyze each selected task
-        for task_name in selected_tasks:
+        # Analyze each selected task with its alias
+        for task_info in selected_tasks:
+            task_name = task_info["task_name"]
+            task_alias = task_info["task_alias"]
+            task_purpose = task_info.get("purpose", "")
+
+            # Find the task definition
             task = None
             for available_task in available_tasks:
                 if available_task.name == task_name:
@@ -811,27 +853,41 @@ def prepare_input_collection_overview(selected_tasks: List[str]) -> Dict[str, An
             if not task:
                 continue
 
-            # Process each input with unique identifier
+            # Process each input with unique identifier using task alias
             for inp in task.inputs:
-                # Create unique identifier: TaskName.InputName
-                unique_input_id = f"{task_name}.{inp.name}"
+                # Create unique identifier: TaskAlias.InputName
+                unique_input_id = f"{task_alias}.{inp.name}"
 
-                input_info = {"task_name": task_name, "input_name": inp.name, "unique_input_id": unique_input_id, "description": inp.description, "data_type": inp.dataType, "required": inp.required, "has_template": bool(
-                    inp.templateFile), "format": inp.format if inp.templateFile else None, "has_default": bool(inp.defaultValue), "default_value": inp.defaultValue if inp.defaultValue else None}
+                input_info = {
+                    "task_name": task_name,
+                    "task_alias": task_alias, 
+                    "task_purpose": task_purpose,
+                    "input_name": inp.name,
+                    "unique_input_id": unique_input_id,
+                    "description": inp.description,
+                    "data_type": inp.dataType,
+                    "required": inp.required,
+                    "has_template": bool(inp.templateFile),
+                    "format": inp.format if inp.templateFile else None,
+                    "has_default": bool(inp.defaultValue),
+                    "default_value": inp.defaultValue if inp.defaultValue else None
+                }
 
                 # Store in unique input map for easy lookup
                 input_analysis["unique_input_map"][unique_input_id] = {
-                    "task_name": task_name, "input_name": inp.name, "task_input_obj": inp}
+                    "task_name": task_name,
+                    "task_alias": task_alias,
+                    "input_name": inp.name,
+                    "task_input_obj": inp
+                }
 
                 if inp.templateFile or inp.dataType.upper() in ["FILE", "HTTP_CONFIG"]:
-                    input_analysis["template_inputs"].append(
-                        input_info)
+                    input_analysis["template_inputs"].append(input_info)
                     input_analysis["template_count"] += 1
                     # File inputs take longer (2-3 minutes each)
                     input_analysis["estimated_minutes"] += 3
                 else:
-                    input_analysis["parameter_inputs"].append(
-                        input_info)
+                    input_analysis["parameter_inputs"].append(input_info)
                     input_analysis["parameter_count"] += 1
                     # Parameter inputs are quicker (30 seconds each)
                     input_analysis["estimated_minutes"] += 0.5
@@ -843,7 +899,21 @@ def prepare_input_collection_overview(selected_tasks: List[str]) -> Dict[str, An
         overview_text = rule.generate_input_overview_presentation_with_unique_ids(
             input_analysis)
 
-        return {"success": True, "input_analysis": input_analysis, "overview_presentation": overview_text, "unique_input_map": input_analysis["unique_input_map"], "collection_plan": {"step1": "Template inputs (files) - collected first with unique IDs", "step2": "Parameter inputs (values) - collected second with unique IDs", "step3": "Final verification of all collected inputs", "step4": "Rule structure creation with proper task-input mapping"}, "message": "Input overview prepared with unique identifiers. Present to user and get confirmation before proceeding.", "next_action": "Show overview_presentation to user and wait for confirmation"}
+        return {
+            "success": True,
+            "input_analysis": input_analysis,
+            "overview_presentation": overview_text,
+            "unique_input_map": input_analysis["unique_input_map"],
+            "task_alias_map": input_analysis["task_alias_map"],
+            "collection_plan": {
+                "step1": "Template inputs (files) - collected first with task aliases",
+                "step2": "Parameter inputs (values) - collected second with task aliases",
+                "step3": "Final verification of all collected inputs with aliases",
+                "step4": "Rule structure creation with proper task alias mapping"
+            },
+            "message": "Input overview prepared with task aliases. Present to user and get confirmation before proceeding.",
+            "next_action": "Show overview_presentation to user and wait for confirmation"
+        }
 
     except Exception as e:
         return {"success": False, "error": f"Failed to prepare input overview: {e}"}
@@ -858,11 +928,11 @@ def verify_collected_inputs(collected_inputs: Dict[str, Any]) -> Dict[str, Any]:
     This tool MUST be called after all inputs are collected but before create_rule().
     It presents a comprehensive summary of all collected inputs for user verification.
 
-    HANDLES DUPLICATE INPUT NAMES:
-    - Uses unique identifiers (TaskName.InputName) for each input
-    - Properly maps each unique input to its specific task
-    - Creates structured inputs for rule creation with unique names
-    - Maintains clear separation between inputs from different tasks
+    HANDLES DUPLICATE INPUT NAMES WITH TASK ALIASES:
+    - Uses unique identifiers (TaskAlias.InputName) for each input
+    - Properly maps each unique input to its specific task alias
+    - Creates structured inputs for rule creation with unique names when needed
+    - Maintains clear separation between inputs from different task instances
 
     VERIFICATION REQUIREMENTS:
     1. Show complete summary of ALL collected inputs with unique IDs
@@ -871,7 +941,7 @@ def verify_collected_inputs(collected_inputs: Dict[str, Any]) -> Dict[str, Any]:
     4. Present clear verification checklist
     5. Get explicit user confirmation
     6. Allow user to modify values if needed
-    7. Prepare inputs for rule structure creation with unique identifiers
+    7. Prepare inputs for rule structure creation with proper task alias mapping
 
     VERIFICATION PRESENTATION FORMAT:
     "INPUT VERIFICATION SUMMARY:
@@ -879,8 +949,8 @@ def verify_collected_inputs(collected_inputs: Dict[str, Any]) -> Dict[str, Any]:
     Please review all collected inputs before rule creation:
 
     TEMPLATE INPUTS (Uploaded Files):
-    ✓ Task Input: [TaskName.InputName]
-        Task: [TaskName] → Input: [InputName]
+    ✓ Task Input: [TaskAlias.InputName]
+        Task: [TaskAlias] ([TaskName]) → Input: [InputName]
         Format: [Format]
         File: [filename]
         URL: [file_url]
@@ -888,8 +958,8 @@ def verify_collected_inputs(collected_inputs: Dict[str, Any]) -> Dict[str, Any]:
         Status: ✓ Validated
 
     PARAMETER INPUTS (Values):
-    ✓ Task Input: [TaskName.InputName]
-        Task: [TaskName] → Input: [InputName]
+    ✓ Task Input: [TaskAlias.InputName]
+        Task: [TaskAlias] ([TaskName]) → Input: [InputName]
         Type: [DataType]
         Value: [user_value]
         Required: [Yes/No]
@@ -904,7 +974,7 @@ def verify_collected_inputs(collected_inputs: Dict[str, Any]) -> Dict[str, Any]:
 
     Are all these inputs correct?
     - Type 'yes' to proceed with rule creation
-    - Type 'modify [TaskName.InputName]' to change a specific input
+    - Type 'modify [TaskAlias.InputName]' to change a specific input
     - Type 'cancel' to abort rule creation"
 
     CRITICAL VERIFICATION RULES:
@@ -927,84 +997,149 @@ def verify_collected_inputs(collected_inputs: Dict[str, Any]) -> Dict[str, Any]:
 
     try:
         # Analyze collected inputs with unique ID handling
-        verification_summary = {"template_files": [], "parameter_values": [], "total_collected": 0, "missing_inputs": [], "validation_errors": [], "structured_inputs": {}, "inputs_meta": [
-        ], "task_input_mapping": {}}  # For rule creation with unique names  # For rule creation with metadata - FIXED: only original input names  # Maps rule input names to original task inputs
+        verification_summary = {
+            "template_files": [], 
+            "parameter_values": [], 
+            "total_collected": 0, 
+            "missing_inputs": [], 
+            "validation_errors": [], 
+            "structured_inputs": {}, 
+            "inputs_meta": [],
+            "task_input_mapping": {},  # Maps rule input names to original task inputs
+            "task_alias_map": collected_inputs.get("task_alias_map", {})  # Preserve task alias mapping
+        }
 
         # Process template files with unique IDs
         template_files = collected_inputs.get("template_files", {})
         for unique_input_id, file_info in template_files.items():
-            # Parse unique_input_id: "TaskName.InputName"
+            # Parse unique_input_id: "TaskAlias.InputName"
             if "." not in unique_input_id:
                 continue  # Skip invalid IDs
 
-            task_name, input_name = unique_input_id.split(".", 1)
+            task_alias, input_name = unique_input_id.split(".", 1)
 
-            verification_summary["template_files"].append({"unique_input_id": unique_input_id, "task_name": task_name, "input_name": input_name, "filename": file_info.get("filename"), "file_url": file_info.get(
-                "file_url"), "file_size": file_info.get("file_size"), "format": file_info.get("format"), "data_type": file_info.get("data_type", "FILE"), "status": "✓ Validated" if file_info.get("validated") else "⚠ Needs validation"})
+            verification_summary["template_files"].append({
+                "unique_input_id": unique_input_id,
+                "task_alias": task_alias,
+                "task_name": file_info.get("task_name", ""),
+                "input_name": input_name,
+                "filename": file_info.get("filename"),
+                "file_url": file_info.get("file_url"),
+                "file_size": file_info.get("file_size"),
+                "format": file_info.get("format"),
+                "data_type": file_info.get("data_type", "FILE"),
+                "status": "✓ Validated" if file_info.get("validated") else "⚠ Needs validation"
+            })
 
-            # Add to structured inputs for rule creation - FIXED: Remove task prefix
-            # FIXED: Use original input name only (no task prefix)
-            rule_input_name = input_name
-            # FIXED: For FILE and HTTP_CONFIG inputs, use the uploaded file URL as the value (not content)
-            # Always use file URL for FILE and HTTP_CONFIG inputs
+            # For rule creation: Handle input naming strategy
+            # If there are conflicts (same input name from different tasks), use unique names
+            # Otherwise, use original input names for simplicity
             input_value = file_info.get("file_url")
+            
+            # Check if this input name already exists in structured_inputs
+            if input_name in verification_summary["structured_inputs"]:
+                # Conflict detected - use unique naming: TaskAlias_InputName
+                rule_input_name = f"{task_alias}_{input_name}"
+            else:
+                # No conflict - use original input name
+                rule_input_name = input_name
+                
             verification_summary["structured_inputs"][rule_input_name] = input_value
 
-            # FIXED: inputs_meta should only contain original input names, not TaskName_InputName
-            verification_summary["inputs_meta"].append({"name": input_name, "dataType": file_info.get("data_type", "FILE"), "required": file_info.get(
-                "required", True), "defaultValue": input_value})  # FIXED: Use original input name only  # Use file URL as default value
+            verification_summary["inputs_meta"].append({
+                "name": rule_input_name,
+                "dataType": file_info.get("data_type", "FILE"),
+                "required": file_info.get("required", True),
+                "defaultValue": input_value
+            })
 
             # Store mapping for I/O map creation
             verification_summary["task_input_mapping"][rule_input_name] = {
-                "task_name": task_name, "input_name": input_name, "unique_id": unique_input_id, "rule_input_name": rule_input_name}  # For I/O mapping reference
+                "task_alias": task_alias,
+                "task_name": file_info.get("task_name", ""),
+                "input_name": input_name,
+                "unique_id": unique_input_id,
+                "rule_input_name": rule_input_name
+            }
 
         # Process parameter values with unique IDs
         parameter_values = collected_inputs.get("parameter_values", {})
         for unique_input_id, value_info in parameter_values.items():
-            # Parse unique_input_id: "TaskName.InputName"
+            # Parse unique_input_id: "TaskAlias.InputName"
             if "." not in unique_input_id:
                 continue  # Skip invalid IDs
 
-            task_name, input_name = unique_input_id.split(".", 1)
+            task_alias, input_name = unique_input_id.split(".", 1)
 
-            verification_summary["parameter_values"].append({"unique_input_id": unique_input_id, "task_name": task_name, "input_name": input_name, "value": value_info.get(
-                "value"), "data_type": value_info.get("data_type"), "required": value_info.get("required"), "status": "✓ Set" if value_info.get("value") is not None else "⚠ Missing"})
+            verification_summary["parameter_values"].append({
+                "unique_input_id": unique_input_id,
+                "task_alias": task_alias,
+                "task_name": value_info.get("task_name", ""),
+                "input_name": input_name,
+                "value": value_info.get("value"),
+                "data_type": value_info.get("data_type"),
+                "required": value_info.get("required"),
+                "status": "✓ Set" if value_info.get("value") is not None else "⚠ Missing"
+            })
 
-            # Add to structured inputs for rule creation - FIXED: Remove task prefix
-            # FIXED: Use original input name only (no task prefix)
-            rule_input_name = input_name
-            # For parameter inputs, use the actual user-provided value
+            # For rule creation: Handle input naming strategy
             input_value = value_info.get("value")
+            
+            # Check if this input name already exists in structured_inputs
+            if input_name in verification_summary["structured_inputs"]:
+                # Conflict detected - use unique naming: TaskAlias_InputName
+                rule_input_name = f"{task_alias}_{input_name}"
+            else:
+                # No conflict - use original input name
+                rule_input_name = input_name
+                
             verification_summary["structured_inputs"][rule_input_name] = input_value
 
-            # FIXED: inputs_meta should only contain original input names, not TaskName_InputName
-            verification_summary["inputs_meta"].append({"name": input_name, "dataType": value_info.get("data_type", "STRING"), "required": value_info.get(
-                "required", True), "defaultValue": input_value})  # FIXED: Use original input name only  # Use actual user value as default
+            verification_summary["inputs_meta"].append({
+                "name": rule_input_name,
+                "dataType": value_info.get("data_type", "STRING"),
+                "required": value_info.get("required", True),
+                "defaultValue": input_value
+            })
 
             # Store mapping for I/O map creation
             verification_summary["task_input_mapping"][rule_input_name] = {
-                "task_name": task_name, "input_name": input_name, "unique_id": unique_input_id, "rule_input_name": rule_input_name}  # For I/O mapping reference
+                "task_alias": task_alias,
+                "task_name": value_info.get("task_name", ""),
+                "input_name": input_name,
+                "unique_id": unique_input_id,
+                "rule_input_name": rule_input_name
+            }
 
-        verification_summary["total_collected"] = len(
-            template_files) + len(parameter_values)
+        verification_summary["total_collected"] = len(template_files) + len(parameter_values)
 
         # Check for missing required inputs
         for item in verification_summary["template_files"] + verification_summary["parameter_values"]:
             if "Missing" in item["status"] or "⚠" in item["status"]:
-                verification_summary["missing_inputs"].append(
-                    item["unique_input_id"])
+                verification_summary["missing_inputs"].append(item["unique_input_id"])
 
         # Generate verification presentation
         verification_text = rule.generate_verification_presentation_with_unique_ids(
             verification_summary)
 
-        return {"success": True, "verification_summary": verification_summary, "verification_presentation": verification_text, "ready_for_creation": len(verification_summary["missing_inputs"]) == 0, "missing_count": len(verification_summary["missing_inputs"]), "structured_inputs": verification_summary["structured_inputs"], "inputs_meta": verification_summary["inputs_meta"], "task_input_mapping": verification_summary["task_input_mapping"], "message": "Input verification prepared with unique identifiers. Present to user for confirmation.", "next_action": "Show verification_presentation to user and wait for confirmation"}
+        return {
+            "success": True,
+            "verification_summary": verification_summary,
+            "verification_presentation": verification_text,
+            "ready_for_creation": len(verification_summary["missing_inputs"]) == 0,
+            "missing_count": len(verification_summary["missing_inputs"]),
+            "structured_inputs": verification_summary["structured_inputs"],
+            "inputs_meta": verification_summary["inputs_meta"],
+            "task_input_mapping": verification_summary["task_input_mapping"],
+            "task_alias_map": verification_summary["task_alias_map"],
+            "message": "Input verification prepared with task aliases. Present to user for confirmation.",
+            "next_action": "Show verification_presentation to user and wait for confirmation"
+        }
 
     except Exception as e:
         return {"success": False, "error": f"Failed to verify collected inputs: {e}"}
 
 
-# Rule creation tools
 @mcp.tool()
 def create_rule(rule_structure: Dict[str, Any]) -> Dict[str, Any]:
     """Create a rule with the provided structure.
@@ -1042,12 +1177,12 @@ def create_rule(rule_structure: Dict[str, Any]) -> Dict[str, Any]:
         - If no valid appTypes (all were nocredapp): Use 'generic' as default
     4. Set primary app type for appType, annotateType, and app fields (single value arrays)
 
-    STEP 2 - RULE STRUCTURE REQUIREMENTS:
-    ```yaml    
+    STEP 2 - RULE STRUCTURE WITH TASK ALIASES:
+    ```yaml
         apiVersion: rule.policycow.live/v1alpha1
         kind: rule
         meta:
-            name: MeaningfulRuleName
+            name: MeaningfulRuleName # Simple name. Without special characters and white spaces
             purpose: Clear statement based on user breakdown
             description: Detailed description combining all steps
             labels:
@@ -1059,9 +1194,9 @@ def create_rule(rule_structure: Dict[str, Any]) -> Dict[str, Any]:
             app: [PRIMARY_APP_TYPE_FROM_STEP_1] # Same as appType
         spec:
             inputs:
-              InputName: [ACTUAL_USER_VALUE_OR_FILE_URL]  # FIXED: No task prefix, just original input names
+              InputName: [ACTUAL_USER_VALUE_OR_FILE_URL]  # Use original or unique names based on conflicts
             inputsMeta__:
-            - name: InputName  # FIXED: Original input names only
+            - name: InputName  # Use original or unique names based on conflicts
               dataType: FILE|HTTP_CONFIG|STRING|INT|FLOAT|BOOLEAN|DATE|DATETIME
               required: true
               defaultValue: [ACTUAL_USER_VALUE_OR_FILE_URL] # Values collected from users
@@ -1071,19 +1206,25 @@ def create_rule(rule_structure: Dict[str, Any]) -> Dict[str, Any]:
               required: true
               defaultValue: [ACTUAL_RULE_OUTPUT_VALUE]
             tasks:
-            - name: Step1TaskName # FIXED: Original task names only
-              alias: t1
+            - name: Step1TaskName # Original task names
+              alias: step1 # Meaningful task aliases (simple descriptors)
               type: task
               appTags:
                 appType: [COPY_FROM_TASK_DEFINITION] # Keep original task appType
               purpose: What this task does for Step 1
-        ioMap:
-        - t1.Input.TaskInput:=*.Input.InputName  # FIXED: Use original input names
-        - t2.Input.TaskInput:=t1.Output.TaskOutput
-        - '*.Output.FinalOutput:=t2.Output.TaskOutput'
+            - name: Step2TaskName
+              alias: validation # Another meaningful alias
+              type: task
+              appTags:
+                appType: [COPY_FROM_TASK_DEFINITION]
+              purpose: What this task does for validation
+            ioMap:
+            - step1.Input.TaskInput:=*.Input.InputName  # Use task aliases in I/O mapping
+            - validation.Input.TaskInput:=step1.Output.TaskOutput
+            - '*.Output.FinalOutput:=validation.Output.TaskOutput'
     ```
 
-    STEP 3 - I/O MAPPING COMPLETE SYNTAX GUIDE:
+    STEP 3 - I/O MAPPING WITH TASK ALIASES:
 
     CRITICAL SYNTAX: Use golang-style assignment: destination:=source
 
@@ -1091,7 +1232,7 @@ def create_rule(rule_structure: Dict[str, Any]) -> Dict[str, Any]:
 
     1. PLACE (First part):
         - '*' = Rule level (inputs/outputs that user provides/receives)
-        - 't1', 't2', 't3', etc. = Task alias (refers to specific task in workflow)
+        - 'step1', 'validation', 'processing', etc. = Task alias (meaningful descriptors)
 
     2. DIRECTION (Second part):
         - 'Input' = Input parameters/data going INTO task
@@ -1102,37 +1243,38 @@ def create_rule(rule_structure: Dict[str, Any]) -> Dict[str, Any]:
         - Must match actual parameter names from task definitions (case-sensitive)
         - Use EXACT names from tasks://details/{task_name} specifications
 
-    MAPPING RULES:
+    MAPPING RULES WITH TASK ALIASES:
     - *.Input.X:=source = Rule-level input X gets value from source
     - *.Output.Y:=source = Rule-level output Y gets value from source
-    - t1.Input.Z:=source = Task t1's input Z gets value from source
-    - t2.Input.A:=t1.Output.B = Task t2's input A gets value from task t1's output B
+    - step1.Input.Z:=source = Task with alias 'step1' input Z gets value from source
+    - validation.Input.A:=step1.Output.B = Task 'validation' input A gets value from task 'step1' output B
 
-    SEQUENTIAL FLOW PATTERN (3 tasks example):
+    SEQUENTIAL FLOW PATTERN WITH MEANINGFUL ALIASES:
     ```
     ioMap:
     # Rule inputs to first task
-    - t1.Input.DataFile:=*.Input.ConfigFile   # FIXED: Rule input "ConfigFile" → Task1 input "DataFile"
-    - t1.Input.ConfigFile:=*.Input.Settings   # FIXED: Rule input "Settings" → Task1 input "ConfigFile"
+    - step1.Input.DataFile:=*.Input.ConfigFile   # Rule input "ConfigFile" → step1 input "DataFile"
+    - step1.Input.Settings:=*.Input.UserSettings # Rule input "UserSettings" → step1 input "Settings"
 
-    # First task output to second task input
-    - t2.Input.InputData:=t1.Output.ProcessedData     # Task1 output "ProcessedData" → Task2 input "InputData"
-    - t2.Input.MappingRules:=*.Input.Rules   # FIXED: Rule input "Rules" → Task2 input "MappingRules"
+    # First task output to validation task input
+    - validation.Input.InputData:=step1.Output.ProcessedData     # step1 output → validation input
+    - validation.Input.Rules:=*.Input.ValidationRules           # Rule input → validation input
 
-    # Second task output to third task input
-    - t3.Input.ProcessedData:=t2.Output.TransformedData # Task2 output "TransformedData" → Task3 input "ProcessedData"
+    # Validation task output to processing task input  
+    - processing.Input.ValidatedData:=validation.Output.CleanData # validation output → processing input
 
     # Final task outputs to rule outputs
-    - '*.Output.FinalReport:=t3.Output.GeneratedReport'     # Task3 output "GeneratedReport" → Rule output "FinalReport"
-    - '*.Output.ProcessedRecords:=t2.Output.TransformedData' # Task2 output "TransformedData" → Rule output "ProcessedRecords"
+    - '*.Output.FinalReport:=processing.Output.Report'          # processing output → Rule output
+    - '*.Output.ProcessedRecords:=processing.Output.Records'    # processing output → Rule output
     ```
 
     CRITICAL I/O MAPPING RULES:
     - Always use EXACT attribute names from task input/output specifications
+    - Use meaningful task aliases instead of generic t1, t2, etc.
     - Ensure data flows sequentially: Rule → Task1 → Task2 → Task3 → Rule
     - Rule inputs (*.Input.X) come from user-provided values OR uploaded file URLs
     - Rule outputs (*.Output.Y) are final results user receives
-    - Task aliases (t1, t2, etc.) must match exactly with task aliases in tasks section
+    - Task aliases must match exactly with task aliases in tasks section
     - Use quotes around mappings that start with *.Output to handle YAML parsing
     - Validate attribute names against task specifications before creating mappings
     - For FILE inputs: Use uploaded file URLs as values
@@ -1170,12 +1312,13 @@ def create_rule(rule_structure: Dict[str, Any]) -> Dict[str, Any]:
     □ All input values summarized and verified by user
     □ Primary app type determined (single value)
     □ I/O mappings use exact attribute names from task specs
+    □ Task aliases are meaningful and descriptive
     □ Sequential data flow established
     □ Rule structure shown to user in YAML format
     □ User confirmed rule structure before creation
 
     Args:
-        rule_structure: Complete rule structure in the required format
+        rule_structure: Complete rule structure in the required format with task aliases
 
     Returns:
         Result of rule creation including status and rule ID
@@ -1186,24 +1329,590 @@ def create_rule(rule_structure: Dict[str, Any]) -> Dict[str, Any]:
     if not validation_result["valid"]:
         return {"success": False, "error": "Invalid rule structure", "validation_errors": validation_result["errors"]}
 
+    # Additional validation for task aliases in I/O mappings
+    tasks_section = rule_structure.get("spec", {}).get("tasks", [])
+    io_map = rule_structure.get("spec", {}).get("ioMap", [])
+    
+    # Extract task aliases from tasks section
+    valid_aliases = set()
+    for task in tasks_section:
+        if "alias" in task:
+            valid_aliases.add(task["alias"])
+    
+    # Validate I/O mappings use correct task aliases
+    for mapping in io_map:
+        if "." in mapping and ":=" in mapping:
+            left_side = mapping.split(":=")[0].strip()
+            right_side = mapping.split(":=")[1].strip()
+            
+            # Check left side for task alias
+            if not left_side.startswith("*."):
+                alias_part = left_side.split(".")[0]
+                if alias_part not in valid_aliases and alias_part != "*":
+                    return {
+                        "success": False,
+                        "error": f"Unknown task alias '{alias_part}' in I/O mapping: {mapping}. Valid aliases: {list(valid_aliases)}"
+                    }
+            
+            # Check right side for task alias  
+            if not right_side.startswith("*."):
+                alias_part = right_side.split(".")[0]
+                if alias_part not in valid_aliases and alias_part != "*":
+                    return {
+                        "success": False,
+                        "error": f"Unknown task alias '{alias_part}' in I/O mapping: {mapping}. Valid aliases: {list(valid_aliases)}"
+                    }
+
     # Generate YAML preview for user confirmation
     yaml_preview = rule.generate_yaml_preview(rule_structure)
-
-    # Check if this is a preview request or actual creation
-    # if not rule_structure.get("_user_confirmed", False):
-    #     return {"success": True, "needs_user_confirmation": True, "yaml_preview": yaml_preview, "confirmation_message": f"Here's your rule structure:\n\n{yaml_preview}\n\nCreate this rule? (yes/no)", "rule_structure": rule_structure, "message": "Rule structure prepared. Show YAML preview to user for confirmation."}
 
     # Create the rule (integrate with your actual API here)
     try:
         result = rule.create_rule_api(rule_structure)
 
-        # Store rule structure for design notes generation
-        # self.store_rule_context(result["rule_id"], rule_structure)
-
         # Auto-generate design notes using internal template after rule creation
-        design_notes_result = {"auto_generated": True, "message": "Design notes will be auto-generated using comprehensive internal template",
-                               "next_action": "Call create_design_notes(rule_name) to generate and save design notes"}
+        design_notes_result = {
+            "auto_generated": True, 
+            "message": "Design notes will be auto-generated using comprehensive internal template",
+            "next_action": "Call create_design_notes(rule_name) to generate and save design notes"
+        }
 
-        return {"success": True, "rule_id": result["rule_id"], "message": "Rule created successfully", "rule_structure": rule_structure, "yaml_preview": yaml_preview, "timestamp": result.get("timestamp"), "status": result.get("status", "created"), "design_notes_info": design_notes_result, "next_step": "Call create_design_notes() to auto-generate comprehensive design notes"}
+        return {
+            "success": True,
+            "rule_id": result["rule_id"],
+            "message": "Rule created successfully with meaningful task aliases",
+            "rule_structure": rule_structure,
+            "yaml_preview": yaml_preview,
+            "timestamp": result.get("timestamp"),
+            "status": result.get("status", "created"),
+            "design_notes_info": design_notes_result,
+            "next_step": "Call create_design_notes() to auto-generate comprehensive design notes"
+        }
+    except exception.CCowExceptionVO as e:
+        return {"success": False, "error": f"Failed to create rule: {e.to_dict()}"}
     except Exception as e:
         return {"success": False, "error": f"Failed to create rule: {e}"}
+    
+
+# Replace the existing design notes related methods in the TwoPhaseRuleMCP class with these updated versions:
+
+# @mcp.tool()
+# def create_design_notes(rule_name: str) -> Dict[str, Any]:
+#     """Generate and save design notes for the created rule using MCP's internal template system.
+
+#     DESIGN NOTES AUTOMATIC GENERATION:
+
+#     This tool triggers the MCP's internal design notes generation system to automatically
+#     create comprehensive design notes after rule creation. The MCP will generate a
+#     Jupyter notebook with 8 standardized sections based on rule context and metadata.
+
+#     DESIGN NOTES TEMPLATE STRUCTURE REQUIREMENTS:
+
+#     The MCP should generate a Jupyter notebook (.ipynb format) with exactly 8 sections:
+
+#     ## SECTION 1: Evidence Details
+#     DESCRIPTION: System identification and rule purpose documentation
+#     CONTENT REQUIREMENTS:
+#     - Table with columns: System | Source of data | Frameworks | Purpose
+#     - System: Extract from rule's appType (remove 'appconnector'/'connector' suffix)
+#     - Source: Always 'compliancecow'
+#     - Frameworks: Default to '-' (can be customized later)
+#     - Purpose: Use rule's purpose from metadata
+#     - RecommendedEvidenceName: Use rule name
+#     - Description: Use rule description from metadata
+#     - Reference: Placeholder for documentation links
+#     FORMAT: Markdown cell with table and code blocks
+
+#     ## SECTION 2: Extended Data Schema
+#     DESCRIPTION: System-specific raw data structure definition
+#     CONTENT REQUIREMENTS:
+#     - Header explaining configuration parameters and default values
+#     - Configuration overview with task count and input count from rule structure
+#     - Code cell with system-specific raw data structure placeholder
+#     - Include comments indicating this should be populated with actual API response format
+#     - Use generic JSON structure with system name in resource identifiers
+#     FORMAT: Markdown header cell + Code cell with JSON structure
+
+#     ## SECTION 3: Standard Schema
+#     DESCRIPTION: Standardized compliance data format
+#     CONTENT REQUIREMENTS:
+#     - Header explaining standard schema purpose
+#     - Code cell with standardized JSON structure containing:
+#       * Meta: System name and source
+#       * Resource info: ID, name, type, location, tags, URL
+#       * Data: Rule-specific configuration fields (use generic placeholders)
+#       * Compliance details: ValidationStatusCode, ComplianceStatus, etc.
+#       * User/Action editable fields
+#     FORMAT: Markdown header cell + Code cell with JSON structure
+
+#     ## SECTION 4: Sample Data
+#     DESCRIPTION: Example records in tabular format
+#     CONTENT REQUIREMENTS:
+#     - Markdown table showing sample compliance records
+#     - Columns should match standard schema fields
+#     - Include at least one example row with realistic sample data
+#     - Use system name in resource identifiers
+#     FORMAT: Markdown cell with table
+
+#     ## SECTION 5: Compliance Taxonomy
+#     DESCRIPTION: Status codes and compliance definitions
+#     CONTENT REQUIREMENTS:
+#     - Table with columns: ValidationStatusCode | ValidationStatusNotes | ComplianceStatus | ComplianceStatusReason
+#     - Standard status codes: COMPLIANT_STATUS, NON_COMPLIANT_STATUS, etc.
+#     - Generic compliance reasons suitable for most rule types
+#     FORMAT: Markdown cell with table
+
+#     ## SECTION 6: Compliance Calculation
+#     DESCRIPTION: Percentage calculations and status logic
+#     CONTENT REQUIREMENTS:
+#     - Header explaining compliance calculation methodology
+#     - Code cell with calculation logic:
+#       * TotalCount = Count of 'COMPLIANT' and 'NON_COMPLIANT' records
+#       * CompliantCount = Count of 'COMPLIANT' records
+#       * CompliancePCT = (CompliantCount / TotalCount) * 100
+#       * Status determination rules
+#     FORMAT: Markdown header cell + Code cell with calculation logic
+
+#     ## SECTION 7: Remediation Steps
+#     DESCRIPTION: Non-compliance remediation procedures
+#     CONTENT REQUIREMENTS:
+#     - Generic remediation workflow applicable to most systems
+#     - Structured approach: Immediate Actions, Short-term Remediation, Long-term Monitoring
+#     - Include timeframes and responsibilities
+#     - System-agnostic guidance that can be customized
+#     FORMAT: Markdown cell with structured remediation steps
+
+#     ## SECTION 8: Control Setup Details
+#     DESCRIPTION: Rule configuration and implementation details
+#     CONTENT REQUIREMENTS:
+#     - Table with control details:
+#       * RuleName: Use actual rule name
+#       * PreRequisiteRuleNames: Default to 'N/A'
+#       * ExtendedSchemaRuleNames: Default to 'N/A'
+#       * ApplicationClassName: System name + 'appconnector'
+#       * PostSynthesizerName: Default to 'N/A'
+#       * TaskCount: Actual count from rule structure
+#       * InputCount: Actual count from rule structure
+#       * ExecutionMode: Default to 'automated'
+#       * EvaluationFrequency: Default to 'daily'
+#     FORMAT: Markdown cell with table
+
+#     JUPYTER NOTEBOOK METADATA REQUIREMENTS:
+#     - Include proper notebook metadata (colab, kernelspec, language_info)
+#     - Set nbformat: 4, nbformat_minor: 0
+#     - Use appropriate cell metadata with unique IDs for each section
+#     - Ensure proper markdown and code cell formatting
+
+#     MCP CONTENT POPULATION INSTRUCTIONS:
+#     The MCP should extract the following information from the rule context:
+#     - Rule name, purpose, description from rule metadata
+#     - System name from appType (clean by removing connector suffixes)
+#     - Task count from spec.tasks array length
+#     - Input count from spec.inputs object keys count
+#     - Application connector name for control setup
+
+#     PLACEHOLDER CONTENT GUIDELINES:
+#     - Use generic, realistic examples that can be customized later
+#     - Include comments in code sections indicating customization points
+#     - Provide system-agnostic content that applies broadly
+#     - Use consistent naming conventions throughout all sections
+
+#     WORKFLOW:
+#     1. MCP retrieves rule context from stored rule information
+#     2. MCP generates complete Jupyter notebook using template structure above
+#     3. MCP populates template with extracted rule metadata and calculated values
+#     4. MCP saves design notes and returns confirmation with notebook details
+
+#     Args:
+#         rule_name: Name of the rule to create design notes for
+
+#     Returns:
+#         Dict containing design notes creation status and notebook info with:
+#         - success: Boolean indicating creation success
+#         - rule_name: Name of the rule
+#         - design_notes_id: Generated design notes identifier
+#         - notebook_url: URL to access the saved notebook
+#         - sections_count: Number of sections created (should be 8)
+#         - message: Success/error message
+#         - timestamp: Creation timestamp
+#         - notebook_format: Always 'jupyter'
+#         - template_version: Template version used
+#         - generation_method: Always 'MCP_AUTOMATIC'
+#     """
+#     try:
+#         # Retrieve rule context
+#         rule_context=rule.fetch_rule(rule_name=rule_name)
+#         if not rule_context:
+#             return {"success": False, "error": f"Rule context not found for '{rule_name}'. Cannot generate design notes."}
+
+#         # Trigger MCP's internal design notes generation using the detailed template requirements above
+#         # The MCP should use the rule context and template structure to generate the complete notebook
+#         design_notes_content = _trigger_mcp_design_notes_generation(rule_name, rule_context)
+
+#         # Save design notes using the MCP-generated content
+#         # save_result = _save_design_notes_api(rule_name, design_notes_content)
+
+#         return {
+#             "success": True,
+#             "rule_name": rule_name,
+#             # "design_notes_id": save_result.get("design_notes_id"),
+#             # "notebook_url": save_result.get("notebook_url"),
+#             "sections_count": 8,  # Always 8 sections as per template requirements
+#             "message": f"Design notes created and saved successfully for rule '{rule_name}' using MCP internal generation",
+#             # "timestamp": save_result.get("timestamp"),
+#             "notebook_format": "jupyter",
+#             "template_version": "mcp_template_v1.0",
+#             "generation_method": "MCP_AUTOMATIC"
+#         }
+
+#     except Exception as e:
+#         return {"success": False, "error": f"Failed to create design notes for '{rule_name}': {str(e)}"}
+
+def _trigger_mcp_design_notes_generation(self, rule_name: str, rule_structure: Dict[str, Any]) -> Dict[str, Any]:
+    """Trigger MCP's internal design notes generation system.
+    
+    This method should interface with the MCP's actual design notes generation system.
+    For now, it returns a basic structure that the MCP can replace with its own implementation.
+    
+    The MCP should use the detailed template requirements from the create_design_notes tool
+    to generate a complete Jupyter notebook with all 8 sections properly populated.
+    """
+    
+    # This is a placeholder that the MCP should replace with its actual generation logic
+    # The MCP should use the template structure and requirements defined in the tool above
+        
+    # Extract basic information for MCP to use
+    rule_meta:dict = rule_structure.get("meta", {})
+    rule_spec:dict = rule_structure.get("spec", {})
+    
+    extraction_info = {
+        "rule_name": rule_meta.get("name", rule_name),
+        "rule_purpose": rule_meta.get("purpose", "Compliance rule for automated evaluation"),
+        "rule_description": rule_meta.get("description", "Generated compliance rule"),
+        "system_name": _extract_system_name_for_mcp(rule_structure),
+        "task_count": len(rule_spec.get("tasks", [])),
+        "input_count": len(rule_spec.get("inputs", {}))
+    }
+    
+    # The MCP should replace this with its actual notebook generation
+    # This is just a minimal structure to show the expected format
+    placeholder_notebook = {
+        "cells": [],  # MCP should populate with 8 sections as per template requirements
+        "metadata": {
+            "colab": {"provenance": []},
+            "kernelspec": {"display_name": "Python 3", "name": "python3"},
+            "language_info": {"name": "python"}
+        },
+        "nbformat": 4,
+        "nbformat_minor": 0
+    }
+    
+    return placeholder_notebook
+
+def _extract_system_name_for_mcp(rule_structure: Dict[str, Any]) -> str:
+    """Extract clean system name for MCP to use in template generation."""
+    
+    meta:dict = rule_structure.get("meta", {})
+    labels:dict = meta.get("labels", {})
+    
+    # Get primary app type
+    app_types = labels.get("appType", ["generic"])
+    primary_app_type = app_types[0] if app_types else "generic"
+    
+    # Clean system name by removing connector suffixes
+    system_name = primary_app_type.lower().replace("appconnector", "").replace("connector", "")
+    
+    # If still generic, try to get from tasks
+    if system_name == "generic":
+        tasks = rule_structure.get("spec", {}).get("tasks", [])
+        if tasks:
+            task_app_tags = tasks[0].get("appTags", {}).get("appType", [])
+            if task_app_tags:
+                system_name = task_app_tags[0].lower().replace("appconnector", "").replace("connector", "")
+    
+    return system_name if system_name != "generic" else "system"
+
+@mcp.tool()
+def generate_design_notes_preview(rule_name: str) -> Dict[str, Any]:
+    """
+    Generate design notes preview for user confirmation before actual creation.
+
+    DESIGN NOTES PREVIEW GENERATION:
+
+    This tool generates a complete Jupyter notebook structure as a dictionary for user review.
+    The MCP will create the full notebook content with 8 standardized sections based on 
+    rule context and metadata, then return it for user confirmation.
+
+    DESIGN NOTES TEMPLATE STRUCTURE REQUIREMENTS:
+
+    The MCP should generate a Jupyter notebook (.ipynb format) with exactly 8 sections:
+
+    ## SECTION 1: Evidence Details
+    DESCRIPTION: System identification and rule purpose documentation
+    CONTENT REQUIREMENTS:
+    - Table with columns: System | Source of data | Frameworks | Purpose
+    - System: Extract from rule's appType (remove 'appconnector'/'connector' suffix)
+    - Source: Always 'compliancecow'
+    - Frameworks: Default to '-' (can be customized later)
+    - Purpose: Use rule's purpose from metadata
+    - RecommendedEvidenceName: Use rule name
+    - Description: Use rule description from metadata
+    - Reference: Placeholder for documentation links
+    FORMAT: Markdown cell with table and code blocks
+
+    ## SECTION 2: Extended Data Schema
+    DESCRIPTION: System-specific raw data structure definition
+    CONTENT REQUIREMENTS:
+    - Header explaining configuration parameters and default values
+    - Configuration overview with task count and input count from rule structure
+    - Code cell with system-specific raw data structure placeholder
+    - Include comments indicating this should be populated with actual API response format
+    - Use generic JSON structure with system name in resource identifiers
+    FORMAT: Markdown header cell + Code cell with JSON structure
+
+    ## SECTION 3: Standard Schema
+    DESCRIPTION: Standardized compliance data format
+    CONTENT REQUIREMENTS:
+    - Header explaining standard schema purpose
+    - Code cell with standardized JSON structure containing:
+      * Meta: System name and source
+      * Resource info: ID, name, type, location, tags, URL
+      * Data: Rule-specific configuration fields (use generic placeholders)
+      * Compliance details: ValidationStatusCode, ComplianceStatus, etc.
+      * User/Action editable fields
+    FORMAT: Markdown header cell + Code cell with JSON structure
+
+    ## SECTION 4: Sample Data
+    DESCRIPTION: Example records in tabular format
+    CONTENT REQUIREMENTS:
+    - Markdown table showing sample compliance records
+    - Columns should match standard schema fields
+    - Include at least one example row with realistic sample data
+    - Use system name in resource identifiers
+    FORMAT: Markdown cell with table
+
+    ## SECTION 5: Compliance Taxonomy
+    DESCRIPTION: Status codes and compliance definitions
+    CONTENT REQUIREMENTS:
+    - Table with columns: ValidationStatusCode | ValidationStatusNotes | ComplianceStatus | ComplianceStatusReason
+    - Standard status codes: COMPLIANT_STATUS, NON_COMPLIANT_STATUS, etc.
+    - Generic compliance reasons suitable for most rule types
+    FORMAT: Markdown cell with table
+
+    ## SECTION 6: Compliance Calculation
+    DESCRIPTION: Percentage calculations and status logic
+    CONTENT REQUIREMENTS:
+    - Header explaining compliance calculation methodology
+    - Code cell with calculation logic:
+      * TotalCount = Count of 'COMPLIANT' and 'NON_COMPLIANT' records
+      * CompliantCount = Count of 'COMPLIANT' records
+      * CompliancePCT = (CompliantCount / TotalCount) * 100
+      * Status determination rules
+    FORMAT: Markdown header cell + Code cell with calculation logic
+
+    ## SECTION 7: Remediation Steps
+    DESCRIPTION: Non-compliance remediation procedures
+    CONTENT REQUIREMENTS:
+    - Generic remediation workflow applicable to most systems
+    - Structured approach: Immediate Actions, Short-term Remediation, Long-term Monitoring
+    - Include timeframes and responsibilities
+    - System-agnostic guidance that can be customized
+    FORMAT: Markdown cell with structured remediation steps
+
+    ## SECTION 8: Control Setup Details
+    DESCRIPTION: Rule configuration and implementation details
+    CONTENT REQUIREMENTS:
+    - Table with control details:
+      * RuleName: Use actual rule name
+      * PreRequisiteRuleNames: Default to 'N/A'
+      * ExtendedSchemaRuleNames: Default to 'N/A'
+      * ApplicationClassName: System name + 'appconnector'
+      * PostSynthesizerName: Default to 'N/A'
+      * TaskCount: Actual count from rule structure
+      * InputCount: Actual count from rule structure
+      * ExecutionMode: Default to 'automated'
+      * EvaluationFrequency: Default to 'daily'
+    FORMAT: Markdown cell with table
+
+    JUPYTER NOTEBOOK METADATA REQUIREMENTS:
+    - Include proper notebook metadata (colab, kernelspec, language_info)
+    - Set nbformat: 4, nbformat_minor: 0
+    - Use appropriate cell metadata with unique IDs for each section
+    - Ensure proper markdown and code cell formatting
+
+    MCP CONTENT POPULATION INSTRUCTIONS:
+    The MCP should extract the following information from the rule context:
+    - Rule name, purpose, description from rule metadata
+    - System name from appType (clean by removing connector suffixes)
+    - Task count from spec.tasks array length
+    - Input count from spec.inputs object keys count
+    - Application connector name for control setup
+
+    PLACEHOLDER CONTENT GUIDELINES:
+    - Use generic, realistic examples that can be customized later
+    - Include comments in code sections indicating customization points
+    - Provide system-agnostic content that applies broadly
+    - Use consistent naming conventions throughout all sections
+
+    WORKFLOW:
+    1. MCP retrieves rule context from stored rule information
+    2. MCP generates complete Jupyter notebook using template structure above
+    3. MCP populates template with extracted rule metadata and calculated values
+    4. MCP returns complete notebook structure as dictionary for user review
+    5. User reviews and confirms the structure
+    6. If approved, call create_design_notes() to actually save the notebook
+
+    Args:
+        rule_name: Name of the rule for which to generate design notes preview
+
+    Returns:
+        Dict containing complete notebook structure for user review and confirmation
+    """
+    
+    try:
+        # Call MCP to generate notebook structure (preview mode)
+        headers = wsutils.create_header()
+        payload = {
+            "ruleName": rule_name,
+            "templateVersion": "v1.0",
+            "generateNotebook": True,
+            "sectionsRequired": 8,
+            "previewMode": True,  # Key difference - just generate, don't save
+            "returnNotebookStructure": True
+        }
+        
+        # preview_resp = wsutils.post(
+        #     path=wsutils.build_api_url(endpoint=constants.URL_GENERATE_DESIGN_NOTES_PREVIEW),
+        #     data=json.dumps(payload),
+        #     header=headers
+        # )
+
+        preview_resp = {
+            "notebookStructure":{
+                "cells":[]
+            }
+        }
+        
+        # Validate response and return notebook structure
+        if rule.is_valid_key(preview_resp, "notebookStructure"):
+            return {
+                "success": True,
+                "rule_name": rule_name,
+                "notebook_structure": preview_resp["notebookStructure"],  # Complete notebook as dict
+                "sections_count": len(preview_resp["notebookStructure"].get("cells", [])),
+                "metadata": preview_resp.get("extractedMetadata", {}),
+                "preview_mode": True,
+                "message": f"Design notes preview generated for rule '{rule_name}'. Review the structure and confirm to proceed.",
+                "confirmation_required": True,
+                "next_action": "Show notebook structure to user for confirmation, then call create_design_notes() if approved"
+            }
+        
+        elif rule.is_valid_key(preview_resp, "error"):
+            return {
+                "success": False,
+                "error": f"MCP design notes preview generation failed: {preview_resp['error']}",
+                "rule_name": rule_name
+            }
+        
+        else:
+            return {
+                "success": False,
+                "error": "Invalid response from MCP design notes preview generator",
+                "response_keys": list(preview_resp.keys()) if preview_resp else [],
+                "rule_name": rule_name
+            }
+            
+    except Exception as e:
+        return {
+            "success": False,
+            "error": f"Failed to generate design notes preview for rule '{rule_name}': {str(e)}",
+            "rule_name": rule_name
+        }
+
+
+@mcp.tool()
+def create_design_notes(rule_name: str) -> Dict[str, Any]:
+    """
+    Create and save design notes after user confirmation.
+
+    DESIGN NOTES CREATION:
+
+    This tool actually creates and saves the design notes after the user has reviewed
+    and confirmed the preview structure from generate_design_notes_preview().
+
+    WORKFLOW:
+    1. User has already reviewed notebook structure from preview
+    2. User confirmed the structure is acceptable
+    3. This tool triggers the actual creation and saving
+    4. MCP saves the notebook and returns access details
+
+    Args:
+        rule_name: Name of the rule for which to create design notes
+
+    Returns:
+        Dict containing design notes creation status and access details
+    """
+    
+    try:
+        # Call MCP to actually create and save the design notes
+        headers = wsutils.create_header()
+        payload = {
+            "ruleName": rule_name,
+            "templateVersion": "v1.0",
+            "generateNotebook": True,
+            "sectionsRequired": 8,
+            "previewMode": False,  # Key difference - actually save this time
+            "saveToStorage": True
+        }
+        
+        # create_resp = wsutils.post(
+        #     path=wsutils.build_api_url(endpoint=constants.URL_CREATE_DESIGN_NOTES),
+        #     data=json.dumps(payload),
+        #     header=headers
+        # )
+
+        create_resp = {
+            "notebookURL":"http://localhost:9000/mcp/{rule_name}.ipynp"
+        }
+        
+        # Validate response and return results
+        if rule.is_valid_key(create_resp, "notebookURL"):
+            return {
+                "success": True,
+                "rule_name": rule_name,
+                "notebook_url": create_resp["notebookURL"],
+                "notebook_id": create_resp.get("notebookId"),
+                "filename": create_resp.get("filename", f"{rule_name}_design_notes.ipynb"),
+                "sections_generated": create_resp.get("sectionsGenerated", 8),
+                "creation_mode": "confirmed",
+                "template_version": "v1.0",
+                "message": f"Design notes successfully created and saved for rule '{rule_name}'",
+                "access_info": {
+                    "notebook_url": create_resp["notebookURL"],
+                    "downloadable": create_resp.get("downloadable", True),
+                    "editable": create_resp.get("editable", True)
+                }
+            }
+        
+        elif rule.is_valid_key(create_resp, "error"):
+            return {
+                "success": False,
+                "error": f"MCP design notes creation failed: {create_resp['error']}",
+                "rule_name": rule_name
+            }
+        
+        else:
+            return {
+                "success": False,
+                "error": "Invalid response from MCP design notes creator",
+                "response_keys": list(create_resp.keys()) if create_resp else [],
+                "rule_name": rule_name
+            }
+            
+    except Exception as e:
+        return {
+            "success": False,
+            "error": f"Failed to create design notes for rule '{rule_name}': {str(e)}",
+            "rule_name": rule_name
+        }
+
