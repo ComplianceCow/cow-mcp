@@ -1399,124 +1399,166 @@ def generate_design_notes_preview(rule_name: str) -> Dict[str, Any]:
     """
     Generate design notes preview for user confirmation before actual creation.
 
-    DESIGN NOTES PREVIEW GENERATION:
+    ## DESIGN NOTES PREVIEW GENERATION
 
-    This tool generates a complete Jupyter notebook structure as a dictionary for user review.
-    The MCP will create the full notebook content with 8 standardized sections based on 
-    rule context and metadata, then return it for user confirmation.
+    This tool generates a complete Jupyter notebook structure as a dictionary for user review. The MCP will create the full notebook content with 7 standardized sections based on rule context and metadata, then return it for user confirmation.
 
-    DESIGN NOTES TEMPLATE STRUCTURE REQUIREMENTS:
+    ## DESIGN NOTES TEMPLATE STRUCTURE REQUIREMENTS
 
-    The MCP should generate a Jupyter notebook (.ipynb format) with exactly 8 sections:
+    The MCP should generate a Jupyter notebook (.ipynb format) with exactly 7 sections:
 
-    ## SECTION 1: Evidence Details
-    DESCRIPTION: System identification and rule purpose documentation
-    CONTENT REQUIREMENTS:
+    ### SECTION 1: Evidence Details
+    **DESCRIPTION:** System identification and rule purpose documentation
+
+    **CONTENT REQUIREMENTS:**
     - Table with columns: System | Source of data | Frameworks | Purpose
-    - System: Extract from rule's appType (remove 'appconnector'/'connector' suffix)
+    - System: {TARGET_SYSTEM_NAME} (all lowercase")
     - Source: Always 'compliancecow'
-    - Frameworks: Default to '-' (can be customized later)
+    - Frameworks: Always '-'
     - Purpose: Use rule's purpose from metadata
-    - RecommendedEvidenceName: Use rule name
+    - RecommendedEvidenceName: {RULE_OUTPUT_NAME} (use rule's primary compliance output, exclude LogFile)
     - Description: Use rule description from metadata
-    - Reference: Placeholder for documentation links
-    FORMAT: Markdown cell with table and code blocks
+    - Reference: Include actual API documentation links that the rule uses (extract from task specifications, no placeholder values)
 
-    ## SECTION 2: Extended Data Schema
-    DESCRIPTION: System-specific raw data structure definition
-    CONTENT REQUIREMENTS:
-    - Header explaining configuration parameters and default values
-    - Configuration overview with task count and input count from rule structure
-    - Code cell with system-specific raw data structure placeholder
-    - Include comments indicating this should be populated with actual API response format
-    - Use generic JSON structure with system name in resource identifiers
-    FORMAT: Markdown header cell + Code cell with JSON structure
+    **FORMAT:** Markdown cell with table and code blocks only
 
-    ## SECTION 3: Standard Schema
-    DESCRIPTION: Standardized compliance data format
-    CONTENT REQUIREMENTS:
+    ### SECTION 2: Define the System Specific Data (Extended Data Schema)
+    **DESCRIPTION:** System-specific raw data structure definition with detailed breakdown
+
+    **CONTENT REQUIREMENTS:**
+
+    #### Step 2a: Inputs
+    - Generate numbered list from rule's spec.inputs
+    - Format: "{NUMBER}. **{INPUT_NAME}({INPUT_DATA_TYPE})** - {INPUT_DESCRIPTION}"
+    - Include all inputs with their types and purposes
+
+    #### Step 2b: API & Flow
+    - Generate numbered list of API endpoints based on target system
+    - Format: "{NUMBER}. {HTTP_METHOD} {URL} - {BRIEF_DESCRIPTION}"
+    - Include only actual API endpoints that this specific rule uses for data collection
+    - Extract from task specifications, not generic templates
+
+    #### Step 2c: Define the Extended Schema
+    - Generate large JSON code block with actual API response structure
+    - Use system-specific field names and realistic data values
+    - Include all fields that will be processed by the rule
+
+    **FORMAT:** Markdown headers with detailed lists + large JSON code block
+
+    ### SECTION 3: Define the Standard Schema
+    **DESCRIPTION:** Standardized compliance data format documentation
+
+    **CONTENT REQUIREMENTS:**
     - Header explaining standard schema purpose
-    - Code cell with standardized JSON structure containing:
-      * Meta: System name and source
-      * Resource info: ID, name, type, location, tags, URL
-      * Data: Rule-specific configuration fields (use generic placeholders)
-      * Compliance details: ValidationStatusCode, ComplianceStatus, etc.
-      * User/Action editable fields
-    FORMAT: Markdown header cell + Code cell with JSON structure
+    - JSON code block with complete standardized structure containing:
+    * System: based on target system (lowercase)
+    * Source: Always 'compliancecow'
+    * Resource info: ResourceID, ResourceName, ResourceType, ResourceLocation, ResourceTags, ResourceURL
+    * System-specific data fields based on actual rule output columns, if unavailable then generate based on rule details
+    * Compliance fields: ValidationStatusCode, ValidationStatusNotes, ComplianceStatus, ComplianceStatusReason
+    * Evaluation and action fields: EvaluatedTime, UserAction, ActionStatus, ActionResponseURL (UserAction, ActionStatus, ActionResponseURL are empty by default)
 
-    ## SECTION 4: Sample Data
-    DESCRIPTION: Example records in tabular format
-    CONTENT REQUIREMENTS:
-    - Markdown table showing sample compliance records
-    - Columns should match standard schema fields
-    - Include at least one example row with realistic sample data
-    - Use system name in resource identifiers
-    FORMAT: Markdown cell with table
+    #### Step 3a: Sample Data
+    - Generate markdown table with ALL standard schema columns in same order - include all columns even if empty
+    - Include three complete example rows with realistic, system-specific data
+    - Use proper data formatting and realistic identifiers
 
-    ## SECTION 5: Compliance Taxonomy
-    DESCRIPTION: Status codes and compliance definitions
-    CONTENT REQUIREMENTS:
+    **FORMAT:** JSON code block + comprehensive markdown table
+
+    ### SECTION 4: Describe the Compliance Taxonomy
+    **DESCRIPTION:** Status codes and compliance definitions
+
+    **CONTENT REQUIREMENTS:**
     - Table with columns: ValidationStatusCode | ValidationStatusNotes | ComplianceStatus | ComplianceStatusReason
-    - Standard status codes: COMPLIANT_STATUS, NON_COMPLIANT_STATUS, etc.
-    - Generic compliance reasons suitable for most rule types
-    FORMAT: Markdown cell with table
+    - ValidationStatusCode: **CRITICAL FORMAT REQUIREMENT** - Rule-specific codes must strictly follow this exact format:
+        * Each word must be exactly 3-4 characters long
+        * Words must be separated by underscores (_)
+        * Use ALL UPPERCASE letters
+        * Create codes that directly relate to the rule's compliance purpose
+        * Examples: CODE_OWN_HAS_PR_REV (code ownership has pull request review), REPO_SEC_SCAN_PASS (repository security scan passed), AUTH_MFA_ENBL (authentication multi-factor enabled)
+        * **DO NOT** use generic codes like "PASS" or "FAIL" 
+        * **DO NOT** exceed 4 characters per word
+        * **DO NOT** use special characters other than underscores
+        * Generate 4-6 different status codes covering various compliance scenarios
+    - Detailed compliance reasons specific to the rule's purpose
+    - Both COMPLIANT and NON_COMPLIANT scenarios
 
-    ## SECTION 6: Compliance Calculation
-    DESCRIPTION: Percentage calculations and status logic
-    CONTENT REQUIREMENTS:
+    **FORMAT:** Markdown cell with table
+
+    ### SECTION 5: Calculation for Compliance Percentage and Status
+    **DESCRIPTION:** Percentage calculations and status logic
+
+    **CONTENT REQUIREMENTS:**
     - Header explaining compliance calculation methodology
     - Code cell with calculation logic:
-      * TotalCount = Count of 'COMPLIANT' and 'NON_COMPLIANT' records
-      * CompliantCount = Count of 'COMPLIANT' records
-      * CompliancePCT = (CompliantCount / TotalCount) * 100
-      * Status determination rules
-    FORMAT: Markdown header cell + Code cell with calculation logic
+    * TotalCount = Count of 'COMPLIANT' and 'NON_COMPLIANT' records
+    * CompliantCount = Count of 'COMPLIANT' records
+    * CompliancePCT = (CompliantCount / TotalCount) * 100
+    * Status determination rules:
+        - COMPLIANT: 100%
+        - NON_COMPLIANT: 0% to less than 100%
+        - NOT_DETERMINED: If no records are found
 
-    ## SECTION 7: Remediation Steps
-    DESCRIPTION: Non-compliance remediation procedures
-    CONTENT REQUIREMENTS:
-    - Generic remediation workflow applicable to most systems
-    - Structured approach: Immediate Actions, Short-term Remediation, Long-term Monitoring
-    - Include timeframes and responsibilities
+    **FORMAT:** Markdown header cell + Code cell with calculation logic
+
+    ### SECTION 6: Describe (in words) the Remediation Steps for Non-Compliance
+    **DESCRIPTION:** Non-compliance remediation procedures
+
+    **CONTENT REQUIREMENTS:**
+    - Can be "N/A" if no specific remediation steps apply
+    - When applicable, provide:
+    * Immediate Actions required
+    * Short-term remediation steps
+    * Long-term monitoring approaches
+    * Responsible parties and timeframes
     - System-agnostic guidance that can be customized
-    FORMAT: Markdown cell with structured remediation steps
 
-    ## SECTION 8: Control Setup Details
-    DESCRIPTION: Rule configuration and implementation details
-    CONTENT REQUIREMENTS:
-    - Table with control details:
-      * RuleName: Use actual rule name
-      * PreRequisiteRuleNames: Default to 'N/A'
-      * ExtendedSchemaRuleNames: Default to 'N/A'
-      * ApplicationClassName: System name + 'appconnector'
-      * PostSynthesizerName: Default to 'N/A'
-      * TaskCount: Actual count from rule structure
-      * InputCount: Actual count from rule structure
-      * ExecutionMode: Default to 'automated'
-      * EvaluationFrequency: Default to 'daily'
-    FORMAT: Markdown cell with table
+    **FORMAT:** Markdown cell with detailed remediation procedures
 
-    JUPYTER NOTEBOOK METADATA REQUIREMENTS:
+    ### SECTION 7: Control Setup Details
+    **DESCRIPTION:** Rule configuration and implementation details
+
+    **CONTENT REQUIREMENTS:**
+    - Table with two columns: Control Details | (Values)
+    - Required fields (only these):
+    * RuleName: Use actual rule name
+    * PreRequisiteRuleNames: Default to 'N/A' or list dependencies
+    * ExtendedSchemaRuleNames: Default to 'N/A' or list related rules
+    * ApplicationClassName: Fetch all appType values from spec.tasks array, combine them, remove duplicates, and format as comma-separated values
+    * PostSynthesizerName: Default to 'N/A' or specify if used
+
+    **FORMAT:** Markdown table with control configuration details
+
+    ## JUPYTER NOTEBOOK METADATA REQUIREMENTS
+
     - Include proper notebook metadata (colab, kernelspec, language_info)
     - Set nbformat: 4, nbformat_minor: 0
     - Use appropriate cell metadata with unique IDs for each section
     - Ensure proper markdown and code cell formatting
 
-    MCP CONTENT POPULATION INSTRUCTIONS:
+    ## MCP CONTENT POPULATION INSTRUCTIONS
+
     The MCP should extract the following information from the rule context:
     - Rule name, purpose, description from rule metadata
-    - System name from appType (clean by removing connector suffixes)
-    - Task count from spec.tasks array length
-    - Input count from spec.inputs object keys count
-    - Application connector name for control setup
+    - System name from appType (clean by removing connector suffixes like "-connector")
+    - Task details from spec.tasks array
+    - Input specifications from spec.inputs and spec.inputsMeta__
+    - Output specifications from spec.outputsMeta__
+    - Application connector information for control setup
+    - API endpoints from task specifications (not generic placeholders)
 
-    PLACEHOLDER CONTENT GUIDELINES:
-    - Use generic, realistic examples that can be customized later
+    ## CONTENT GENERATION GUIDELINES
+
+    - Use realistic, system-specific examples that can be customized later
     - Include comments in code sections indicating customization points
     - Provide system-agnostic content that applies broadly
     - Use consistent naming conventions throughout all sections
+    - Extract actual API documentation links from task specifications
+    - Generate ValidationStatusCodes that are specific to the rule's compliance purpose
+    - Ensure all sample data reflects the actual system being monitored
 
-    WORKFLOW:
+    ## WORKFLOW
+
     1. MCP retrieves rule context from stored rule information
     2. MCP generates complete Jupyter notebook using template structure above
     3. MCP populates template with extracted rule metadata and calculated values
@@ -1524,11 +1566,13 @@ def generate_design_notes_preview(rule_name: str) -> Dict[str, Any]:
     5. User reviews and confirms the structure
     6. If approved, call create_design_notes() to actually save the notebook
 
-    Args:
-        rule_name: Name of the rule for which to generate design notes preview
+    ## ARGS
 
-    Returns:
-        Dict containing complete notebook structure for user review and confirmation
+    - rule_name: Name of the rule for which to generate design notes preview
+
+    ## RETURNS
+
+    Dict containing complete notebook structure for user review and confirmation
     """
     
     # MCP should directly construct the design notes based on the instructions above
@@ -1539,7 +1583,7 @@ def generate_design_notes_preview(rule_name: str) -> Dict[str, Any]:
         "success": True, 
         "rule_name": rule_name,
         "design_notes_structure": {},  # MCP will populate this with complete notebook dictionary
-        "sections_count": 8,
+        "sections_count": 7,
         "message": f"MCP should construct complete notebook structure for rule '{rule_name}' based on the detailed template instructions above",
         "next_action": "MCP should use fetch_rule() and build complete notebook dictionary, then return it in design_notes_structure"
     }
