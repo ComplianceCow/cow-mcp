@@ -3,7 +3,7 @@ import json
 import re
 from datetime import datetime
 from io import StringIO
-from typing import Any, Dict, List
+from typing import Any, Dict, List, Union
 
 import toml
 from ruamel.yaml import YAML
@@ -615,9 +615,14 @@ def fetch_rule(rule_name: str) -> Dict[str, Any]:
         return {"error": f"Failed to fetch the rule: {e}"}
 
 
-def store_rule_context(rule_id: str, rule_structure: Dict[str, Any]):
-    """Store rule context for later design notes generation"""
-    rule_contexts: Dict[str, Dict[str, Any]] = {}
-    rule_name = rule_structure.get("meta", {}).get("name", rule_id)
-    rule_contexts[rule_name] = {
-        "rule_id": rule_id, "rule_structure": rule_structure, "timestamp": datetime.now().isoformat()}
+def encode_content(data: Union[Dict[str, Any], str]) -> str:
+    """Base64 encode a dictionary or string"""
+    try:
+        if isinstance(data, dict):
+            json_str = json.dumps(data)
+            return base64.b64encode(json_str.encode("utf-8")).decode("utf-8")
+        elif isinstance(data, str):
+            return base64.b64encode(data.encode("utf-8")).decode("utf-8")
+        return ""
+    except Exception:
+        return ""

@@ -1201,6 +1201,7 @@ def create_rule(rule_structure: Dict[str, Any]) -> Dict[str, Any]:
               dataType: FILE|HTTP_CONFIG|STRING|INT|FLOAT|BOOLEAN|DATE|DATETIME
               required: true
               defaultValue: [ACTUAL_USER_VALUE_OR_FILE_URL] # Values collected from users
+              format: [ACTUAL_FILE_FORMAT] # Only include for FILE types (json, yaml, toml, xml, etc.)
             outputsMeta__:
             - name: FinalOutput
               dataType: FILE|STRING|INT|FLOAT|BOOLEAN|DATE|DATETIME
@@ -1375,7 +1376,13 @@ def create_rule(rule_structure: Dict[str, Any]) -> Dict[str, Any]:
         design_notes_result = {
             "auto_generated": True, 
             "message": "Design notes will be auto-generated using comprehensive internal template",
-            "next_action": "Call create_design_notes(rule_name) to generate and save design notes"
+            "next_action": "Call create_design_notes(rule_name, design_notes_structure) to generate and save design notes"
+        }
+
+        readme_info = {
+            "auto_generated": True, 
+            "message": "README will be auto-generated using a comprehensive internal template",
+            "next_action": "Call create_rule_readme(rule_name, readme_content) to generate and save the README"
         }
 
         return {
@@ -1387,7 +1394,8 @@ def create_rule(rule_structure: Dict[str, Any]) -> Dict[str, Any]:
             "timestamp": result.get("timestamp"),
             "status": result.get("status", "created"),
             "design_notes_info": design_notes_result,
-            "next_step": "Call create_design_notes() to auto-generate comprehensive design notes"
+            "readme_info": readme_info,
+            "next_step": "Call create_design_notes() to auto-generate comprehensive design notes. Call create_rule_readme() to auto-generate a comprehensive README file."
         }
     except exception.CCowExceptionVO as e:
         return {"success": False, "error": f"Failed to create rule: {e.to_dict()}"}
@@ -1618,30 +1626,22 @@ def create_design_notes(rule_name: str, design_notes_structure: Dict[str, Any]) 
         headers = wsutils.create_header()
         payload = {
             "ruleName": rule_name,
-            "designNotesStructure": design_notes_structure,  # Pass complete notebook dict
-            "templateVersion": "v1.0",
-            "saveNotebook": True
-        }
-
-        # uncomment it when the api is ready
-        
-        # save_resp = wsutils.post(
-        #     path=wsutils.build_api_url(endpoint=constants.URL_SAVE_DESIGN_NOTES),
-        #     data=json.dumps(payload),
-        #     header=headers
-        # )
-
-        save_resp = {
-            "notebookURL":f"https://dev.complinacecow.live/rule_inputs/{rule_name}.ipynb",
+            "type": "mcp",
+            "designNotesContent": rule.encode_content(design_notes_structure),  # Pass the complete notebook dictionary as an encoded string
         }
         
-        if rule.is_valid_key(save_resp, "notebookURL"):
+        save_resp = wsutils.post(
+            path=wsutils.build_api_url(endpoint=constants.URL_SAVE_DESIGN_NOTES),
+            data=json.dumps(payload),
+            header=headers
+        )
+
+        message = save_resp.get("message")
+        if isinstance(message, str) and message == "Design notes file created successfully.":
             return {
                 "success": True,
                 "rule_name": rule_name,
-                "notebook_url": save_resp["notebookURL"],
-                "notebook_id": save_resp.get("notebookId"),
-                "filename": save_resp.get("filename", f"{rule_name}_design_notes.ipynb"),
+                "filename": f"{rule_name}.ipynb",
                 "sections_saved": len(design_notes_structure.get("cells", [])),
                 "message": f"Design notes successfully created and saved for rule '{rule_name}'"
             }
@@ -1953,29 +1953,22 @@ def create_rule_readme(rule_name: str, readme_content: str) -> Dict[str, Any]:
         headers = wsutils.create_header()
         payload = {
             "ruleName": rule_name,
-            "readmeContent": readme_content,  # Pass complete README content
-            "fileName": f"{rule_name}_README.md",
-            "documentType": "README",
-            "saveDocument": True
+            "type":"rule",
+            "readmeContent": rule.encode_content(readme_content),  # Pass the complete README content as an encoded string
         }
-        
-        # save_resp = wsutils.post(
-        #     path=wsutils.build_api_url(endpoint=constants.URL_SAVE_RULE_README),
-        #     data=json.dumps(payload),
-        #     header=headers
-        # )
 
-        save_resp = {
-            "documentURL":f"https://dev.compliancecow.live/docs/{rule_name}/README.md",
-        }
-        
-        if rule.is_valid_key(save_resp, "documentURL"):
+        save_resp = wsutils.post(
+            path=wsutils.build_api_url(endpoint=constants.URL_SAVE_RULE_README),
+            data=json.dumps(payload),
+            header=headers
+        )
+
+        message = save_resp.get("message")
+        if isinstance(message, str) and message == "Read-me file created successfully.":
             return {
                 "success": True,
                 "rule_name": rule_name,
-                "readme_url": save_resp["documentURL"],
-                "document_id": save_resp.get("documentId"),
-                "filename": save_resp.get("filename", f"{rule_name}_README.md"),
+                "filename": "README.md",
                 "content_length": len(readme_content),
                 "sections_saved": readme_content.count("##"),  # Count markdown sections
                 "message": f"README.md successfully created and saved for rule '{rule_name}'"
@@ -2072,29 +2065,22 @@ def update_rule_readme(rule_name: str, updated_readme_content: str) -> Dict[str,
         headers = wsutils.create_header()
         payload = {
             "ruleName": rule_name,
-            "readmeContent": updated_readme_content,
-            "fileName": f"{rule_name}_README.md",
-            "documentType": "README",
-            "updateDocument": True,
-            "preserveHistory": True
+            "type":"rule",
+            "readmeContent": rule.encode_content(updated_readme_content),  # Pass the complete README content as an encoded string
         }
-        
         update_resp = wsutils.put(
-            path=wsutils.build_api_url(endpoint=constants.URL_UPDATE_RULE_README),
+            path=wsutils.build_api_url(endpoint=constants.URL_SAVE_RULE_README),
             data=json.dumps(payload),
             header=headers
         )
-        
-        if rule.is_valid_key(update_resp, "documentURL"):
+
+        message = update_resp.get("message")
+        if isinstance(message, str) and message == "Read-me file created successfully.":
             return {
                 "success": True,
                 "rule_name": rule_name,
-                "readme_url": update_resp["documentURL"],
-                "document_id": update_resp.get("documentId"),
-                "filename": update_resp.get("filename", f"{rule_name}_README.md"),
+                "filename": "README.md",
                 "content_length": len(updated_readme_content),
-                "version": update_resp.get("version", "1.1"),
-                "updated_at": update_resp.get("updatedAt"),
                 "message": f"README.md successfully updated for rule '{rule_name}'"
             }
         else:
@@ -2103,7 +2089,7 @@ def update_rule_readme(rule_name: str, updated_readme_content: str) -> Dict[str,
                 "error": "Failed to update README.md",
                 "rule_name": rule_name
             }
-            
+                     
     except Exception as e:
         return {
             "success": False,

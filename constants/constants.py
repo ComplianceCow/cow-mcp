@@ -81,3 +81,10 @@ URL_CREATE_RULE = "/pc-api/v2/rules"
 
 # STORAGE
 URL_UPLOAD_FILE = "/pc-api/v1/storage/upload-file"
+
+# DESIGN NOTES
+URL_SAVE_DESIGN_NOTES = "/pc-api/v1/design-notes/save-file"
+
+# README
+URL_SAVE_RULE_README = "/pc-api/v2/rules/upsert-readme"
+
