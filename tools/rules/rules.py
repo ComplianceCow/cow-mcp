@@ -1609,10 +1609,11 @@ def create_design_notes(rule_name: str, design_notes_structure: Dict[str, Any]) 
     and confirmed the preview structure from generate_design_notes_preview().
 
     WORKFLOW:
-    1. User has already reviewed notebook structure from preview
-    2. User confirmed the structure is acceptable
-    3. This tool receives the complete design notes dictionary structure
-    4. MCP saves the notebook and returns access details
+    1. Before creating new design notes, call fetch_rule_design_notes() to check if already exist and continue the flow, if not then continue this flow
+    2. User has already reviewed notebook structure from preview
+    3. User confirmed the structure is acceptable
+    4. This tool receives the complete design notes dictionary structure
+    5. MCP saves the notebook and returns access details
 
     Args:
         rule_name: Name of the rule for which to create design notes
@@ -1989,61 +1990,6 @@ def create_rule_readme(rule_name: str, readme_content: str) -> Dict[str, Any]:
 
 
 @mcp.tool()
-def get_rule_documentation_status(rule_name: str) -> Dict[str, Any]:
-    """
-    Get documentation status for a rule (README, Design Notes, etc.).
-
-    This tool checks what documentation already exists for a rule and provides
-    an overview of available and missing documentation.
-
-    Args:
-        rule_name: Name of the rule to check documentation status
-
-    Returns:
-        Dict containing documentation status and availability
-    """
-    
-    try:
-        headers = wsutils.create_header()
-        
-        # doc_status_resp = wsutils.get(
-        #     path=wsutils.build_api_url(endpoint=f"{constants.URL_GET_RULE_DOCS_STATUS}/{rule_name}"),
-        #     header=headers
-        # )
-
-        doc_status_resp = {}
-        
-        if rule.is_valid_key(doc_status_resp, "documentationStatus"):
-            status = doc_status_resp["documentationStatus"]
-            return {
-                "success": True,
-                "rule_name": rule_name,
-                "documentation_status": status,
-                "has_readme": status.get("hasReadme", False),
-                "has_design_notes": status.get("hasDesignNotes", False),
-                "readme_url": status.get("readmeURL"),
-                "design_notes_url": status.get("designNotesURL"),
-                "last_updated": status.get("lastUpdated"),
-                "documentation_completeness": status.get("completeness", 0),
-                "missing_docs": status.get("missingDocuments", []),
-                "message": f"Documentation status retrieved for rule '{rule_name}'"
-            }
-        else:
-            return {
-                "success": False,
-                "error": "Failed to get documentation status",
-                "rule_name": rule_name
-            }
-            
-    except Exception as e:
-        return {
-            "success": False,
-            "error": f"Failed to get documentation status: {str(e)}",
-            "rule_name": rule_name
-        }
-
-
-@mcp.tool()
 def update_rule_readme(rule_name: str, updated_readme_content: str) -> Dict[str, Any]:
     """
     Update existing README.md file with new content.
@@ -2095,4 +2041,90 @@ def update_rule_readme(rule_name: str, updated_readme_content: str) -> Dict[str,
             "success": False,
             "error": f"Failed to update README.md: {str(e)}",
             "rule_name": rule_name
+        }
+
+
+@mcp.tool()
+def fetch_rule_design_notes(rule_name: str) -> Dict[str,Any]:
+    """
+    Fetch and manage design notes for a rule.
+
+    WORKFLOW:
+
+    1. CHECK EXISTING NOTES:
+    - Always check if design notes exist for the rule first (whether user wants to create or view)
+    - If found: Present complete notebook to user in readable format
+    - If not found: Offer to create new ones
+
+    2. IF NOTES EXIST:
+    - Show complete notebook with all sections (this serves as the VIEW)
+    - Ask: "Here are your design notes. Modify or regenerate?"
+
+    3. USER OPTIONS:
+    - MODIFY: 
+    1. Ask "Do you need any changes to the design notes?"
+    2. If no changes needed: Get user confirmation, then call create_design_notes() to update
+    3. If changes needed: Collect modifications, show preview, get confirmation, then call create_design_notes() to update
+    - REGENERATE: 
+    1. Ask "Do you need any changes before regenerating the design notes?"
+    2. If no changes needed: Get user confirmation and call create_design_notes() to regenerate
+    3. If changes needed: Collect modifications, show preview, get confirmation, then call create_design_notes() to create new notes
+    - CANCEL: End workflow
+
+    4. IF NO NOTES EXIST:
+    - Inform user no notes found
+    - Ask: "Create comprehensive design notes for this rule?"
+    - If yes: Get user confirmation, then call create_design_notes() to generate
+
+    KEY RULES:
+    - MUST follow this workflow explicitly step by step
+    - Always check for existing notes first whenever user asks about design notes (create or view)
+    - ALWAYS get user confirmation before calling create_design_notes()
+    - If any updates needed, explicitly call create_design_notes() tool to save changes
+    - Present notes in Python notebook format
+    - Use create_design_notes() for creation and updates
+
+    Args:
+        rule_name: Name of the rule
+
+    Returns:
+        Dict with success status, rule name, design notes content, and error details
+    """
+
+    try:
+        headers = wsutils.create_header()
+        payload = {
+            "ruleName": rule_name,
+            "type": "mcp"
+        }
+        design_notes_resp = wsutils.post(
+            path=wsutils.build_api_url(endpoint=constants.URL_FETCH_DESIGN_NOTES),
+            data=json.dumps(payload),
+            header=headers
+        )
+
+        filename = design_notes_resp.get("fileName")
+        design_notes_content = design_notes_resp.get("designNotesContent")
+       
+
+        if isinstance(design_notes_content,str) and design_notes_content!="":
+            return {
+                "success": True,
+                "rule_name": rule_name,
+                "filename": filename,
+                "designNotesContent": rule.decode_content(design_notes_content),
+                "message": f"Design notes successfully retrieved for rule {rule_name}. Displaying content to user."
+            }
+        else:
+            return{
+                "success": False,
+                "rule_name": rule_name,
+                "message": f"Design notes not found for rule {rule_name}. Offer to create comprehensive design notes."
+            }
+        
+    except Exception as e:
+        return {
+            "success": False,
+            "rule_name": rule_name,
+            "message": f"Error fetching design notes for rule {rule_name}: {e}. Offer to create comprehensive design notes."
         }
