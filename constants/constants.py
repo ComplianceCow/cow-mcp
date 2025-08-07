@@ -74,7 +74,8 @@ URL_WORKFLOW_RESOURCE_DATA = "/v2/aggregator/fetch-resource-data"
 
 
 # RULES
-URL_FETCH_RULES = "/pc-api/v1/rules"
+MCP_GET_RULES_TAG = "MCP"
+URL_FETCH_RULES = "/v5/partner/pc/rules"
 URL_FETCH_TASKS = "/pc-api/v1/tasks"
 URL_CREATE_RULE = "/pc-api/v2/rules"
 

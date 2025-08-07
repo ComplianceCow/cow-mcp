@@ -1,7 +1,8 @@
 import dataclasses
 from dataclasses import MISSING, asdict, dataclass, fields, is_dataclass
 from datetime import datetime
-from typing import Any, Dict, List, get_type_hints
+from typing import Any, Dict, List, get_type_hints,Optional
+from pydantic import BaseModel
 
 
 def _to_dict(obj: Any) -> Any:
@@ -118,3 +119,19 @@ class TaskVO:
     @classmethod
     def from_dict(cls, data: Dict[str, Any]) -> "TaskVO":
         return _from_dict(cls, data)
+
+        
+class SimplifiedRuleVO(BaseModel):
+    
+    name: Optional[str] = ""
+    purpose: Optional[str] = ""
+    description: Optional[str] = ""
+
+    model_config = {
+        "extra": "ignore"
+    }
+
+class SimplifiedRuleListVO(BaseModel):
+    rules: Optional[List[SimplifiedRuleVO]] = None
+
+    

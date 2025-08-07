@@ -9,8 +9,8 @@ import toml
 from ruamel.yaml import YAML
 
 from constants import constants
-from mcptypes.rule_type import TaskInputVO
-from utils import wsutils
+from mcptypes.rule_type import TaskInputVO, SimplifiedRuleListVO, SimplifiedRuleVO
+from utils import rule,wsutils
 
 yaml = YAML()
 yaml.indent(mapping=2, sequence=4, offset=2)
@@ -602,11 +602,20 @@ def create_rule_api(rule_structure: Dict[str, Any]) -> Dict[str, Any]:
         endpoint=constants.URL_CREATE_RULE), data=json.dumps(rule_structure), header=headers)
     return {"rule_id": rule_id, "status": "created", "message": "Rule created successfully", "timestamp": datetime.now().isoformat()}
 
-def fetch_rule(rule_name: str) -> Dict[str, Any]:
+def fetch_rule(rule_name: str, include_read_me: bool = False) -> Dict[str, Any]:
+    params = {
+        name:rule_name
+    }
+    if include_read_me:
+        params={**params,"include_read_me" : "true"}
+
     headers = wsutils.create_header()
     try:
-        rule_fetch_url = wsutils.build_api_url(endpoint=constants.URL_FETCH_RULES)
-        rules_items = wsutils.get(path=f"{rule_fetch_url}?name={rule_name}", header=headers)
+        rules_items = wsutils.get(
+            path=wsutils.build_api_url(endpoint=constants.URL_FETCH_RULES),
+            params=params,
+            header=headers
+        )
         if is_valid_array(rules_items,"items"):
             return rules_items[0]
         else:
@@ -626,3 +635,45 @@ def encode_content(data: Union[Dict[str, Any], str]) -> str:
         return ""
     except Exception:
         return ""
+
+def fetch_rules_api(params: Dict[str, Any] = None ) -> List[SimplifiedRuleVO]:
+    if params is None:
+        params = {}
+
+    headers = wsutils.create_header()
+    cur_page = 1
+    page_size = 10
+    has_next = True
+    combined_rules = []
+
+    while has_next:
+        paginated_params = { **params, "page": cur_page, "pageSize": page_size, "tags":constants.MCP_GET_RULES_TAG }
+
+        response = wsutils.get(
+            path=wsutils.build_api_url(endpoint=constants.URL_FETCH_RULES),
+            params=paginated_params,
+            header=headers,
+        )
+
+        if rule.is_valid_key(response, "items", array_check=True):
+            rules = response["items"]
+
+            for data in rules:
+                if data.get("readmeData"):
+                    try:
+                        data["readmeData"] = base64.b64decode(data["readmeData"])
+                    except Exception as e:
+                        return f"Failed to decode base64 content: {e}"
+                
+                meta =data.get('meta',None)
+                if meta:
+                    combined_rules.append(SimplifiedRuleVO.model_validate(meta))
+                
+            total_pages = int(response.get("totalPage", 0))
+            cur_page += 1
+            has_next = cur_page <= total_pages
+        else:
+            has_next = False
+
+    return combined_rules
+

@@ -1662,13 +1662,14 @@ def create_design_notes(rule_name: str, design_notes_structure: Dict[str, Any]) 
 
 
 @mcp.tool()
-def fetch_rule(rule_name: str) -> Dict[str, Any]:
+def fetch_rule(rule_name: str,include_read_me: bool = False) -> Dict[str, Any]:
     """
     Fetch rule details by rule name.
 
     Args:
         rule_name: Name of the rule to retrieve
-
+        include_read_me: Whether to include the README data in the response.
+        
     Returns:
         Dict containing complete rule structure and metadata
     """
@@ -2127,4 +2128,99 @@ def fetch_rule_design_notes(rule_name: str) -> Dict[str,Any]:
             "success": False,
             "rule_name": rule_name,
             "message": f"Error fetching design notes for rule {rule_name}: {e}. Offer to create comprehensive design notes."
+        }
+
+@mcp.tool()
+def get_rules_summary() -> Dict[str, Any]:
+    """
+    Tool-based version of `get_rules_summary` for improved compatibility and prevention of duplicate rule creation.
+
+    This tool serves as the initial step in the rule creation process. It helps determine whether the user's proposed use case matches any existing rule in the catalog.
+
+    PURPOSE:
+    - To analyze the user's use case and avoid duplicate rule creation by identifying the most suitable existing rule based on its name, description, and purpose.
+
+    WHEN TO USE:
+    - As the first step before initiating a new rule creation process
+    - When the user wants to retrieve and review all available rules
+    - When verifying if a similar rule already exists that can be reused or customized
+
+    WHAT IT DOES:
+    - Retrieves the full list of rules from the catalog with simplified metadata (name, purpose, description)
+    - Performs intelligent matching using metadata (name, description, purpose) with user-provided use case details
+    - Uses semantic pattern recognition to find similar rules, even across different systems (e.g., AzureUserUnusedPermission vs SalesforceUserUnusedPermissions)
+
+    IF A MATCHING RULE IS FOUND:
+
+    - Retrieves complete details via `fetch_rule()`.
+    - If the readmeData field is available in the fetch_rule() response, Performs README-based validation using the `readmeData` field from the `fetch_rule()` response to assess its suitability for the user’s use case.
+    - If suitable:
+    - Returns the rule with full metadata, explanation, and the analysis report.
+    - If not suitable:
+    - Informs the user that the rule's README content does not align with the intended use case.
+    - Prompts the user with clear next-step options:
+        - "The rule's README content does not align with your use case. Please choose one of the following options:"
+        - Customize the existing rule
+        - Evaluate alternative matching rules
+        - Proceed with new rule creation
+    - Waits for the user's choice before proceeding.
+    
+    IF A SIMILAR RULE EXISTS FOR AN ALTERNATE TECHNOLOGY STACK:
+
+    - Detects rules with the same logic but built for a different platform or system (e.g., AzureUserUnusedPermission for SalesforceUserUnusedPermissions)
+    - If the readmeData field is available in the fetch_rule() response, Retrieves and analyzes the `readmeData` from the `fetch_rule()` response to compare the implementation details against the user's proposed use case
+    - Based on the comparison:
+        - If the README content matches or is mostly reusable, suggest using the existing rule structure and logic as a foundation to create a new rule tailored to the user's target system
+        - If the README content does not match or is not suitable, clearly inform the user and recommend either modifying the logic significantly or proceeding with a completely new rule from scratch
+
+    IF NO SUITABLE RULE IS FOUND:
+
+    - Clearly informs the user that no relevant rule matches the proposed use case
+    - Suggests continuing with new rule creation
+    - Optionally highlights similar rules that can be used as a reference
+
+    MANDATORY STEPS:
+
+    README VALIDATION:
+    - Always retrieve and analyze `readmeData` from `fetch_rule()`.
+    - Ensure the rule's logic, behavior, and intended use align with the user's proposed use case.
+
+    README ANALYSIS REPORT:
+    - Generate a clear and concise report for each `readmeData` analysis that classifies the result as a full match, partially reusable, or not aligned.
+    - Present this report to the user for review.
+
+    USER CONFIRMATION BEFORE PROCEEDING:
+    When analyzing a README file:
+    - If no relevant rule matches the proposed use case, or if the README is deemed unsuitable, the tool must pause and request explicit user confirmation before proceeding further.
+    - The tool should:
+    - Clearly inform the user that no matching rule was found or the README is not appropriate.
+    - Suggest creating a new rule as the next step.
+    - Optionally recommend similar existing rules that can serve as references to help the user craft the new rule.
+
+    ITERATE UNTIL MATCH:
+    - Repeat the above steps until a suitable rule is found or all options are exhausted.
+
+    CROSS-PLATFORM RULE HANDLING:
+    - For rules from a different stack:
+    - If reusable: suggest customization
+    - If not reusable: recommend new rule creation
+
+    Returns:
+    - A single rule object with full metadata and verified README match — if an exact match is found
+    - A similar rule suggestion with customization options — if a cross-system match is found (e.g., AzureUserUnusedPermission vs SalesforceUserUnusedPermissions)
+    - A message indicating no suitable rule found — with next steps and guidance to create a new rule
+    """
+
+    try:
+
+        rule_response = rule.fetch_rules_api()
+        
+        if not rule_response:
+            return {"error": f"No rule found that matches the specified requirements."}
+
+        return rule_response
+
+    except Exception as e:
+        return {
+            "error": f"An error occurred while retrieving the rule with the specified details: {e}"
         }
