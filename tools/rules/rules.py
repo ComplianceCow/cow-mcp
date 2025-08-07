@@ -15,7 +15,8 @@ from utils import rule, wsutils
 # Phase 1: Lightweight task summary resource
 
 
-@mcp.resource("tasks://summary")
+# @mcp.resource("tasks://summary")
+@mcp.tool()
 def get_tasks_summary() -> str:
     """
     Resource containing minimal task information for initial selection.
