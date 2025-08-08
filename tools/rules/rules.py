@@ -1705,6 +1705,96 @@ def fetch_rule(rule_name: str) -> Dict[str, Any]:
 
 
 @mcp.tool()
+def fetch_rule_design_notes(rule_name: str) -> Dict[str,Any]:
+    """
+    Fetch and manage design notes for a rule.
+
+    WORKFLOW:
+
+    1. CHECK EXISTING NOTES:
+    - Always check if design notes exist for the rule first (whether user wants to create or view)
+    - If found: Present complete notebook to user in readable format
+    - If not found: Offer to create new ones
+
+    2. IF NOTES EXIST:
+    - Show complete notebook with all sections (this serves as the VIEW)
+    - Ask: "Here are your design notes. Modify or regenerate?"
+
+    3. USER OPTIONS:
+    - MODIFY: 
+    1. Ask "Do you need any changes to the design notes?"
+    2. If no changes needed: Get user confirmation, then call create_design_notes() to update
+    3. If changes needed: Collect modifications, show preview, get confirmation, then call create_design_notes() to update
+    - REGENERATE: 
+    1. Generate the design notes using generate_design_notes_preview()
+    2. Show preview to user
+    3. Get user confirmation
+    4. If confirmed: Call create_design_notes() to save the regenerated design notes
+    - CANCEL: End workflow
+
+    4. IF NO NOTES EXIST:
+    - Inform user no design notes found
+    - Ask: "Create comprehensive design notes for this rule?"
+    - If yes: Generate the design notes using generate_design_notes_preview()
+    - Show preview to user
+    - Get user confirmation
+    - If confirmed: Call create_design_notes() to generate
+
+    KEY RULES:
+    - MUST follow this workflow explicitly step by step
+    - Always check for existing notes first whenever user asks about design notes (create or view)
+    - ALWAYS get user confirmation before calling create_design_notes()
+    - If any updates needed, explicitly call create_design_notes() tool to save changes
+    - Present notes in Python notebook format
+    - Use create_design_notes() for creation and updates
+
+    Args:
+        rule_name: Name of the rule
+
+    Returns:
+        Dict with success status, rule name, design notes content, and error details
+    """
+
+    try:
+        headers = wsutils.create_header()
+        payload = {
+            "ruleName": rule_name,
+            "type": "mcp"
+        }
+        design_notes_resp = wsutils.post(
+            path=wsutils.build_api_url(endpoint=constants.URL_FETCH_DESIGN_NOTES),
+            data=json.dumps(payload),
+            header=headers
+        )
+
+        filename = design_notes_resp.get("fileName")
+        design_notes_content = design_notes_resp.get("designNotesContent")
+       
+
+        if isinstance(design_notes_content,str) and design_notes_content!="":
+            return {
+                "success": True,
+                "rule_name": rule_name,
+                "filename": filename,
+                "designNotesContent": rule.decode_content(design_notes_content),
+                "message": f"Design notes successfully retrieved for rule {rule_name}. Displaying content to user."
+            }
+        else:
+            return{
+                "success": False,
+                "rule_name": rule_name,
+                "message": f"Design notes not found for rule {rule_name}. Offer to create comprehensive design notes."
+            }
+        
+    except Exception as e:
+        return {
+            "success": False,
+            "rule_name": rule_name,
+            "message": f"Error fetching design notes for rule {rule_name}: {e}. Offer to create comprehensive design notes."
+        }
+
+
+@mcp.tool()
 def generate_rule_readme_preview(rule_name: str) -> Dict[str, Any]:
     """
     Generate README.md preview for rule documentation before actual creation.
@@ -2014,7 +2104,7 @@ def update_rule_readme(rule_name: str, updated_readme_content: str) -> Dict[str,
             "type":"rule",
             "readmeContent": rule.encode_content(updated_readme_content),  # Pass the complete README content as an encoded string
         }
-        update_resp = wsutils.put(
+        update_resp = wsutils.post(
             path=wsutils.build_api_url(endpoint=constants.URL_SAVE_RULE_README),
             data=json.dumps(payload),
             header=headers
@@ -2045,7 +2135,7 @@ def update_rule_readme(rule_name: str, updated_readme_content: str) -> Dict[str,
 
 
 @mcp.tool()
-def fetch_rule_design_notes(rule_name: str) -> Dict[str,Any]:
+def fetch_rule_readme(rule_name: str) -> Dict[str, Any]:
     """
     Fetch and manage design notes for a rule.
 
@@ -2066,15 +2156,19 @@ def fetch_rule_design_notes(rule_name: str) -> Dict[str,Any]:
     2. If no changes needed: Get user confirmation, then call create_design_notes() to update
     3. If changes needed: Collect modifications, show preview, get confirmation, then call create_design_notes() to update
     - REGENERATE: 
-    1. Ask "Do you need any changes before regenerating the design notes?"
-    2. If no changes needed: Get user confirmation and call create_design_notes() to regenerate
-    3. If changes needed: Collect modifications, show preview, get confirmation, then call create_design_notes() to create new notes
+    1. Generate the design notes using generate_design_notes_preview()
+    2. Show preview to user
+    3. Get user confirmation
+    4. If confirmed: Call create_design_notes() to save the regenerated design notes
     - CANCEL: End workflow
 
     4. IF NO NOTES EXIST:
-    - Inform user no notes found
+    - Inform user no design notes found
     - Ask: "Create comprehensive design notes for this rule?"
-    - If yes: Get user confirmation, then call create_design_notes() to generate
+    - If yes: Generate the design notes using generate_design_notes_preview()
+    - Show preview to user
+    - Get user confirmation
+    - If confirmed: Call create_design_notes() to generate
 
     KEY RULES:
     - MUST follow this workflow explicitly step by step
@@ -2089,42 +2183,51 @@ def fetch_rule_design_notes(rule_name: str) -> Dict[str,Any]:
 
     Returns:
         Dict with success status, rule name, design notes content, and error details
-    """
+    """ 
 
     try:
         headers = wsutils.create_header()
-        payload = {
-            "ruleName": rule_name,
-            "type": "mcp"
+        params = {
+            "name": rule_name,
+            "include_read_me": True
         }
-        design_notes_resp = wsutils.post(
-            path=wsutils.build_api_url(endpoint=constants.URL_FETCH_DESIGN_NOTES),
-            data=json.dumps(payload),
+        readme_resp = wsutils.get(
+            path=wsutils.build_api_url(endpoint=constants.URL_FETCH_RULES),
+            params=params, 
             header=headers
         )
+        
+        rule_info = None
+        if rule.is_valid_key(readme_resp, "items"):
+            rule_info = readme_resp["items"][0]
 
-        filename = design_notes_resp.get("fileName")
-        design_notes_content = design_notes_resp.get("designNotesContent")
-       
+        if rule_info:
+            readme_content = rule_info.get("readmeData")
 
-        if isinstance(design_notes_content,str) and design_notes_content!="":
-            return {
-                "success": True,
-                "rule_name": rule_name,
-                "filename": filename,
-                "designNotesContent": rule.decode_content(design_notes_content),
-                "message": f"Design notes successfully retrieved for rule {rule_name}. Displaying content to user."
-            }
+            if isinstance(readme_content, str) and readme_content != "":
+                return {
+                    "success": True,
+                    "rule_name": rule_name,
+                    "readmeContent": rule.decode_content(readme_content),
+                    "message": f"README successfully retrieved for rule {rule_name}. Displaying content to user."
+                }
+            else:
+                return {
+                    "success": False,
+                    "rule_name": rule_name,
+                    "message": f"README not found for rule {rule_name}. Offer to create comprehensive README."
+                }
         else:
-            return{
+            return {
                 "success": False,
                 "rule_name": rule_name,
-                "message": f"Design notes not found for rule {rule_name}. Offer to create comprehensive design notes."
+                "message": f"Rule '{rule_name}' not found. Unable to fetch README."
             }
-        
+            
     except Exception as e:
         return {
             "success": False,
             "rule_name": rule_name,
-            "message": f"Error fetching design notes for rule {rule_name}: {e}. Offer to create comprehensive design notes."
+            "error": str(e),
+            "message": f"Error fetching README for rule {rule_name}: {e}"
         }
