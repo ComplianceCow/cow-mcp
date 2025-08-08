@@ -1790,7 +1790,7 @@ def fetch_rule_design_notes(rule_name: str) -> Dict[str,Any]:
         return {
             "success": False,
             "rule_name": rule_name,
-            "message": f"Error fetching design notes for rule {rule_name}: {e}. Offer to create comprehensive design notes."
+            "message": f"Error fetching design notes for rule {rule_name}: {e}."
         }
 
 
