@@ -78,7 +78,8 @@ MCP_GET_RULES_TAG = "MCP"
 URL_FETCH_RULES = "/v5/partner/pc/rules"
 URL_FETCH_TASKS = "/pc-api/v1/tasks"
 URL_CREATE_RULE = "/pc-api/v2/rules"
-
+URL_EXECUTE_RULE = "/pc-api/v2/rules/execute-rule"
+URL_FETCH_EXECUTION_PROGRESS = "/pc-api/v2/rules/fetch-execution-progress"
 
 # STORAGE
 URL_UPLOAD_FILE = "/pc-api/v1/storage/upload-file"
@@ -90,3 +91,6 @@ URL_FETCH_DESIGN_NOTES = "/pc-api/v1/design-notes/fetch-file"
 # README
 URL_SAVE_RULE_README = "/pc-api/v2/rules/upsert-readme"
 
+# CREDENTIAL
+URL_FETCH_CREDENTIAL = "/v1/credential"
+URL_FETCH_APPLICATION_CREDENTIALS = "/pc-api/v1/application-credentials"

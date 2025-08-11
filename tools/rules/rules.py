@@ -2229,7 +2229,6 @@ def fetch_rule_readme(rule_name: str) -> Dict[str, Any]:
         return {
             "success": False,
             "rule_name": rule_name,
-            "error": str(e),
             "message": f"Error fetching README for rule {rule_name}: {e}"
         }
 
@@ -2326,4 +2325,319 @@ def get_rules_summary() -> Dict[str, Any]:
     except Exception as e:
         return {
             "error": f"An error occurred while retrieving the rule with the specified details: {e}"
+        }
+
+@mcp.tool()
+def get_applications_for_tag(tag_name: str) -> Dict[str, Any]:
+    """
+    Get available applications for a specific app tag.
+
+    APPLICATION RETRIEVAL:
+    - Fetches all existing applications configured for the specified app tag
+    - Returns list of applications with ID, name, and app type
+    - Used during rule execution to present application choices to user
+
+    Args:
+        tag_name: The app tag name to get applications for
+
+    Returns:
+        Dict containing available applications for the tag
+    """
+    try:
+        header = wsutils.create_header()
+
+        params = {
+            "app_type_tag": tag_name,
+            "fields": "basic",
+            "validated": True
+        }
+
+        applications = []
+
+        applications_resp = wsutils.get(
+            path=wsutils.build_api_url(endpoint=constants.URL_FETCH_CREDENTIAL), 
+            params=params, 
+            header=header
+        )
+
+        if rule.is_valid_array(applications_resp, "items"):
+            for item in applications_resp["items"]:
+                applications.append({"id": item.get("id"), "name": item.get("credentialName"), "appType": item.get("appType")})
+            return {
+                "success": True, 
+                "tag_name": tag_name, 
+                "applications": applications, 
+                "count": len(applications), 
+                "message": f"Found {len(applications)} applications for tag '{tag_name}'. User can select an existing application or create new credentials."
+            }    
+        else:
+            return {
+                "success": False,
+                "tag_name": tag_name,
+                "applications": [],
+                "count": 0,
+                "message": f"No applications found for tag '{tag_name}'. User can create new credentials."
+            }
+
+    except Exception as e:
+        return {
+            "success": False, 
+            "tag_name": tag_name,
+            "applications": [],
+            "count": 0,
+            "message": f"Error occurred while fetching applications for tag '{tag_name}': {e}"
+        }
+
+
+@mcp.tool()
+def get_application_info(tag_name: str) -> Dict[str, Any]:
+    """
+    Get detailed information about an application, including supported credential types.
+
+    APPLICATION CREDENTIAL CONFIGURATION WORKFLOW:
+
+    1. User selects "Configure new application credentials".
+    2. Call this tool to retrieve application details and supported credential types.
+    3. Present credential options to the user with:
+       - Required attributes
+       - Data type
+       - If type is bytes → must be Base64-encoded
+    4. Collect credential values for the selected type.
+    5. Validate that all required attributes are provided.
+    6. Verify that each credential value matches its expected data type.
+    7. Build the credential configuration and append it to the `apps_config` array.
+
+    DATA VALIDATION REQUIREMENTS:
+    - All required attributes must be present.
+    - Data type must match specification.
+    - Bytes values must be Base64-encoded before saving.
+
+    Args:
+        tag_name: The app tag name for retrieving application information
+
+    Returns:
+        Dict containing application details and supported credential types
+    """
+    try:
+        header = wsutils.create_header()
+
+        params = {"appType": tag_name}
+
+        app_resp = wsutils.get(
+            path=wsutils.build_api_url(endpoint=constants.URL_FETCH_APPLICATION_CREDENTIALS), 
+            params=params, 
+            header=header
+        )
+
+        if rule.is_valid_array(app_resp, "items"):
+            app_info = app_resp["items"][0]
+            supported_creds = app_info.get("supportedCreds")
+            return {
+                "success": True, 
+                "app_name": tag_name,
+                "supportedCreds": supported_creds,
+                "message": f"Retrieved information for application '{tag_name}'. User can select credential type and provide values."
+            }
+        else:
+            return {
+                "success": False, 
+                "app_name": tag_name,
+                "message": f"No credential information found for application '{tag_name}'."
+            }
+
+    except Exception as e:
+        return {
+            "success": False, 
+            "app_name": tag_name,
+            "message": f"Error occurred while fetching application info for '{tag_name}': {e}"
+        }
+
+
+@mcp.tool()
+def execute_rule(rule_name: str, rule_inputs: List[Dict[str, Any]], applications: List[Dict[str, Any]]) -> Dict[str, Any]:
+    """RULE EXECUTION WORKFLOW:
+
+    PREREQUISITE STEPS:
+    1. User chooses to execute rule after creation
+    2. Extract unique appTags from selected tasks → get user confirmation
+    3. For each tag:
+        - Get available applications via get_applications_for_tag()
+        - Present choice: existing app or new credentials → get user confirmation
+        - If existing: use application ID → confirm → move to next tag
+        ```json
+        [
+            {
+                "applicationType": "[appType (split by :: and use the first value)]",
+                "applicationId": "[Actual ID]",
+                "appTags": "[Complete object from rule spec.tasks.appTags]"
+            }
+        ]
+        ```
+        - If new: get_application_info(tag_name) → collect credentials + get application URL from user (optional) → confirm → move to next tag
+        ```json
+        [
+            {
+                "applicationType": "[appType (split by :: and use the first value)]",
+                "appURL": "[Application URL from user (optional)]",
+                "credentialType": "[User chosen credential type]",
+                "credentialValues": {
+                    "[User provided credentials]"
+                },
+                "appTags": "[Complete object from rule spec.tasks.appTags]"
+            }
+        ]
+        ```
+    4. Build applications array → get user confirmation
+    5. Final confirmation → execute rule
+    6. If execution starts successfully → call fetch_execution_progress()
+
+    Args:
+        rule_name: Rule to execute
+        rule_inputs: Complete objects from spec.inputsMeta__
+        applications: Application configurations with credentials
+
+    Returns:
+        Dict with execution results
+    """
+    try:
+        # Prepare execution payload
+        execution_payload = {
+            "ruleName": rule_name, 
+            "ruleInputs": rule_inputs, 
+            "applications": applications
+        }
+
+        headers = wsutils.create_header()
+    
+        execution_result = wsutils.post(
+            path=wsutils.build_api_url(endpoint=constants.URL_EXECUTE_RULE), 
+            data=json.dumps(execution_payload), 
+            header=headers
+        )
+
+        return {
+            "success": True, 
+            "rule_name": rule_name, 
+            "execution_id": execution_result.get("id"), 
+            "message": f"Rule '{rule_name}' started executing.",
+        }
+
+    except Exception as e:
+        return {
+            "success": False, 
+            "rule_name": rule_name,
+            "message": f"Failed to execute rule '{rule_name}': {e}"
+        }
+
+
+@mcp.tool()
+def fetch_execution_progress(rule_name: str, execution_id: str) -> Dict[str, Any]:
+    """
+    Fetch execution progress and status for a running rule.
+
+    LIVE PROGRESS DISPLAY:
+    Show each task in one line as it runs:
+    fetch_azure_users (ExecuteHttpRequestV2) ████████████████████ 100% COMPLETED
+
+    MANDATORY PROGRESS BAR COLORS:
+    - COMPLETED = Blue bars (REQUIRED)
+    - INPROGRESS = Green bars (REQUIRED)
+    - ERROR = Red bars (REQUIRED)
+    - NEVER use black bars (CRITICAL)
+
+    POLLING:
+    - Call every 2 seconds
+    - Show live progress as tasks run
+    - Final call: Show summary
+
+    EXECUTION SUMMARY:
+    **Rule:** [rule_name]
+    **Execution ID:** [execution_id]
+    **Status:** [status] 
+    **Tasks:** [completed]/[total] done
+    **Duration:** [time]
+
+    Output: [show outputs]
+
+    CRITICAL:
+    - One line per task
+    - Color bars by task status
+    - Show live, not at end
+
+    Args:
+        rule_name: Rule being executed
+        execution_id: ID from execute_rule()
+        
+    Returns:
+        Dict containing execution status, progress summary, progress bar data
+    """    
+    try:
+        header = wsutils.create_header()
+
+        exec_payload = {
+            "executionID": execution_id
+        }
+
+        exec_progress_resp = wsutils.post(
+            path=wsutils.build_api_url(endpoint=constants.URL_FETCH_EXECUTION_PROGRESS), 
+            data=json.dumps(exec_payload), 
+            header=header
+        )
+        
+        task_progress = exec_progress_resp.get("taskProgressSummary", {})
+        progress_percentage = task_progress.get("progressPercentage", 0)
+        completed = task_progress.get("completed", 0)
+        total = task_progress.get("total", 0)
+        progress_array = exec_progress_resp.get("progress", [])
+        outputs = exec_progress_resp.get("outputs", [])
+
+        if (exec_progress_resp.get("status") == "COMPLETED"):
+            return {
+                "status": "COMPLETED",
+                "rule_name": rule_name,
+                "execution_id": execution_id,
+                "progress_percentage": progress_percentage,
+                "completed_tasks": completed,
+                "total_tasks": total,
+                "progress": progress_array,
+                "show_progress_bar": True,
+                "outputs": outputs,
+                "message": f"Rule '{rule_name}' execution completed successfully."
+            }
+        elif (exec_progress_resp.get("status") == "ERROR"):
+            return {
+                "status": "ERROR",
+                "rule_name": rule_name,
+                "execution_id": execution_id,
+                "progress_percentage": progress_percentage,
+                "completed_tasks": completed,
+                "total_tasks": total,
+                "progress": progress_array,
+                "show_progress_bar": True,
+                "message": f"Rule '{rule_name}' execution completed with error."
+            }
+        else:
+            return {
+                "status": exec_progress_resp.get("status"),
+                "rule_name": rule_name,
+                "execution_id": execution_id,
+                "progress_percentage": progress_percentage,
+                "completed_tasks": completed,
+                "total_tasks": total,
+                "progress": progress_array,
+                "show_progress_bar": True,
+                "message": f"Rule '{rule_name}' execution in progress. {completed}/{total} tasks completed ({progress_percentage}%)."
+            }
+
+    except Exception as e:
+        return {
+            "status": "ERROR",
+            "rule_name": rule_name,
+            "execution_id": execution_id,
+            "progress_percentage": 0,
+            "completed_tasks": 0,
+            "total_tasks": 0,
+            "progress": [],
+            "show_progress_bar": False,
+            "message": f"Error occurred while fetching execution progress for rule '{rule_name}': {e}"
         }
