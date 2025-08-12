@@ -94,3 +94,6 @@ URL_SAVE_RULE_README = "/pc-api/v2/rules/upsert-readme"
 # CREDENTIAL
 URL_FETCH_CREDENTIAL = "/v1/credential"
 URL_FETCH_APPLICATION_CREDENTIALS = "/pc-api/v1/application-credentials"
+
+#SUPPORT TICKET
+URL_CREATE_TICKET = "/v5/partner/support/ticket"

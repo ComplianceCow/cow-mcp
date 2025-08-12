@@ -30,6 +30,12 @@ def get_tasks_summary() -> str:
 
     Use this for initial task discovery and selection. Detailed information can be
     retrieved later using `tasks://details/{task_name}` for selected tasks only.
+
+    Mandatory functionality:
+    - Retrieve a list of task summaries based on the user's request.
+    - If no matching task is found for the requested functionality, the system must prompt the user for confirmation.
+    - Based on the user's response, the system will either proceed accordingly or create a support ticket using the `create_support_ticket()` tool.
+
     """
 
     try:
@@ -73,11 +79,21 @@ def get_task_details(task_name: str) -> str:
     - All metadata and configuration options
     - Decoded template content for inputs that have associated templates
 
+    IMPORTANT (MANDATORY BEHAVIOR):
+    If the requested task is not found with the user's specification, the system MUST NOT proceed automatically with an alternative approach or ticket creation. 
+    The system MUST first explicitly prompt the user and wait for their response. 
+    Only after receiving the user's confirmation will the system either:
+        1. Proceed with the alternative approach, OR
+        2. Invoke `create_support_ticket()` to log the issue using the MCP tool, collecting the required input details from the user.
+
+    This confirmation step is mandatory and must be completed before any further action is taken.
+
     Args:
         task_name: The name of the selected task for which to retrieve full details
 
     Returns:
-        A JSON string containing the complete task information
+        A JSON string containing the full set of task details if available,
+        or follows a user-confirmed alternative approach or support ticket creation flow if the task is not found.
     """
 
     try:
@@ -146,11 +162,20 @@ def get_task_details(task_name: str) -> Dict[str, Any]:
     - Review all metadata and configuration options
     - Use this information for accurate task matching and rule structure creation
 
+    IMPORTANT (MANDATORY BEHAVIOR):
+    If the requested task is not found with the user's specification, the system MUST:
+    1. Prompt the user to choose how to proceed including the below option.
+    - Option: Create task development Ticket.
+    2. Wait for the user's response before taking any further action.
+    3. If the user chooses to create a task development ticket, call `create_support_ticket()` via the MCP tool, collecting the required input details from the user before submitting.
+
     Args:
-        task_name: The name of the task for which to retrieve details
+    task_name: The name of the task for which to retrieve details
 
     Returns:
-        A dictionary containing the complete task information
+        A dictionary containing the complete task information if found,
+        OR executes the user-selected alternative approach,
+        OR creates a support ticket (with collected details) if chosen
     """
 
     try:
@@ -2749,4 +2774,72 @@ def fetch_execution_progress(rule_name: str, execution_id: str) -> Dict[str, Any
             "error": str(e),
             "display_header": "❌ **Error Fetching Progress**",
             "display_lines": [{"text": f"Error: {str(e)}"}]
+        }
+
+
+
+@mcp.tool()
+def create_support_ticket(subject: str, description: str, priority: str) -> Dict[str, Any]:
+    """
+    Tool-based version of create_support_ticket for improved compatibility.
+
+    PURPOSE:
+    - Create structured support tickets for well-defined tasks, workflows, or automation goals.
+    - Ensure ticket creation happens only after the user reviews and approves a pre-filled description.
+    - Ensure ticket creation happens only when explicitly requested by the user.
+    - Prevent unnecessary back-and-forth by reducing the amount of information the user must manually enter.
+
+    NOT FOR:
+    - Bug reports.
+    - Issues related exclusively to HTTP/web-only execution.
+
+    STRICT WORKFLOW:
+    1. BEFORE TOOL ENTRY:
+    - The MCP tool will generate a **pre-filled** content description for the task/workflow.
+    - This description is provided in plain text for clarity.
+
+    2. USER VERIFICATION:
+    - The user is shown the pre-filled description.
+    - The user must explicitly confirm if the description is correct or request changes.
+    - The tool will update the description based on the user's feedback.
+
+    3. FINAL APPROVAL & FORMATTING (CRITICAL):
+    - This is the MOST IMPORTANT STEP and must never be skipped.
+    - The user must explicitly approve the final description before proceeding.
+    - The tool MUST convert the description into HTML format to improve clarity and professionalism. This includes:
+    - Making key points and headings bold.
+    - Adding clear headings and subheadings.
+    - Using line breaks and spacing for better readability.
+    - The tool must NOT create the ticket until the HTML-formatted description is fully prepared and approved by the user.
+    - This step ensures the ticket content is clear, professional, and error-free.
+    - Only the approved, HTML-formatted description will be submitted for ticket creation.
+
+    MANDATORY USER INPUTS (runtime arguments):
+    - subject (str): Short, descriptive title for the ticket.
+    - description (str): Final, user-approved detailed description of the task/workflow.
+    - priority (str): Ticket priority level ("High", "Medium", "Low").
+
+    RETURNS:
+    - A dictionary simulating the support ticket creation response.
+    - Suitable for mock previews, integrations, or testing purposes.
+
+    """
+
+    try:
+        request_body = {
+            "subject": subject,
+            "description": description,
+            "priority": priority
+        }
+
+        response = rule.create_support_ticket_api(request_body)
+        
+        if not response:
+            return {"error": "Failed to create support ticket with the specified details."}
+
+        return response
+
+    except Exception as e:
+        return {
+            "error": f"An error occurred while creating the support ticket: {e}"
         }
