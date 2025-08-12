@@ -1224,6 +1224,10 @@ def create_rule(rule_structure: Dict[str, Any]) -> Dict[str, Any]:
             - step1.Input.TaskInput:=*.Input.InputName  # Use task aliases in I/O mapping
             - validation.Input.TaskInput:=step1.Output.TaskOutput
             - '*.Output.FinalOutput:=validation.Output.TaskOutput'
+            # MANDATORY: Always include these three outputs from the last task
+            - '*.Output.CompliancePCT_:=validation.Output.CompliancePCT_'    # Compliance percentage from last task
+            - '*.Output.ComplianceStatus_:=validation.Output.ComplianceStatus_'  # Compliance status from last task
+            - '*.Output.LogFile:=validation.Output.LogFile'  # Log file from last task
     ```
 
     STEP 3 - I/O MAPPING WITH TASK ALIASES:
@@ -2454,7 +2458,7 @@ def get_application_info(tag_name: str) -> Dict[str, Any]:
 
 
 @mcp.tool()
-def execute_rule(rule_name: str, rule_inputs: List[Dict[str, Any]], applications: List[Dict[str, Any]]) -> Dict[str, Any]:
+def execute_rule(rule_name: str, from_date: str, to_date:str, rule_inputs: List[Dict[str, Any]], applications: List[Dict[str, Any]]) -> Dict[str, Any]:
     """RULE EXECUTION WORKFLOW:
 
     PREREQUISITE STEPS:
@@ -2488,11 +2492,17 @@ def execute_rule(rule_name: str, rule_inputs: List[Dict[str, Any]], applications
         ]
         ```
     4. Build applications array → get user confirmation
-    5. Final confirmation → execute rule
-    6. If execution starts successfully → call fetch_execution_progress()
+    5. Additional Inputs (optional):
+        - Ask user: "Do you want to specify a date range for this execution?"
+        - From Date (format: YYYY-MM-DD) - optional
+        - To Date (format: YYYY-MM-DD) - optional
+    6. Final confirmation → execute rule
+    7. If execution starts successfully → call fetch_execution_progress()
 
     Args:
         rule_name: Rule to execute
+        from_date: Optional start date from user (format: YYYY-MM-DD)
+        to_date: Optional end date from user (format: YYYY-MM-DD)
         rule_inputs: Complete objects from spec.inputsMeta__
         applications: Application configurations with credentials
 
@@ -2502,6 +2512,8 @@ def execute_rule(rule_name: str, rule_inputs: List[Dict[str, Any]], applications
     try:
         # Prepare execution payload
         execution_payload = {
+            "fromDate": from_date,
+            "toDate": to_date,
             "ruleName": rule_name, 
             "ruleInputs": rule_inputs, 
             "applications": applications
