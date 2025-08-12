@@ -677,3 +677,14 @@ def fetch_rules_api(params: Dict[str, Any] = None ) -> List[SimplifiedRuleVO]:
 
     return combined_rules
 
+def create_support_ticket_api(body: Dict[str, Any] = None ) -> List[SimplifiedRuleVO]:
+    headers = wsutils.create_header()
+    try:
+        ticket_detials = wsutils.post(
+            path=wsutils.build_api_url(endpoint=constants.URL_CREATE_TICKET),
+            data=json.dumps(body),
+            header=headers
+        )
+        return {**ticket_detials, "status": "created", "message": "Ticket created successfully Created ", "timestamp": datetime.now().isoformat()}
+    except Exception as e:
+        return {"error": f"Failed to fetch support ticket categories: {e}"}
