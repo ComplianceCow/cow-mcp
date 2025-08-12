@@ -688,3 +688,93 @@ def create_support_ticket_api(body: Dict[str, Any] = None ) -> List[SimplifiedRu
         return {**ticket_detials, "status": "created", "message": "Ticket created successfully Created ", "timestamp": datetime.now().isoformat()}
     except Exception as e:
         return {"error": f"Failed to fetch support ticket categories: {e}"}
+def get_json_preview(content: str, max_records: int = 4) -> tuple[str, str]:
+    """Extract preview of JSON content showing first N records."""
+    try:
+        data = json.loads(content)
+        
+        if isinstance(data, list):
+            # Array of records
+            total_records = len(data)
+            preview_records = data[:max_records]
+            
+            preview_json = json.dumps(preview_records, indent=2)
+            if total_records > max_records:
+                preview_json += f"\n... (truncated)"
+                record_info = f"Total records: {total_records}"
+            else:
+                record_info = f"Total records: {total_records}"
+            
+            return preview_json, record_info
+                
+        elif isinstance(data, dict):
+            # Single object or object with arrays
+            preview_data = {}
+            truncated_fields = []
+            
+            for key, value in data.items():
+                if isinstance(value, list) and len(value) > max_records:
+                    preview_data[key] = value[:max_records]
+                    truncated_fields.append(f"{key}({len(value)} items)")
+                else:
+                    preview_data[key] = value
+            
+            preview_json = json.dumps(preview_data, indent=2)
+            if truncated_fields:
+                preview_json += f"\n... (truncated)"
+                record_info = f"Truncated arrays: {', '.join(truncated_fields)}"
+            else:
+                record_info = "Complete object shown"
+            
+            return preview_json, record_info
+        else:
+            # Primitive value
+            return json.dumps(data, indent=2), "Single value"
+            
+    except json.JSONDecodeError:
+        # If not valid JSON, treat as text
+        lines = content.split('\n')
+        preview = '\n'.join(lines[:max_records])
+        total_lines = len([line for line in lines if line.strip()])
+        if len(lines) > max_records:
+            preview += f"\n... (truncated)"
+        return preview, f"Total lines: {total_lines}"
+
+
+def get_csv_preview(content: str, max_records: int = 4) -> tuple[str, str]:
+    """Extract preview of CSV content showing header + first N data records."""
+    lines = content.split('\n')
+    non_empty_lines = [line for line in lines if line.strip()]
+    
+    if not non_empty_lines:
+        return content, "Empty file"
+    
+    # Include header + max_records data rows
+    preview_lines = non_empty_lines[:min(max_records + 1, len(non_empty_lines))]
+    preview_content = '\n'.join(preview_lines)
+    
+    total_data_rows = len(non_empty_lines) - 1  # Exclude header
+    shown_data_rows = len(preview_lines) - 1   # Exclude header
+    
+    if total_data_rows > shown_data_rows:
+        preview_content += f"\n... (truncated)"
+    
+    record_info = f"Total data rows: {total_data_rows}"
+    return preview_content, record_info
+
+
+def get_parquet_preview(content: str, max_records: int = 4) -> tuple[str, str]:
+    """Extract preview of Parquet content (if it's JSON representation)."""
+    try:
+        # Parquet files are often converted to JSON for text display
+        return get_json_preview(content, max_records)
+    except:
+        # If not JSON, treat as binary/text
+        lines = content.split('\n')
+        preview = '\n'.join(lines[:max_records])
+        total_lines = len([line for line in lines if line.strip()])
+        if len(lines) > max_records:
+            preview += f"\n... (truncated)"
+        return preview, f"Total lines: {total_lines} (Parquet metadata/text representation)"
+
+

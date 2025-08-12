@@ -2484,7 +2484,8 @@ def get_application_info(tag_name: str) -> Dict[str, Any]:
 
 @mcp.tool()
 def execute_rule(rule_name: str, from_date: str, to_date:str, rule_inputs: List[Dict[str, Any]], applications: List[Dict[str, Any]]) -> Dict[str, Any]:
-    """RULE EXECUTION WORKFLOW:
+    """
+    RULE EXECUTION WORKFLOW:
 
     PREREQUISITE STEPS:
     1. User chooses to execute rule after creation
@@ -2502,12 +2503,16 @@ def execute_rule(rule_name: str, from_date: str, to_date:str, rule_inputs: List[
             }
         ]
         ```
-        - If new: get_application_info(tag_name) → collect credentials + get application URL from user (optional) → confirm → move to next tag
+        - If new: 
+            a. get_application_info(tag_name) → present credential types
+            b. collect credentials for chosen type → get user confirmation
+            c. ask for application URL: "Application URL for {appType} (optional - press Enter to skip):"
+            d. confirm complete configuration → move to next tag
         ```json
         [
             {
                 "applicationType": "[appType (split by :: and use the first value)]",
-                "appURL": "[Application URL from user (optional)]",
+                "appURL": "[Application URL from user (optional - can be empty string)]",
                 "credentialType": "[User chosen credential type]",
                 "credentialValues": {
                     "[User provided credentials]"
@@ -2777,7 +2782,6 @@ def fetch_execution_progress(rule_name: str, execution_id: str) -> Dict[str, Any
         }
 
 
-
 @mcp.tool()
 def create_support_ticket(subject: str, description: str, priority: str) -> Dict[str, Any]:
     """
@@ -2837,4 +2841,148 @@ def create_support_ticket(subject: str, description: str, priority: str) -> Dict
     except Exception as e:
         return {
             "error": f"An error occurred while creating the support ticket: {e}"
+        }
+    
+
+@mcp.tool()
+def fetch_output_file(file_url: str) -> Dict[str, Any]:
+    """Fetch and display content of an output file from rule execution.
+
+    FILE OUTPUT HANDLING:
+
+    WHEN TO USE:
+    - Rule execution output contains file URLs
+    - User requests to view specific file content
+    - Files contain reports, logs, compliance data, or analysis results
+
+    CONTENT DISPLAY LOGIC:
+    - If file size < 1KB: Show entire file content
+    - If file size >= 1KB: Show only first 4 records/lines with user-friendly message
+    - Supported formats: JSON, CSV, Parquet, and other text files
+    - Always return file format extracted from filename
+    - Provide clear user messaging about content truncation
+    - Include partial content sample to give users context of the full file structure
+    - Always show display_content object to user regardless of file size based on file format
+    - CRITICAL: If content is truncated or full content, include truncation message with the display_content
+
+    Args:
+        file_url: URL of the file to fetch and display
+
+    Returns:
+        Dict containing file content, metadata, and display information
+    """
+    try:
+        headers = wsutils.create_header()
+        payload = {
+            "fileURL": file_url
+        }
+        
+        # Fetch file from API
+        file_response = wsutils.post(
+            path=wsutils.build_api_url(endpoint=constants.URL_FETCH_FILE), 
+            data=json.dumps(payload), 
+            header=headers
+        )
+
+        # Extract response data (API returns fileName and fileContent only)
+        file_content = file_response.get("fileContent")
+        filename = file_response.get("fileName", "")
+        
+        # Set defaults for missing fields
+        content_type = "application/octet-stream"  # Default since not provided by API
+
+        # Handle base64 encoded content (API returns base64 in fileContent)
+        if isinstance(file_content, str) and file_content:
+            try:
+                # Try to decode base64 content
+                decoded_content = base64.b64decode(file_content).decode('utf-8')
+                actual_content = decoded_content
+                is_base64_encoded = True
+            except Exception as e:
+                # Content might already be plain text or invalid base64
+                actual_content = file_content
+                is_base64_encoded = False
+        else:
+            actual_content = str(file_content) if file_content else ""
+            is_base64_encoded = False
+
+        # Calculate actual file size
+        actual_file_size_bytes = len(actual_content.encode('utf-8'))
+        file_size_kb = actual_file_size_bytes / 1024
+
+        # Extract file format from filename (support JSON, CSV, Parquet)
+        def get_file_format(filename: str) -> str:
+            if not filename:
+                return "unknown"
+            last_dot = filename.rfind('.')
+            if last_dot == -1:
+                return "unknown"
+            
+            format_ext = filename[last_dot + 1:].lower()
+            # Normalize some common extensions
+            if format_ext in ["parquet", "pq"]:
+                return "parquet"
+            elif format_ext in ["csv"]:
+                return "csv"
+            elif format_ext in ["json", "jsonl"]:
+                return "json"
+            elif format_ext in ["tsv", "txt"]:
+                return format_ext
+            else:
+                return format_ext
+
+        file_format = get_file_format(filename)
+
+        # Determine content to display based on file size
+        display_content = ""
+        content_truncated = False
+        user_message = ""
+        
+        if file_size_kb < 1.0:
+            # Show entire file if less than 1KB
+            display_content = actual_content
+            content_truncated = False
+            user_message = f"✅ Showing complete file content ({round(file_size_kb, 3)}KB)"
+        else:
+            # Show only first 4 records/lines if 1KB or larger
+            content_truncated = True
+            
+            if file_format == "json":
+                display_content, record_info = rule.get_json_preview(actual_content, max_records=4)
+                user_message = f"📄 File is {round(file_size_kb, 2)}KB. Showing first 4 records only (not all data). {record_info}"
+            elif file_format in ["csv", "tsv"]:
+                display_content, record_info = rule.get_csv_preview(actual_content, max_records=4)
+                user_message = f"📊 File is {round(file_size_kb, 2)}KB. Showing header + first 4 data rows only (not all data). {record_info}"
+            elif file_format == "parquet":
+                display_content, record_info = rule.get_parquet_preview(actual_content, max_records=4)
+                user_message = f"📊 File is {round(file_size_kb, 2)}KB. Showing first 4 records only (not all data). {record_info}"
+            else:
+                # For other formats, show first 4 lines
+                lines = actual_content.split('\n')
+                display_content = '\n'.join(lines[:4])
+                total_lines = len([line for line in lines if line.strip()])
+                if len(lines) > 4:
+                    display_content += f"\n... (truncated)"
+                user_message = f"File is {round(file_size_kb, 2)}KB. Showing first 4 lines only. Total lines: {total_lines}"
+
+        return {
+            "success": True,
+            "file_url": file_url,
+            "filename": filename,
+            "file_format": file_format,
+            "file_size_bytes": actual_file_size_bytes,
+            "file_size_kb": round(file_size_kb, 2),
+            "content_type": content_type,
+            "is_base64_encoded": is_base64_encoded,
+            "content_truncated": content_truncated,
+            "display_content": display_content,
+            "user_message": user_message,
+            "message": f"Successfully fetched {filename} ({file_format.upper()}, {round(file_size_kb, 2)}KB)"
+        }
+
+    except Exception as e:
+        return {
+            "success": False,
+            "error": f"Failed to fetch file content from '{file_url}': {str(e)}",
+            "file_url": file_url
         }
