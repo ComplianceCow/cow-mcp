@@ -2781,48 +2781,43 @@ def fetch_execution_progress(rule_name: str, execution_id: str) -> Dict[str, Any
 @mcp.tool()
 def create_support_ticket(subject: str, description: str, priority: str) -> Dict[str, Any]:
     """
-    Tool-based version of create_support_ticket for improved compatibility.
+    PURPOSE:  
+    - Create structured support tickets only after strict user review and explicit approval of all descriptions.  
+    - Ticket creation MUST NOT occur without explicit user confirmation at every required step.  
+    - Reduce user input errors and rework by ensuring clarity and completeness before ticket submission.
 
-    PURPOSE:
-    - Create structured support tickets for well-defined tasks, workflows, or automation goals.
-    - Ensure ticket creation happens only after the user reviews and approves a pre-filled description.
-    - Ensure ticket creation happens only when explicitly requested by the user.
-    - Prevent unnecessary back-and-forth by reducing the amount of information the user must manually enter.
+    MANDATORY CONDITIONS — NO STEP MAY BE SKIPPED OR BYPASSED:
 
-    NOT FOR:
-    - Bug reports.
-    - Issues related exclusively to HTTP/web-only execution.
+    1. BEFORE TOOL ENTRY:  
+    - The tool MUST generate a detailed, pre-filled plain-text description for the task or workflow.  
+    - The user MUST review this description carefully.  
+    - Ticket creation MUST be blocked until the user explicitly APPROVES this description.
 
-    STRICT WORKFLOW:
-    1. BEFORE TOOL ENTRY:
-    - The MCP tool will generate a **pre-filled** content description for the task/workflow.
-    - This description is provided in plain text for clarity.
+    2. USER VERIFICATION:  
+    - The user MUST be presented with the full pre-filled description.  
+    - The user MUST either confirm its correctness or provide feedback for changes.  
+    - The tool MUST update the description and priority per feedback and repeat this verification step as many times as needed.  
+    - Skipping or auto-approving this step is strictly prohibited.
 
-    2. USER VERIFICATION:
-    - The user is shown the pre-filled description.
-    - The user must explicitly confirm if the description is correct or request changes.
-    - The tool will update the description based on the user's feedback.
+    3. FINAL APPROVAL & FORMATTING:  
+    - After user approval of the plain text, the description MUST be converted into professional HTML format (bold headings, clear structure, spacing).  
+    - The user MUST explicitly approve this final HTML-formatted description.  
+    - The tool MUST block ticket creation until this final approval is given.  
+    - Only the fully user-approved, HTML-formatted description MAY be used to create the support ticket.
 
-    3. FINAL APPROVAL & FORMATTING (CRITICAL):
-    - This is the MOST IMPORTANT STEP and must never be skipped.
-    - The user must explicitly approve the final description before proceeding.
-    - The tool MUST convert the description into HTML format to improve clarity and professionalism. This includes:
-    - Making key points and headings bold.
-    - Adding clear headings and subheadings.
-    - Using line breaks and spacing for better readability.
-    - The tool must NOT create the ticket until the HTML-formatted description is fully prepared and approved by the user.
-    - This step ensures the ticket content is clear, professional, and error-free.
-    - Only the approved, HTML-formatted description will be submitted for ticket creation.
+    IMPORTANT:  
+    **Under no circumstances shall the tool proceed to ticket creation without explicit user approval at all mandatory steps.**  
+    The process must strictly enforce these approvals, preventing any premature or automatic ticket submissions.
 
-    MANDATORY USER INPUTS (runtime arguments):
-    - subject (str): Short, descriptive title for the ticket.
-    - description (str): Final, user-approved detailed description of the task/workflow.
-    - priority (str): Ticket priority level ("High", "Medium", "Low").
+    MANDATORY USER INPUTS:  
+    - `subject` (str) — ticket title.  
+    - `description` (str) — final user-approved, HTML-formatted description.  
+    - `priority` (str) — ticket priority level.  
+    **Valid values:** `"High"`, `"Medium"`, `"Low"` (case-sensitive).  
+    The user MUST provide one of these values to proceed.
 
-    RETURNS:
-    - A dictionary simulating the support ticket creation response.
-    - Suitable for mock previews, integrations, or testing purposes.
-
+    RETURNS:  
+    - A dictionary simulating the ticket creation response for integration or testing purposes.
     """
 
     try:
