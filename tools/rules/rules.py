@@ -2545,111 +2545,208 @@ def execute_rule(rule_name: str, from_date: str, to_date:str, rule_inputs: List[
 @mcp.tool()
 def fetch_execution_progress(rule_name: str, execution_id: str) -> Dict[str, Any]:
     """
-    Fetch execution progress and status for a running rule.
-
-    LIVE PROGRESS DISPLAY:
-    Show each task in one line as it runs:
-    fetch_azure_users (ExecuteHttpRequestV2) ████████████████████ 100% COMPLETED
-
-    MANDATORY PROGRESS BAR COLORS:
-    - COMPLETED = Blue bars (REQUIRED)
-    - INPROGRESS = Green bars (REQUIRED)
-    - ERROR = Red bars (REQUIRED)
-    - NEVER use black bars (CRITICAL)
-
-    POLLING:
-    - Call every 2 seconds
-    - Show live progress as tasks run
-    - Final call: Show summary
-
-    EXECUTION SUMMARY:
-    **Rule:** [rule_name]
-    **Execution ID:** [execution_id]
-    **Status:** [status] 
-    **Tasks:** [completed]/[total] done
-    **Duration:** [time]
-
-    Output: [show outputs]
-
-    CRITICAL:
-    - One line per task
-    - Color bars by task status
-    - Show live, not at end
-
+    Fetch execution progress for a running rule.
+    
+    IMPORTANT FOR CLAUDE/CLIENT:
+    ================================
+    This tool returns a snapshot of current progress. To see real-time updates:
+    1. Call this tool repeatedly every 1 seconds
+    2. Check the "continue_polling" flag in response
+    3. If continue_polling=true, call again after 1 seconds
+    4. If continue_polling=false, execution is complete
+    
+    DISPLAY INSTRUCTIONS FOR CLAUDE:
+    ================================
+    When displaying progress, REPLACE the previous output (don't append):
+    
+    🔄 **Execution Progress** (Live)
+    ─────────────────────────────────
+    
+    Show each task on ONE line that UPDATES in place:
+    • task_name (type) [progress_bar] XX% STATUS
+    
+    Use these Unicode blocks for progress bars:
+    - COMPLETED: 🟦 (blue blocks)
+    - INPROGRESS: 🟩 (green blocks) 
+    - ERROR: 🟥 (red blocks)
+    - PENDING: ⬜ (white blocks)
+    
+    After each poll, REPLACE the entire progress display with new data.
+    DO NOT show multiple versions of the same task.
+    
+    EXAMPLE DISPLAY SEQUENCE:
+    Poll 1:
+    • fetch_users (HTTP) ⬜⬜⬜⬜⬜⬜⬜⬜⬜⬜ 0% PENDING
+    • process_data (Script) ⬜⬜⬜⬜⬜⬜⬜⬜⬜⬜ 0% PENDING
+    
+    Poll 2 (REPLACES above):
+    • fetch_users (HTTP) 🟩🟩🟩🟩⬜⬜⬜⬜⬜⬜ 40% INPROGRESS
+    • process_data (Script) ⬜⬜⬜⬜⬜⬜⬜⬜⬜⬜ 0% PENDING
+    
+    Poll 3 (REPLACES above):
+    • fetch_users (HTTP) 🟦🟦🟦🟦🟦🟦🟦🟦🟦🟦 100% COMPLETED
+    • process_data (Script) 🟩🟩🟩⬜⬜⬜⬜⬜⬜⬜ 30% INPROGRESS
+    
+    RESPONSE FLAGS:
+    - continue_polling: true = keep polling every 1 seconds
+    - continue_polling: false = execution complete, show final summary
+    - display_mode: "replace" = replace previous display
+    
     Args:
         rule_name: Rule being executed
         execution_id: ID from execute_rule()
         
     Returns:
-        Dict containing execution status, progress summary, progress bar data
-    """    
+        Dict with progress data and polling instructions
+    """
+    
+    def consolidate_task_progress(progress_array):
+        """Get latest state for each unique task from transaction history."""
+        task_states = {}
+        task_order = []
+        
+        for entry in progress_array:
+            # Use taskId if available, otherwise use name as identifier
+            task_id = entry.get("taskId") or entry.get("name", f"task_{len(task_states)}")
+            
+            if task_id not in task_order:
+                task_order.append(task_id)
+            
+            # Update to latest state
+            task_states[task_id] = {
+                "id": task_id,
+                "name": entry.get("name", "Unknown Task"),
+                "type": entry.get("type", "Unknown"),
+                "status": entry.get("status", "PENDING"),
+                "progressPercentage": entry.get("progressPercentage", 0),
+                "error": entry.get("error")
+            }
+        
+        return [task_states[tid] for tid in task_order]
+    
+    def create_progress_bar(percentage, status, bar_length=10):
+        """Create a visual progress bar with colors."""
+        filled = int((percentage / 100) * bar_length)
+        empty = bar_length - filled
+        
+        # Use emoji blocks for universal color support
+        if status == "COMPLETED":
+            bar_char = "🟦"
+        elif status == "INPROGRESS":
+            bar_char = "🟩"
+        elif status == "ERROR":
+            bar_char = "🟥"
+        else:  # PENDING
+            bar_char = "⬜"
+            filled = 0  # Show empty bar for pending
+            empty = bar_length
+        
+        return bar_char * filled + "⬜" * empty
+    
     try:
         header = wsutils.create_header()
-
-        exec_payload = {
-            "executionID": execution_id
-        }
-
+        exec_payload = {"executionID": execution_id}
+        
+        # Fetch current progress
         exec_progress_resp = wsutils.post(
-            path=wsutils.build_api_url(endpoint=constants.URL_FETCH_EXECUTION_PROGRESS), 
-            data=json.dumps(exec_payload), 
+            path=wsutils.build_api_url(endpoint=constants.URL_FETCH_EXECUTION_PROGRESS),
+            data=json.dumps(exec_payload),
             header=header
         )
         
-        task_progress = exec_progress_resp.get("taskProgressSummary", {})
-        progress_percentage = task_progress.get("progressPercentage", 0)
-        completed = task_progress.get("completed", 0)
-        total = task_progress.get("total", 0)
+        # Extract data
+        overall_status = exec_progress_resp.get("status", "PENDING")
+        task_summary = exec_progress_resp.get("taskProgressSummary", {})
         progress_array = exec_progress_resp.get("progress", [])
         outputs = exec_progress_resp.get("outputs", [])
-
-        if (exec_progress_resp.get("status") == "COMPLETED"):
-            return {
-                "status": "COMPLETED",
-                "rule_name": rule_name,
-                "execution_id": execution_id,
-                "progress_percentage": progress_percentage,
-                "completed_tasks": completed,
-                "total_tasks": total,
-                "progress": progress_array,
-                "show_progress_bar": True,
-                "outputs": outputs,
-                "message": f"Rule '{rule_name}' execution completed successfully."
+        
+        # Consolidate tasks to current state
+        consolidated_tasks = consolidate_task_progress(progress_array)
+        
+        # Create display data
+        display_lines = []
+        task_stats = {"COMPLETED": 0, "INPROGRESS": 0, "ERROR": 0, "PENDING": 0}
+        
+        for task in consolidated_tasks:
+            status = task["status"]
+            percentage = task["progressPercentage"]
+            
+            # Create progress bar
+            progress_bar = create_progress_bar(percentage, status)
+            
+            # Format display line
+            display_line = {
+                "text": f"• {task['name']} ({task['type']}) {progress_bar} {percentage}% {status}",
+                "task_name": task['name'],
+                "task_type": task['type'],
+                "progress_bar": progress_bar,
+                "percentage": percentage,
+                "status": status
             }
-        elif (exec_progress_resp.get("status") == "ERROR"):
-            return {
-                "status": "ERROR",
-                "rule_name": rule_name,
-                "execution_id": execution_id,
-                "progress_percentage": progress_percentage,
-                "completed_tasks": completed,
-                "total_tasks": total,
-                "progress": progress_array,
-                "show_progress_bar": True,
-                "message": f"Rule '{rule_name}' execution completed with error."
+            
+            if status == "ERROR" and task.get("error"):
+                display_line["error"] = task['error']
+            
+            display_lines.append(display_line)
+            task_stats[status] = task_stats.get(status, 0) + 1
+        
+        # Determine if polling should continue
+        continue_polling = overall_status not in ["COMPLETED", "ERROR"]
+        
+        # Create response
+        response = {
+            # Polling control
+            "continue_polling": continue_polling,
+            "polling_interval_seconds": 1,
+            "display_mode": "replace",  # Tell client to replace, not append
+            
+            # Current state
+            "status": overall_status,
+            "rule_name": rule_name,
+            "execution_id": execution_id,
+            
+            # Progress data
+            "overall_progress_percentage": task_summary.get("progressPercentage", 0),
+            "task_stats": {
+                "completed": task_stats["COMPLETED"],
+                "in_progress": task_stats["INPROGRESS"],
+                "error": task_stats["ERROR"],
+                "pending": task_stats["PENDING"],
+                "total": len(consolidated_tasks)
+            },
+            
+            # Display data
+            "display_lines": display_lines,
+            "display_header": f"🔄 **Execution Progress** - {rule_name}",
+            "display_footer": f"Status: {overall_status} | Progress: {task_stats['COMPLETED']}/{len(consolidated_tasks)} tasks",
+            
+            # Metadata
+            "transaction_count": len(progress_array),
+            "unique_task_count": len(consolidated_tasks),
+            "timestamp": exec_progress_resp.get("timestamp", "")
+        }
+        
+        # Add completion data if finished
+        if not continue_polling:
+            response["completion_summary"] = {
+                "final_status": overall_status,
+                "total_tasks": len(consolidated_tasks),
+                "successful_tasks": task_stats["COMPLETED"],
+                "failed_tasks": task_stats["ERROR"],
+                "outputs": outputs
             }
-        else:
-            return {
-                "status": exec_progress_resp.get("status"),
-                "rule_name": rule_name,
-                "execution_id": execution_id,
-                "progress_percentage": progress_percentage,
-                "completed_tasks": completed,
-                "total_tasks": total,
-                "progress": progress_array,
-                "show_progress_bar": True,
-                "message": f"Rule '{rule_name}' execution in progress. {completed}/{total} tasks completed ({progress_percentage}%)."
-            }
-
+            response["outputs"] = outputs
+            response["display_header"] = f"✅ **Execution Complete** - {rule_name}" if overall_status == "COMPLETED" else f"❌ **Execution Failed** - {rule_name}"
+        
+        return response
+        
     except Exception as e:
         return {
+            "continue_polling": False,
             "status": "ERROR",
             "rule_name": rule_name,
             "execution_id": execution_id,
-            "progress_percentage": 0,
-            "completed_tasks": 0,
-            "total_tasks": 0,
-            "progress": [],
-            "show_progress_bar": False,
-            "message": f"Error occurred while fetching execution progress for rule '{rule_name}': {e}"
+            "error": str(e),
+            "display_header": "❌ **Error Fetching Progress**",
+            "display_lines": [{"text": f"Error: {str(e)}"}]
         }
