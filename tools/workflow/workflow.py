@@ -61,12 +61,13 @@ async def list_workflow_events() -> vo.WorkflowEventListVO:
     
     Returns:
         - events (List[WorkflowEventVO]): A list of events.
+            - id (str)
             - categoryId (str)
             - desc (str)
-            - name: (str)
-            - payload: [List[WorkflowPayloadVO]]
-            - status: (str)
-            - type: (str)
+            - displayable (str)
+            - payload [List[WorkflowPayloadVO]]
+            - status (str)
+            - type (str)
         - error (Optional[str]): An error message if any issues occurred during retrieval. 
     """
     try:
@@ -122,7 +123,6 @@ async def list_workflow_function_categories() -> vo.WorkflowActivityCategoryList
     
     Returns:
         - activity categories (List[WorkflowActivityCategoryItemVO]): List of activity categories.
-            - type (str): activity category type.
             - name (str): Name of the category.
         - error (Optional[str]): An error message if any issues occurred during retrieval. 
     """
@@ -160,12 +160,14 @@ async def list_workflow_functions() -> vo.WorkflowActivityListVO:
     
     Returns:
         - activities (List[WorkflowActivityVO]): List of active workflow functions with input/output specifications
+            - id: Optional[str] = ""
             - categoryId (str)
             - desc (str)
-            - name: (str)
-            - inputs: [List[WorkflowInputsVO]]
-            - outputs: [List[WorkflowOutputsVO]]
-            - status: (str)
+            - displayable Optional[str] = ""
+            - name (str)
+            - inputs [List[WorkflowInputsVO]]
+            - outputs [List[WorkflowOutputsVO]]
+            - status (str)
 
         - error (Optional[str]): An error message if any issues occurred during retrieval. 
     """
@@ -203,8 +205,9 @@ async def list_workflow_rules() -> vo.WorkflowRuleListVO:
     
     Returns:
         - rules (List[WorkflowRuleVO]): List of available workflow rules with input/output specifications
+            - id (str)
             - name: (str)
-            - desc (str)
+            - description (str)
             - ruleInputs: [List[WorkflowRuleInputsVO]]
             - ruleOutputs: [List[WorkflowRuleOutputsVO]]
 
@@ -213,7 +216,7 @@ async def list_workflow_rules() -> vo.WorkflowRuleListVO:
     try:
         logger.info("list_workflow_prebuild_rules: \n")
 
-        output=await utils.make_GET_API_call_to_CCow(constants.URL_WORKFLOW_PREBUILD_RULES)
+        output=await utils.make_GET_API_call_to_CCow(f"{constants.URL_WORKFLOW_PREBUILD_RULES}?page_size=100&page=1")
         logger.debug("workflow rules output: {}\n".format(output))
         
         if isinstance(output, str) or  "error" in output:
@@ -250,6 +253,65 @@ async def list_workflow_rules() -> vo.WorkflowRuleListVO:
         return vo.WorkflowRuleListVO(error="Facing internal error")
 
 @mcp.tool()
+async def fetch_workflow_rule(name: str) -> vo.WorkflowRuleListVO:
+    """
+    Retrieve a specific workflow rule by name.
+    
+    Finds and returns the single workflow rule that matches the provided name. This rule
+    contains the input/output specifications needed for workflow operations.
+    
+    Args:
+        name (str): The name of the workflow rule to retrieve
+        
+    Returns:
+        - rules (List[WorkflowRuleVO]): List containing the single matched workflow rule with input/output specifications
+            - id: (str)
+            - name: (str) 
+            - description: (str)
+            - ruleInputs: [List[WorkflowRuleInputsVO]]
+            - ruleOutputs: [List[WorkflowRuleOutputsVO]]
+
+        - error (Optional[str]): An error message if any issues occurred during retrieval.
+    """
+    try:
+        logger.info(f"fetch_workflow_rule: searching for rule '{name}'\n")
+
+        output = await utils.make_GET_API_call_to_CCow(f"{constants.URL_WORKFLOW_PREBUILD_RULES}?name={name}")
+        logger.debug("workflow rule output: {}\n".format(output))
+        
+        if isinstance(output, str) or "error" in output:
+            logger.error("workflow rule error: {}\n".format(output))
+            return vo.WorkflowRuleListVO(error="Facing internal error")
+        
+        for item in output.get("items", []):
+            if "ruleInputs" in item and isinstance(item["ruleInputs"], dict):
+                item["ruleInputs"] = list(item["ruleInputs"].values())
+
+            if "ruleOutputs" in item and isinstance(item["ruleOutputs"], dict):
+                outputs = item["ruleOutputs"]
+                transformed_rule_outputs = []
+                for key, value in outputs.items():
+                    if isinstance(value, dict) and not value:
+                        transformed_rule_outputs.append({"name": key})
+                    else:
+                        transformed_rule_outputs.append(value)
+                item["ruleOutputs"] = transformed_rule_outputs
+
+        if output.get("items") and len(output["items"]) > 0:
+            item = output["items"][0]
+            rule = vo.WorkflowRuleVO.model_validate(item)
+            logger.debug("retrieved workflow rule: {}\n".format(rule.model_dump()))
+            return vo.WorkflowRuleListVO(rules=[rule])
+        
+        logger.warning(f"No workflow rule returned for name: {name}")
+        return vo.WorkflowRuleListVO(error=f"No workflow rule returned for name: {name}")
+
+    except Exception as e:
+        logger.error(traceback.format_exc())
+        logger.error("fetch_workflow_rule error: {}\n".format(e))
+        return vo.WorkflowRuleListVO(error="Facing internal error")
+
+@mcp.tool()
 async def list_workflow_tasks() -> vo.WorkflowTaskListVO:
     """
     Retrieve available workflow tasks.
@@ -260,7 +322,9 @@ async def list_workflow_tasks() -> vo.WorkflowTaskListVO:
     
     Returns:
         - tasks (List[WorkflowTaskVO]): List of available workflow tasks with input/output specifications
-            - name: (str)
+            - id (str)
+            - name (str)
+            - displayable (str)
             - description (str)
             - inputs: [List[WorkflowTaskInputsVO]]
             - outputs: [List[WorkflowTaskOutputsVO]]
@@ -300,7 +364,6 @@ async def list_workflow_condition_categories() -> vo.WorkflowConditionCategoryLi
     
     Returns:
         - Condition categories (List[WorkflowConditionCategoryItemVO]): List of condition categories
-            - type (str): Condition category type.
             - name (str): Name of the category.
         - error (Optional[str]): An error message if any issues occurred during retrieval. 
     """
@@ -340,7 +403,7 @@ async def list_workflow_conditions() -> vo.WorkflowConditionListVO:
         - conditions (List[WorkflowConditionVO]): List of active workflow conditions with input/output specifications
             - categoryId (str)
             - desc (str)
-            - name: (str)
+            - displayable: (str)
             - inputs: [List[WorkflowInputsVO]]
             - outputs: [List[WorkflowOutputsVO]]
             - status: (str)
@@ -559,9 +622,11 @@ async def list_workflow_predefined_variables() -> vo.WorkflowPredefinedVariableL
     Retrieve available predefined variables for workflow configuration.
     
     Predefined variables are system-level variables that can be used in workflow 
-    configurations. These variables provide access to common system values and 
-    settings that can be referenced in workflow nodes and conditions.
-    
+    configurations. These system-level variables are mapped to specific operations. When you set a value for a predefined variable, 
+    it automatically triggers the associated system operation (like sending workflow failure notifications).
+    Example:
+        - Sending workflow failure notifications to specific users
+        - Sending workflow failure notifications to admin
     Returns:
         - items (List[WorkflowPredefinedVariableVO]): A list of predefined variables.
             - id (str): Unique identifier of the predefined variable

@@ -100,8 +100,10 @@ class WorkflowActivityListVO(BaseModel):
     error: Optional[str] = ""
 
 class WorkflowConditionVO(BaseModel):
+    id: Optional[str] = ""
     categoryId: Optional[str] = ""
     desc: Optional[str] = ""
+    name: Optional[str] = ""
     displayable: Optional[str] = ""
     inputs: Optional[List[WorkflowInputsVO]] = None
     outputs: Optional[List[WorkflowOutputsVO]] = None
@@ -132,7 +134,9 @@ class WorkflowTaskOutputsVO(BaseModel):
     }
 
 class WorkflowTaskVO(BaseModel):
+    id: Optional[str] = ""
     name: Optional[str] = ""
+    displayable: Optional[str] = ""
     description: Optional[str] = ""
     inputs: Optional[List[WorkflowTaskInputsVO]] = None
     outputs: Optional[List[WorkflowTaskOutputsVO]] = None
@@ -143,8 +147,6 @@ class WorkflowTaskVO(BaseModel):
 class WorkflowTaskListVO(BaseModel):
     tasks: Optional[List[WorkflowTaskVO]] = None
     error: Optional[str] = ""
-
-
 
 class WorkflowRuleInputsVO(BaseModel):
     name: Optional[str] = ""
@@ -166,6 +168,7 @@ class WorkflowRuleOutputsVO(BaseModel):
     }
 
 class WorkflowRuleVO(BaseModel):
+    id: Optional[str] = ""
     name: Optional[str] = ""
     description: Optional[str] = ""
     ruleInputs: Optional[List[WorkflowRuleInputsVO]] = None

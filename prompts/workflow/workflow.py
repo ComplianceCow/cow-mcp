@@ -11,7 +11,7 @@ def ccow_workflow_knowledge() -> str:
 
             A Workflow is a predefined sequence of logical steps or operations that are triggered by a specific event and executed according to a flowchart of nodes.
 
-            Workflows are used in automation system, business logic engines, or compliance platforms to define how tasks, decisions, and wait times should be handled after a trigger.
+            Workflows are used in automation systems, business logic engines, or compliance platforms to define how tasks, decisions, and wait times should be handled after a trigger.
 
             ------------------------------------------------------------
             TRIGGER EVENTS
@@ -51,7 +51,7 @@ def ccow_workflow_knowledge() -> str:
 
             Subtypes:
             - Pre-built Function: Executes predefined logic
-            - Pre-built Rule: Execute a rule
+            - Pre-built Rule: Executes a rule
             - Pre-built Task: Triggers a predefined task
             - Existing Workflow: Invokes another saved workflow
 
@@ -103,21 +103,25 @@ def ccow_workflow_knowledge() -> str:
                       desc: <<input_desc>>
                       mapValueFrom:                
                         type: PreDefinedVariable   
-                      value: <<predefinded_or_custom_varaible_name>>
+                      value: <<predefined_or_custom_variable_name>>
                     - name: variableType
                       type: DropDown
                       desc: <<input_desc>>
-                      options: <<varaible_type_options>>
+                      options: <<variable_type_options>>
                       value: [[type_value]]
                     - name: variableValue
                       type: Text
                       desc: The value to assign to the variable.
-                      dynamicTypeFrom: variableType
-                      value: [[varaible_value]]
+                      dynamicTypeFrom: 
+                      value: [[variable_value]]
+                  tags:
+                  activityType:
+                    - VARIABLE
       
             spec:
+            #List all the custom variable created in activity here
               variables:
-                - name: <<predefinded_or_custom_varaible_name>>
+                - name: <<predefined_or_custom_variable_name>>
                   type: [[type_value]]
 
             IMPORTANT 
@@ -138,16 +142,20 @@ def ccow_workflow_knowledge() -> str:
             ## Use Custom label to make workflow more meaningful and easy to understand.
             
             ## Must Only use activity, condition, state within compliancecow to create workflow,
-                -  Use only the exisitng inputs and outputs available on them
+                -  Use only the existing inputs and outputs available on them
                 -  Prebuild function, Prebuild task, Prebuild rule used inside activites
-                -  Custom label can be given to activity, state and conditon (Mostly try to use custom label)
+                -  Custom label can be given to activity, state and  (Mostly try to use custom label)
 
-            ## Prompt the user to enter input required and not available in previous node's output without this dont generate complete workflow
+            ## Prompt the user to enter input required and not available in previous node's output without this don't generate complete workflow
                 
-            ## Always get the required events, functioms, tasks, rules, conditions and everyting required to build workflow, Then use them to build the workflow
+            ## Always get the required events, functions, tasks, rules, conditions and everything required to build workflow, Then use them to build the workflow
 
-            ## All the placeholder <<>> this should be replace only with responses dont specify on your own, ex: input_name,input_desc,input_type, event_type,..etc
+            ## Once workflow is created, use workflow id to modify that workflow or create new based on user choice 
+
+            ## Validate the workflow before creating it, mainly validating input & output mappings including formats & types and YAML structure
+            ## All the placeholder <<>> this should be replace only with responses don't specify on your own, ex: input_name,input_desc,input_type, event_type,..etc
             ## Include all the field from input,output filed response of activity,event tools ex: options,resource,possible_values,..etc fields.
+
             ## Don't Create any extra state, activity, event that not used anywhere in workflow.
             ## If the input field is required or optional is set to false, then it must not be left empty.
             
@@ -178,7 +186,7 @@ def ccow_workflow_knowledge() -> str:
             Event inputs can be given in specinput
             Include all the inputs & outputs nodes in yaml don't miss any & don't change displayable, description & type
 
-            → Examplfe of Event Input
+            → Example of Event Input
             -----------------------------------------------
             specInput:
               <payload_name>: <payload_value>  
@@ -220,7 +228,7 @@ def ccow_workflow_knowledge() -> str:
                   displayable: <<activity_displayable>>
                   name: <<activity_name>>
                   desc: <<activity_desc>>
-                  appScopeName: <<appscope>>
+                  appScopeName: <<app_scope>>
                 type: Activity
             
             6) You can reference outputs from previous nodes within any value or expr field. These will be automatically filled when the workflow runs.
@@ -268,7 +276,7 @@ def ccow_workflow_knowledge() -> str:
                     inputs:
                         - name: <<input_name>>
                           type: <<input_data_type>>
-                          desc: <<input_desc_type>>
+                          desc: <<input_desc>>
                           options: <<input_available_options_if_available>>
                           resource: <<input_resource_if_available>>
                           value: [[input_value]]
@@ -277,7 +285,7 @@ def ccow_workflow_knowledge() -> str:
             8) Condition Mapping
             use below condition example as reference and use this knowledge for create further workflow
             Two ways of condition available functions & Conditional expression
-            For functions then outcomevalue of condtition transitions match with possible values of funtion outputs
+            For functions then outcomevalue of condition transitions match with possible values of function outputs
             If isPrimaryOutcome is true, the only allowed output should be from the possible values.
 
             Example: (Conditional expression)
@@ -304,7 +312,7 @@ def ccow_workflow_knowledge() -> str:
                     type: Outcome
                     outcomeValue: 'No'
 
-            Example: (Funtions)
+            Example: (Functions)
             ---------------------------------------
 
                   <<condition_customlabel>>:
@@ -349,7 +357,7 @@ def ccow_workflow_knowledge() -> str:
             Ask the user to confirm the selected event, or show a list of suitable events and let the user choose one. Then, use the selected event's payload to plan the workflow.
 
             10) Rules
-            use below rule example as reference and use this knowledge for create further workflow
+            use the below rule example as reference and use this knowledge to create further workflows
             → Example of get assessment run details:
             ----------------------------------------------------
             <<activity_customlabel>>:
@@ -360,7 +368,7 @@ def ccow_workflow_knowledge() -> str:
                     id: <<rule_id>>
                     displayable: <<rule_displayable>>
                     name: <<rule_name>>
-                    desc: <<rule__desc>>
+                    desc: <<rule_desc>>
                     appScopeName: <<app_scope>>
                     inputs:
                       - name: <<input_name>>
@@ -386,6 +394,7 @@ def ccow_workflow_knowledge() -> str:
                         desc: <<output_desc>>
 
             11) Workflows
+            workflows can be added to activity, It is used to trigger another workflow
             use below example as reference to add existing workflow to create further workflow
             ----------------------------------------------------
             <<activity_customlabel>>:
@@ -421,14 +430,15 @@ def ccow_workflow_knowledge() -> str:
                         type: <<output_type>>
                         desc: <<output_desc>>
                                 
-            INPUT GUIDENCE :
+            INPUT GUIDANCE:
             ------------------------
-                - For type textarray use string seprated by comma's 
+                - For type textarray use string separated by comma's 
                 - Send all options if available
+                - ALL STRINGS MUST BE ENCLOSED IN DOUBLE QUOTES. This applies to all string values in the workflow YAML, including names, descriptions, labels, and any text fields.
 
             EXAMPLE
             --------------------
-            Below is the workflow sample yaml, Use this as reference to create further workflows (Always show the workflow diagram)
+            Below is the workflow sample yaml, Use this as reference to create further workflows (Always show the mermaid workflow diagram)
 
             generalvo:
                 domainid: ""
