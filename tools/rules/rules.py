@@ -2528,6 +2528,12 @@ def execute_rule(rule_name: str, from_date: str, to_date:str, rule_inputs: List[
         - To Date (format: YYYY-MM-DD) - optional
     6. Final confirmation → execute rule
     7. If execution starts successfully → call fetch_execution_progress()
+    8. Rule Output File Display Process:
+        a. Extract rule outputs from execution results
+        b. Show FileName and FileURL list to user
+        c. Ask: "View file contents? (yes/no)"
+        d. If yes: Call fetch_output_file() for each requested file
+        e. Display results with formatting
 
     Args:
         rule_name: Rule to execute
@@ -2649,7 +2655,8 @@ def fetch_execution_progress(rule_name: str, execution_id: str) -> Dict[str, Any
                 "type": entry.get("type", "Unknown"),
                 "status": entry.get("status", "PENDING"),
                 "progressPercentage": entry.get("progressPercentage", 0),
-                "error": entry.get("error")
+                "error": entry.get("error"),
+                "outputs": entry.get("outputs")
             }
         
         return [task_states[tid] for tid in task_order]
@@ -2688,7 +2695,6 @@ def fetch_execution_progress(rule_name: str, execution_id: str) -> Dict[str, Any
         overall_status = exec_progress_resp.get("status", "PENDING")
         task_summary = exec_progress_resp.get("taskProgressSummary", {})
         progress_array = exec_progress_resp.get("progress", [])
-        outputs = exec_progress_resp.get("outputs", [])
         
         # Consolidate tasks to current state
         consolidated_tasks = consolidate_task_progress(progress_array)
@@ -2711,7 +2717,8 @@ def fetch_execution_progress(rule_name: str, execution_id: str) -> Dict[str, Any
                 "task_type": task['type'],
                 "progress_bar": progress_bar,
                 "percentage": percentage,
-                "status": status
+                "status": status,
+                "outputs": task.get("outputs")
             }
             
             if status == "ERROR" and task.get("error"):
@@ -2762,10 +2769,8 @@ def fetch_execution_progress(rule_name: str, execution_id: str) -> Dict[str, Any
                 "final_status": overall_status,
                 "total_tasks": len(consolidated_tasks),
                 "successful_tasks": task_stats["COMPLETED"],
-                "failed_tasks": task_stats["ERROR"],
-                "outputs": outputs
+                "failed_tasks": task_stats["ERROR"]
             }
-            response["outputs"] = outputs
             response["display_header"] = f"✅ **Execution Complete** - {rule_name}" if overall_status == "COMPLETED" else f"❌ **Execution Failed** - {rule_name}"
         
         return response
@@ -2857,13 +2862,17 @@ def fetch_output_file(file_url: str) -> Dict[str, Any]:
 
     CONTENT DISPLAY LOGIC:
     - If file size < 1KB: Show entire file content
-    - If file size >= 1KB: Show only first 4 records/lines with user-friendly message
+    - If file size >= 1KB: Show only first 3 records/lines with user-friendly message
     - Supported formats: JSON, CSV, Parquet, and other text files
     - Always return file format extracted from filename
     - Provide clear user messaging about content truncation
-    - Include partial content sample to give users context of the full file structure
-    - Always show display_content object to user regardless of file size based on file format
     - CRITICAL: If content is truncated or full content, include truncation message with the display_content
+
+    MANDATORY CONTENT DISPLAY FORMAT:
+    - FileName: [extracted from file_url]
+    - Format: [file format from file_format]
+    - User Message: [truncation status or completion message if applicable user_message]  
+    - Content: [display_content based on file format show the entire display_content]
 
     Args:
         file_url: URL of the file to fetch and display
@@ -2872,117 +2881,71 @@ def fetch_output_file(file_url: str) -> Dict[str, Any]:
         Dict containing file content, metadata, and display information
     """
     try:
-        headers = wsutils.create_header()
-        payload = {
-            "fileURL": file_url
-        }
-        
         # Fetch file from API
-        file_response = wsutils.post(
+        headers = wsutils.create_header()
+        payload = {"fileURL": file_url}
+        response = wsutils.post(
             path=wsutils.build_api_url(endpoint=constants.URL_FETCH_FILE), 
             data=json.dumps(payload), 
             header=headers
         )
 
-        # Extract response data (API returns fileName and fileContent only)
-        file_content = file_response.get("fileContent")
-        filename = file_response.get("fileName", "")
+        file_content = response.get("fileContent", "")
+        filename = response.get("fileName", "")
         
-        # Set defaults for missing fields
-        content_type = "application/octet-stream"  # Default since not provided by API
+        # Get file format
+        file_format = filename.split('.')[-1].lower() if '.' in filename else "unknown"
+        if file_format == "pq": file_format = "parquet"
 
-        # Handle base64 encoded content (API returns base64 in fileContent)
-        if isinstance(file_content, str) and file_content:
-            try:
-                # Try to decode base64 content
-                decoded_content = base64.b64decode(file_content).decode('utf-8')
-                actual_content = decoded_content
-                is_base64_encoded = True
-            except Exception as e:
-                # Content might already be plain text or invalid base64
-                actual_content = file_content
-                is_base64_encoded = False
-        else:
-            actual_content = str(file_content) if file_content else ""
-            is_base64_encoded = False
-
-        # Calculate actual file size
-        actual_file_size_bytes = len(actual_content.encode('utf-8'))
-        file_size_kb = actual_file_size_bytes / 1024
-
-        # Extract file format from filename (support JSON, CSV, Parquet)
-        def get_file_format(filename: str) -> str:
-            if not filename:
-                return "unknown"
-            last_dot = filename.rfind('.')
-            if last_dot == -1:
-                return "unknown"
-            
-            format_ext = filename[last_dot + 1:].lower()
-            # Normalize some common extensions
-            if format_ext in ["parquet", "pq"]:
-                return "parquet"
-            elif format_ext in ["csv"]:
-                return "csv"
-            elif format_ext in ["json", "jsonl"]:
-                return "json"
-            elif format_ext in ["tsv", "txt"]:
-                return format_ext
+        # Decode content and calculate size
+        try:
+            if file_format == "parquet":
+                actual_content = file_content  # Keep base64 for parquet
+                file_size_bytes = len(base64.b64decode(file_content))
             else:
-                return format_ext
+                actual_content = base64.b64decode(file_content).decode('utf-8')
+                file_size_bytes = len(actual_content.encode('utf-8'))
+        except:
+            actual_content = file_content
+            file_size_bytes = len(file_content.encode('utf-8'))
 
-        file_format = get_file_format(filename)
-
-        # Determine content to display based on file size
-        display_content = ""
-        content_truncated = False
-        user_message = ""
+        file_size_kb = file_size_bytes / 1024
         
-        if file_size_kb < 1.0:
-            # Show entire file if less than 1KB
-            display_content = actual_content
-            content_truncated = False
-            user_message = f"✅ Showing complete file content ({round(file_size_kb, 3)}KB)"
+        # Process content - all preview functions now handle size logic internally
+        if file_format == "parquet":
+            display_content, info = rule.get_parquet_preview(actual_content, file_size_kb)
+            user_message = f"📊 Parquet file ({file_size_kb:.2f}KB). {info}"
+        elif file_format == "json":
+            display_content, info = rule.get_json_preview(actual_content, file_size_kb)
+            user_message = f"📄 JSON file ({file_size_kb:.2f}KB). {info}"
+        elif file_format in ["csv", "tsv"]:
+            display_content, info = rule.get_csv_preview(actual_content, file_size_kb)
+            user_message = f"📊 {file_format.upper()} file ({file_size_kb:.2f}KB). {info}"
         else:
-            # Show only first 4 records/lines if 1KB or larger
-            content_truncated = True
-            
-            if file_format == "json":
-                display_content, record_info = rule.get_json_preview(actual_content, max_records=4)
-                user_message = f"📄 File is {round(file_size_kb, 2)}KB. Showing first 4 records only (not all data). {record_info}"
-            elif file_format in ["csv", "tsv"]:
-                display_content, record_info = rule.get_csv_preview(actual_content, max_records=4)
-                user_message = f"📊 File is {round(file_size_kb, 2)}KB. Showing header + first 4 data rows only (not all data). {record_info}"
-            elif file_format == "parquet":
-                display_content, record_info = rule.get_parquet_preview(actual_content, max_records=4)
-                user_message = f"📊 File is {round(file_size_kb, 2)}KB. Showing first 4 records only (not all data). {record_info}"
+            # For other text files
+            lines = actual_content.split('\n')
+            if file_size_kb < 1.0:
+                display_content = actual_content
+                user_message = f"✅ Complete file ({file_size_kb:.3f}KB)"
             else:
-                # For other formats, show first 4 lines
-                lines = actual_content.split('\n')
-                display_content = '\n'.join(lines[:4])
-                total_lines = len([line for line in lines if line.strip()])
-                if len(lines) > 4:
-                    display_content += f"\n... (truncated)"
-                user_message = f"File is {round(file_size_kb, 2)}KB. Showing first 4 lines only. Total lines: {total_lines}"
+                display_content = '\n'.join(lines[:3])
+                if len(lines) > 3:
+                    display_content += "\n... (truncated)"
+                user_message = f"📄 File ({file_size_kb:.2f}KB). Showing first 3 of {len(lines)} lines"
 
         return {
             "success": True,
             "file_url": file_url,
             "filename": filename,
             "file_format": file_format,
-            "file_size_bytes": actual_file_size_bytes,
             "file_size_kb": round(file_size_kb, 2),
-            "content_type": content_type,
-            "is_base64_encoded": is_base64_encoded,
-            "content_truncated": content_truncated,
             "display_content": display_content,
-            "user_message": user_message,
-            "message": f"Successfully fetched {filename} ({file_format.upper()}, {round(file_size_kb, 2)}KB)"
+            "user_message": user_message
         }
 
     except Exception as e:
         return {
             "success": False,
-            "error": f"Failed to fetch file content from '{file_url}': {str(e)}",
-            "file_url": file_url
+            "file_url": file_url,
+            "error": f"Failed to fetch file: {str(e)}"
         }
