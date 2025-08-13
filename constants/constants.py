@@ -80,6 +80,7 @@ URL_FETCH_TASKS = "/pc-api/v1/tasks"
 URL_CREATE_RULE = "/pc-api/v2/rules"
 URL_EXECUTE_RULE = "/pc-api/v2/rules/execute-rule"
 URL_FETCH_EXECUTION_PROGRESS = "/pc-api/v2/rules/fetch-execution-progress"
+URL_FETCH_FILE = "/pc-api/v1/storage/fetch-file"
 
 # STORAGE
 URL_UPLOAD_FILE = "/pc-api/v1/storage/upload-file"

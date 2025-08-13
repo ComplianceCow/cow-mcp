@@ -690,8 +690,8 @@ def create_support_ticket_api(body: Dict[str, Any] = None ) -> List[SimplifiedRu
     except Exception as e:
         return {"error": f"Failed to fetch support ticket categories: {e}"}
     
-def get_json_preview(content: str, max_records: int = 4) -> tuple[str, str]:
-    """Extract preview of JSON content showing first N records."""
+def get_json_preview(content: str, file_size_kb: float) -> tuple[str, str]:
+    """Extract preview of JSON content. Shows all if < 1KB or only 1 record, first 3 if >= 1KB with multiple records."""
     try:
         data = json.loads(content)
         

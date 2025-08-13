@@ -2873,7 +2873,7 @@ def fetch_output_file(file_url: str) -> Dict[str, Any]:
     MANDATORY CONTENT DISPLAY FORMAT:
     - FileName: [extracted from file_url]
     - Format: [file format from file_format]
-    - User Message: [truncation status or completion message if applicable user_message]  
+    - Message: [truncation status or completion message if applicable user_message]  
     - Content: [display_content based on file format show the entire display_content]
 
     Args:
