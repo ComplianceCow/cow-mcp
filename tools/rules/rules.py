@@ -507,7 +507,7 @@ def confirm_template_input(rule_name: str, task_name: str, input_name: str, conf
             return {"success": True, "task_name": task_name, "input_name": input_name, "stored_content": confirmed_content, "content_size": len(confirmed_content), "storage_type": "MEMORY", "data_type": task_input.dataType, "format": task_input.format, "timestamp": datetime.now().isoformat(), "message": f"Template content stored in memory for {input_name} in {task_name}"}
 
     except Exception as e:
-        return {"success": False, "error": f"Failed to confirm template input: {str(e)}"}
+        return {"success": False, "error": f"Failed to confirm template input: {e}"}
 
 
 @mcp.tool()
@@ -1685,7 +1685,7 @@ def create_design_notes(rule_name: str, design_notes_structure: Dict[str, Any]) 
     except Exception as e:
         return {
             "success": False,
-            "error": f"Failed to save design notes: {str(e)}",
+            "error": f"Failed to save design notes: {e}",
             "rule_name": rule_name
         }
 
@@ -1729,7 +1729,7 @@ def fetch_rule(rule_name: str,include_read_me: bool = False) -> Dict[str, Any]:
     except Exception as e:
         return {
             "success": False,
-            "error": f"Failed to fetch rule '{rule_name}': {str(e)}",
+            "error": f"Failed to fetch rule '{rule_name}': {e}",
             "rule_name": rule_name
         }
 
@@ -2104,7 +2104,7 @@ def create_rule_readme(rule_name: str, readme_content: str) -> Dict[str, Any]:
     except Exception as e:
         return {
             "success": False,
-            "error": f"Failed to save README.md: {str(e)}",
+            "error": f"Failed to save README.md: {e}",
             "rule_name": rule_name
         }
 
@@ -2159,7 +2159,7 @@ def update_rule_readme(rule_name: str, updated_readme_content: str) -> Dict[str,
     except Exception as e:
         return {
             "success": False,
-            "error": f"Failed to update README.md: {str(e)}",
+            "error": f"Failed to update README.md: {e}",
             "rule_name": rule_name
         }
 
@@ -2783,7 +2783,7 @@ def fetch_execution_progress(rule_name: str, execution_id: str) -> Dict[str, Any
             "execution_id": execution_id,
             "error": str(e),
             "display_header": "❌ **Error Fetching Progress**",
-            "display_lines": [{"text": f"Error: {str(e)}"}]
+            "display_lines": [{"text": f"Error: {e}"}]
         }
 
 
@@ -2947,5 +2947,5 @@ def fetch_output_file(file_url: str) -> Dict[str, Any]:
         return {
             "success": False,
             "file_url": file_url,
-            "error": f"Failed to fetch file: {str(e)}"
+            "error": f"Failed to fetch file: {e}"
         }

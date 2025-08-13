@@ -788,4 +788,4 @@ def get_parquet_preview(content: str, file_size_kb: float) -> tuple[str, str]:
                 return preview_json, f"All {total} records shown"
         
     except Exception as e:
-        return f"Error processing Parquet: {str(e)}", "Processing failed"
+        return f"Error processing Parquet: {e}", "Processing failed"
