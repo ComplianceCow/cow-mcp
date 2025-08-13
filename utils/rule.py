@@ -605,7 +605,7 @@ def create_rule_api(rule_structure: Dict[str, Any]) -> Dict[str, Any]:
 
 def fetch_rule(rule_name: str, include_read_me: bool = False) -> Dict[str, Any]:
     params = {
-        name:rule_name
+        "name":rule_name
     }
     if include_read_me:
         params={**params,"include_read_me" : "true"}
@@ -689,6 +689,7 @@ def create_support_ticket_api(body: Dict[str, Any] = None ) -> List[SimplifiedRu
         return {**ticket_detials, "status": "created", "message": "Ticket created successfully Created ", "timestamp": datetime.now().isoformat()}
     except Exception as e:
         return {"error": f"Failed to fetch support ticket categories: {e}"}
+    
 def get_json_preview(content: str, max_records: int = 4) -> tuple[str, str]:
     """Extract preview of JSON content showing first N records."""
     try:
@@ -736,7 +737,6 @@ def get_json_preview(content: str, max_records: int = 4) -> tuple[str, str]:
             preview = '\n'.join(lines[:3])
             return preview, f"First 3 of {len(lines)} lines"
 
-
 def get_csv_preview(content: str, file_size_kb: float) -> tuple[str, str]:
     """Extract preview of CSV content. Shows all if < 1KB or only 1 record, header + first 3 if >= 1KB with multiple records."""
     lines = [line for line in content.split('\n') if line.strip()]
@@ -762,7 +762,6 @@ def get_csv_preview(content: str, file_size_kb: float) -> tuple[str, str]:
             # 2 or 3 data rows - show all
             preview_content = '\n'.join(lines)
             return preview_content, f"Header + all {total_data_rows} records shown"
-
 
 def get_parquet_preview(content: str, file_size_kb: float) -> tuple[str, str]:
     """Decode base64 Parquet content. Shows all if < 1KB or only 1 record, first 3 if >= 1KB with multiple records."""

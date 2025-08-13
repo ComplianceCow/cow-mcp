@@ -2529,8 +2529,10 @@ def execute_rule(rule_name: str, from_date: str, to_date:str, rule_inputs: List[
     6. Final confirmation → execute rule
     7. If execution starts successfully → call fetch_execution_progress()
     8. Rule Output File Display Process:
-        a. Extract rule outputs from execution results
-        b. Show FileName and FileURL list to user
+        a. Extract task outputs from execution results
+        b. MANDATORY: Show output in this format:
+            - TaskName: [task_name]
+            - Files: [list of files]
         c. Ask: "View file contents? (yes/no)"
         d. If yes: Call fetch_output_file() for each requested file
         e. Display results with formatting
