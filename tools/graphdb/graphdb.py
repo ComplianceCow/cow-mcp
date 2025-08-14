@@ -67,6 +67,7 @@ async def execute_cypher_query(query: str) -> CypherQueryVO:
         - Evidence contains records
         - RiskItem nodes are attached to control-config via HAS_RISK & HAS_MAPPED_CONTROL edges 
         - RiskItemAttribute nodes are attached to RiskItem via HAS_ATTRIBUTE edges
+        - RiskItem contains RiskItemAttributes
         
     Query guidelines:
         - For control hierarchies: Use MATCH (parent)-[HAS_CHILD*]->(child) patterns
