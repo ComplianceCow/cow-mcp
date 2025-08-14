@@ -434,7 +434,8 @@ def ccow_workflow_knowledge() -> str:
             ------------------------
                 - For type textarray use string separated by comma's 
                 - Send all options if available
-                - ALL STRINGS MUST BE ENCLOSED IN DOUBLE QUOTES. This applies to all string values in the workflow YAML, including names, descriptions, labels, and any text fields.
+                - ALL STRINGS IN PROPERTY VALUE MUST BE ENCLOSED IN DOUBLE QUOTES. This applies to all string values in the workflow YAML, including names, descriptions, labels, and any text fields, exclude expr.
+                - BOOLEAN VALUES MUST BE STRING FOR ACTIVITY IN YAML.
 
             EXAMPLE
             --------------------
