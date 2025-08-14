@@ -81,6 +81,8 @@ URL_CREATE_RULE = "/pc-api/v2/rules"
 URL_EXECUTE_RULE = "/pc-api/v2/rules/execute-rule"
 URL_FETCH_EXECUTION_PROGRESS = "/pc-api/v2/rules/fetch-execution-progress"
 URL_FETCH_FILE = "/pc-api/v1/storage/fetch-file"
+URL_PUBLISH_RULE = "/pc-api/v1/rules/publish-rule"
+URL_FETCH_CC_RULES = "/pc-api/v1/rules/fetch-cc-rules"
 
 # STORAGE
 URL_UPLOAD_FILE = "/pc-api/v1/storage/upload-file"
@@ -95,6 +97,8 @@ URL_SAVE_RULE_README = "/pc-api/v2/rules/upsert-readme"
 # CREDENTIAL
 URL_FETCH_CREDENTIAL = "/v1/credential"
 URL_FETCH_APPLICATION_CREDENTIALS = "/pc-api/v1/application-credentials"
+URL_FETCH_APPLICATIONS = "/pc-api/v1/applications"
+URL_PUBLISH_APPLICATIONS = "/pc-api/v1/applications/publish-application"
 
 #SUPPORT TICKET
 URL_CREATE_TICKET = "/v5/partner/support/ticket"

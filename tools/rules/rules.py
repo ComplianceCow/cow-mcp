@@ -2951,3 +2951,85 @@ def fetch_output_file(file_url: str) -> Dict[str, Any]:
             "file_url": file_url,
             "error": f"Failed to fetch file: {e}"
         }
+
+
+@mcp.tool()
+def fetch_applications() -> Dict[str, Any]:
+    """ 
+    Fetch all available applications from the system.
+    
+    Returns:
+        Dict containing list of applications with their details
+    """
+    # Make API call
+
+@mcp.tool()
+def check_application_published(app_info: List[Dict]) -> Dict[str, Any]:
+    """
+    Check publication status for each application in the provided list.
+    
+    Args:
+        app_info: List of application objects to check
+        
+    Returns:
+        Dict with publication status for each application
+    """
+    # Make API call
+
+@mcp.tool()
+def check_rule_published(rule_name: str) -> Dict[str, Any]:
+    """
+    Check if a rule is already published.
+    
+    Args:
+        rule_name: Name of the rule to check
+        
+    Returns:
+        Dict with publication status and details
+    """
+    # Make API call
+
+@mcp.tool()
+def publish_application(app_info: List[Dict]) -> Dict[str, Any]:
+    """
+    Publish applications to make them available for rule execution.
+    
+    Args:
+        app_info: List of application objects to publish
+        
+    Returns:
+        Dict with publication results for each application
+    """
+    # Make API call
+
+@mcp.tool()
+def publish_rule(rule_name: str) -> Dict[str, Any]:
+    """
+    Publish a rule to make it available for others to use.
+    
+    WORKFLOW (executed step-by-step with user confirmation):
+    
+    1. Fetch available applications using fetch_applications()
+    2. Extract unique appTypes from rule spec.tasks[].appTags.appType
+    3. Match rule appTypes with available applications:
+       - Compare rule's appType values with application names
+       - Create matched applications list: [{"name": "ACTUAL_NAME"}]
+    4. Check application publication status with check_application_published()
+       - If published: "These applications are already published: [LIST]"
+       - If unpublished: "Publish these applications? [LIST]"
+       - Wait for user confirmation before proceeding
+    5. Check rule publication status with check_rule_published()
+       - If published: Offer options:
+         * "Publish with another name" (collect new name, verify availability)
+         * "Republish existing rule" (overwrite current)
+       - If unpublished: Proceed with publication
+    6. Execute publication and report results
+    
+    Args:
+        rule_name: Name of the rule to publish
+        
+    Returns:
+        Dict with publication status and details
+    """
+    # Implementation will follow the workflow above
+    
