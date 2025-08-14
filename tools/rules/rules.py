@@ -496,7 +496,7 @@ def confirm_template_input(rule_name: str, task_name: str, input_name: str, conf
 
             # Upload the file and get URL
             upload_result = upload_file(
-                rule_name=rule_name, file_name=file_name, content=confirmed_content)
+                rule_name=rule_name, file_name=file_name, content=confirmed_content, format = task_input.format)
 
             if upload_result["success"]:
                 return {"success": True, "task_name": task_name, "input_name": input_name, "file_url": upload_result["file_url"], "filename": file_name, "content_size": len(confirmed_content), "storage_type": "FILE", "data_type": task_input.dataType, "format": task_input.format, "timestamp": datetime.now().isoformat(), "message": f"Template file uploaded successfully for {input_name} in {task_name}"}
@@ -511,12 +511,14 @@ def confirm_template_input(rule_name: str, task_name: str, input_name: str, conf
 
 
 @mcp.tool()
-def upload_file(rule_name: str, file_name: str, content: str, content_encoding: str = "utf-8") -> Dict[str, Any]:
+def upload_file(rule_name: str, file_name: str, content: str, format: str, content_encoding: str = "utf-8") -> Dict[str, Any]:
     """Upload file content and return file URL for use in rules.
 
     FILE UPLOAD PROCESS:
     - Generate unique file ID and URL for storage system integration
-    - Support multiple content encodings (utf-8, base64, etc.)
+    - Support multiple file formats (toml, json, csv, yaml)
+    - Handle special formatting for JSON from string content
+    - Always base64 encode content for API compatibility
     - Return file URL that can be used in rule structure inputs
     - Integrate with actual file storage system (AWS S3, Minio, internal storage)
     - Validate content size and encoding before upload
@@ -527,44 +529,83 @@ def upload_file(rule_name: str, file_name: str, content: str, content_encoding: 
                    Note: Use the same rule name for all inputs that belong to this rule.
                    Example: rule_name = "MeaningfulRuleName"
         file_name: Name of the file to upload
-        content: File content (text or base64 encoded).
+        content: File content as string
+        format: File format type ("toml", "json", "csv", "yaml")
         content_encoding: Encoding of the content (utf-8, base64, etc.)
 
     Returns:
         Dict containing file upload results and URL
     """
     try:
-        if content_encoding in ["utf-8", "base64"]:
-            # Convert UTF-8 string to base64 if needed
-            if content_encoding == "utf-8":
-                encoded_content = base64.b64encode(
-                    content.encode("utf-8")).decode("utf-8")
-            else:
-                encoded_content = content
-        else:
-            return {"success": False, "error": f"Unsupported encoding: {content_encoding}", "filename": file_name}
+        # Validate supported formats
+        supported_formats = ["toml", "json", "csv", "yaml", "yml"]
+        if format.lower() not in supported_formats:
+            return {
+                "success": False, 
+                "error": f"Unsupported format: {format}. Supported formats: {', '.join(supported_formats)}", 
+                "filename": file_name
+            }
 
-        # Generate file ID and URL
+        if format.lower() == "json" and content_encoding != "base64":
+            try:
+                if '\\"' in content:
+                    cleaned = content.replace('\\"', '"').replace('\\n', '\n')
+                else:
+                    cleaned = content
+                parsed = json.loads(cleaned)
+                formatted_content = json.dumps(parsed, indent=2)
+            except json.JSONDecodeError as e:
+                # If it's not valid JSON, just store as given
+                formatted_content = content
+        else:
+            formatted_content = content
+
+        if content_encoding == "base64":
+            encoded_content = formatted_content
+        else:
+            encoded_content = base64.b64encode(formatted_content.encode("utf-8")).decode("utf-8")
+
         file_id = f"file_{abs(hash(encoded_content)) % 100000}"
         unique_file_name = f"{file_id}_{file_name}"
 
         headers = wsutils.create_header()
         payload = {
             "fileName": unique_file_name,
-            "fileContent": encoded_content,
-            "ruleName": rule_name
+            "fileContent": encoded_content,  # Always base64 encoded
+            "ruleName": rule_name,
+            "format": format.lower()
         }
-        file_upload_resp = wsutils.post(path=wsutils.build_api_url(
-            endpoint=constants.URL_UPLOAD_FILE), data=json.dumps(payload), header=headers)
+
+        file_upload_resp = wsutils.post(
+            path=wsutils.build_api_url(endpoint=constants.URL_UPLOAD_FILE), 
+            data=json.dumps(payload), 
+            header=headers
+        )
 
         if rule.is_valid_key(file_upload_resp, "fileURL"):
-            return {"success": True, "file_url": file_upload_resp["fileURL"], "filename": file_name, "file_id": file_id, "content_size": len(content), "content_encoding": content_encoding, "message": f"File '{file_name}' uploaded successfully"}
+            return {
+                "success": True, 
+                "file_url": file_upload_resp["fileURL"], 
+                "filename": file_name, 
+                "file_id": file_id, 
+                "format": format.lower(),
+                "content_size": len(formatted_content), 
+                "message": f"File '{file_name}' uploaded successfully as {format.upper()} format"
+            }
 
-        return {"success": False, "error": "Unable to find the uploaded file URL", "filename": file_name}
+        return {
+            "success": False, 
+            "error": "Unable to find the uploaded file URL", 
+            "filename": file_name
+        }
 
     except Exception as e:
-        return {"success": False, "error": f"Failed to upload file: {e}", "filename": file_name}
-
+        return {
+            "success": False, 
+            "error": f"Failed to upload file: {e}", 
+            "filename": file_name
+        }
+    
 
 @mcp.tool()
 def collect_parameter_input(task_name: str, input_name: str, user_value: str = None, use_default: bool = False) -> Dict[str, Any]:
