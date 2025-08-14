@@ -2961,23 +2961,96 @@ def fetch_applications() -> Dict[str, Any]:
     Returns:
         Dict containing list of applications with their details
     """
-    # Make API call
-
-@mcp.tool()
-def check_application_published(app_info: List[Dict]) -> Dict[str, Any]:
-    """
-    Check publication status for each application in the provided list.
-    
-    Args:
-        app_info: List of application objects to check
+    try:
+        applications = []
+        headers = wsutils.create_header()
         
-    Returns:
-        Dict with publication status for each application
-    """
-    # Make API call
+        get_app_resp = wsutils.get(
+            path=wsutils.build_api_url(endpoint=constants.URL_FETCH_APPLICATIONS),
+            header=headers
+        )
+        
+        # Add null safety
+        items = get_app_resp.get("items", [])
+        if not items:
+            return {
+                "success": True,
+                "applications": [],
+                "message": "No applications found"
+            }
+        
+        for item in items:
+            meta = item.get("meta", {})
+            labels = meta.get("labels", {})
+            app_types = labels.get("appType", [])
+            
+            # Skip if no appType available
+            if not app_types:
+                continue
+                
+            applications.append({
+                "application_class_name": meta.get("name", "Unknown"),
+                "app_type": app_types[0]
+            })
+
+        return {
+            "success": True,
+            "applications": applications
+        }
+        
+    except Exception as e:
+        return {
+            "success": False,
+            "error": f"Failed to fetch applications: {str(e)}",
+            "applications": []
+        }
+
 
 @mcp.tool()
-def check_rule_published(rule_name: str) -> Dict[str, Any]:
+def check_applications_publish_status(app_info: List[Dict]) -> Dict[str, Any]:
+   """
+   Check publication status for each application in the provided list.
+
+   app_info structure is [{"name":["ACTUAL application_class_name"]}]
+   
+   Args:
+       app_info: List of application objects to check
+       
+   Returns:
+       Dict with publication status for each application.
+       Each app will have 'published' field: True if published, False if not.
+   """
+   try:
+       headers = wsutils.create_header()
+       
+       app_resp = wsutils.post(
+           path=wsutils.build_api_url(endpoint=constants.URL_FETCH_CC_APPLICATIONS),
+           data=json.dumps(app_info),
+           header=headers
+       )
+
+       if len(app_resp) > 0:
+           return {
+               "success": True,
+               "app_info": app_resp
+           }
+       else:
+           return {
+               "success": False,
+               "error": "No application details found",
+               "app_info": []
+           }
+
+   except Exception as e:
+       return {
+           "success": False,
+           "error": f"Failed to fetch application information: {str(e)}",
+           "app_info": []
+       }
+
+
+@mcp.tool()
+def check_rule_publish_status(rule_name: str) -> Dict[str, Any]:
     """
     Check if a rule is already published.
     
@@ -2987,49 +3060,194 @@ def check_rule_published(rule_name: str) -> Dict[str, Any]:
     Returns:
         Dict with publication status and details
     """
-    # Make API call
+    try:
+        headers = wsutils.create_header()
+        
+        # Prepare request data
+        request_data = {
+            "ruleName": rule_name,
+            "host": ""
+        }
+        
+        rule_resp = wsutils.post(
+            path=wsutils.build_api_url(endpoint=constants.URL_FETCH_CC_RULES),
+            data=json.dumps(request_data),
+            header=headers
+        )
+
+        # Check if response has items and if items list is not empty
+        if rule_resp and rule_resp.get("items") and len(rule_resp.get("items", [])) > 0:
+            return {
+                "success": True,
+                "published": True,
+                "rule_info": rule_resp.get("items"),
+                "message": f"Rule '{rule_name}' is already published"
+            }
+        else:
+            return {
+                "success": True,
+                "published": False,
+                "rule_info": [],
+                "message": f"Rule '{rule_name}' is not published"
+            }
+
+    except Exception as e:
+        return {
+            "success": False,
+            "published": False,
+            "error": f"Failed to check rule publish status: {str(e)}",
+            "rule_info": []
+        }
+
 
 @mcp.tool()
-def publish_application(app_info: List[Dict]) -> Dict[str, Any]:
+def publish_application(rule_name: str, app_info: List[Dict]) -> Dict[str, Any]:
     """
     Publish applications to make them available for rule execution.
     
     Args:
+        rule_name: Name of the rule these applications belong to
         app_info: List of application objects to publish
         
     Returns:
         Dict with publication results for each application
     """
-    # Make API call
+    try:
+        headers = wsutils.create_header()
+        
+        # Prepare request data
+        request_data = {
+            "ruleName": rule_name,
+            "appDetails": app_info
+        }
+        
+        publish_resp = wsutils.post(
+            path=wsutils.build_api_url(endpoint=constants.URL_PUBLISH_APPLICATIONS),
+            data=json.dumps(request_data),
+            header=headers
+        )
+
+        if publish_resp and len(publish_resp) > 0:
+            # Separate successful and failed applications
+            successful_apps = [app for app in publish_resp if "Error" not in app]
+            failed_apps = [app for app in publish_resp if "Error" in app]
+            
+            if failed_apps:
+                failed_app_names = [app.get("appName", "Unknown") for app in failed_apps]
+                return {
+                    "success": False,
+                    "published": False,
+                    "error": f"Failed applications: {', '.join(failed_app_names)}",
+                    "successful_apps": successful_apps,
+                    "failed_apps": failed_apps,
+                    "message": f"Some applications failed to publish for rule '{rule_name}'"
+                }
+            else:
+                return {
+                    "success": True,
+                    "published": True,
+                    "successful_apps": successful_apps,
+                    "failed_apps": [],
+                    "message": f"All applications for rule '{rule_name}' published successfully"
+                }
+        else:
+            return {
+                "success": False,
+                "published": False,
+                "error": "No response received from publish endpoint",
+                "successful_apps": [],
+                "failed_apps": []
+            }
+
+    except Exception as e:
+        return {
+            "success": False,
+            "published": False,
+            "error": f"Failed to publish applications: {e}",
+            "successful_apps": [],
+            "failed_apps": []
+        }
+    
 
 @mcp.tool()
-def publish_rule(rule_name: str) -> Dict[str, Any]:
+def publish_rule(rule_name: str, cc_rule_name: str = None) -> Dict[str, Any]:
     """
-    Publish a rule to make it available for others to use.
+    Publish a rule to make it available for ComplianceCow system.
     
-    WORKFLOW (executed step-by-step with user confirmation):
+    WHEN TO USE:
+    - After successful rule creation
+    - User wants to make rule available for others
+    - Rule has been tested and validated
     
-    1. Fetch available applications using fetch_applications()
-    2. Extract unique appTypes from rule spec.tasks[].appTags.appType
-    3. Match rule appTypes with available applications:
-       - Compare rule's appType values with application names
-       - Create matched applications list: [{"name": "ACTUAL_NAME"}]
-    4. Check application publication status with check_application_published()
-       - If published: "These applications are already published: [LIST]"
-       - If unpublished: "Publish these applications? [LIST]"
-       - Wait for user confirmation before proceeding
-    5. Check rule publication status with check_rule_published()
-       - If published: Offer options:
-         * "Publish with another name" (collect new name, verify availability)
-         * "Republish existing rule" (overwrite current)
-       - If unpublished: Proceed with publication
-    6. Execute publication and report results
+    WORKFLOW (step-by-step with user confirmation):
+    
+    1. Fetch applications → Show published/unpublished status → Ask to (re)publish
+    2. Extract appTypes from rule → Show to user → Get confirmation
+    3. Match rule appTypes with applications → Show matches → Get confirmation
+    4. Check app publication status → Ask to publish/republish → Get confirmation
+    5. Publish applications if user agrees → Show results → Get confirmation
+    6. Check rule publication status with check_rule_publish_status():
+       - If valid=true (published): "Rule is already published. Options:"
+         * "Republish with same name" → Get confirmation → Proceed with publishing
+         * "Publish with another name" → Collect new name → Check availability with check_rule_publish_status(new_name)
+           - If new name exists: "Name already exists. Choose different name"
+           - If new name available: Proceed with publishing using new name
+       - If valid=false (not published): "Rule is not published. Do you want to publish it? (yes/no)"
+         * If yes: Proceed with publishing
+       → WAIT: Show publication status and get user choice/confirmation before proceeding
+    7. Execute publish → Show final results
+    
+    CONFIRMATION RULE:
+    - STOP after each step
+    - Ask: "Proceed to next step? (yes/no)"
+    - Continue ONLY after explicit "yes"
+    - Handle "no" responses and address concerns
     
     Args:
         rule_name: Name of the rule to publish
+        cc_rule_name: Optional alternative name for publishing
         
     Returns:
         Dict with publication status and details
     """
-    # Implementation will follow the workflow above
+    try:
+        headers = wsutils.create_header()
+        
+        # Prepare request data
+        request_data = {
+            "ruleName": rule_name
+        }
+        
+        # Add ccRuleName only if provided
+        if cc_rule_name:
+            request_data["ccRuleName"] = cc_rule_name
+        
+        publish_resp = wsutils.post(
+            path=wsutils.build_api_url(endpoint=constants.URL_PUBLISH_RULE),
+            data=json.dumps(request_data),
+            header=headers
+        )
+
+        if publish_resp and publish_resp.get("message") and  publish_resp.get("message") == "Rule has been published successfully":
+            return {
+                "success": True,
+                "published": True,
+                "rule_info": publish_resp.get("items"),
+                "message": f"Rule '{rule_name}' published successfully"
+            }
+        else:
+            return {
+                "success": False,
+                "published": False,
+                "error": f"Rule '{rule_name}' failed to publish: {publish_resp}",
+                "rule_info": []
+            }
+
+    except Exception as e:
+        return {
+            "success": False,
+            "published": False,
+            "error": f"Failed to publish rule: {str(e)}",
+            "rule_info": []
+        }
     
