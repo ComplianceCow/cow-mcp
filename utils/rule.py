@@ -5,6 +5,8 @@ from datetime import datetime
 from io import BytesIO, StringIO
 from typing import Any, Dict, List, Union
 import pandas as pd
+import csv
+import re
 
 import toml
 from ruamel.yaml import YAML
@@ -788,3 +790,121 @@ def get_parquet_preview(content: str, file_size_kb: float) -> tuple[str, str]:
         
     except Exception as e:
         return f"Error processing Parquet: {e}", "Processing failed"
+
+def validate_and_format_content(content: str, file_format: str) -> tuple[str, bool, str]:
+    """Validate and format content based on file type. Returns (formatted_content, is_valid, message)."""
+
+    if file_format == 'json':
+        try:
+            # Fix common JSON issues first
+            fixed_content = fix_json_string(content)
+            parsed = json.loads(fixed_content)
+            # Re-serialize with proper formatting
+            formatted_content = json.dumps(
+                parsed, indent=2, ensure_ascii=False)
+            return formatted_content, True, "JSON validated and formatted"
+        except json.JSONDecodeError as e:
+            return content, False, f"Invalid JSON: {str(e)}"
+
+    elif file_format in ['yaml', 'yml']:
+        if yaml is None:
+            return content, True, "YAML validation skipped (PyYAML not available)"
+        try:
+            parsed = yaml.load(content)
+            formatted_content = yaml.dump(
+                parsed, default_flow_style=False, allow_unicode=True, indent=2)
+            return formatted_content, True, "YAML validated and formatted"
+        except Exception as e:
+            return content, False, f"Invalid YAML: {str(e)}"
+
+    elif file_format == 'toml':
+        if toml is None:
+            return content, True, "TOML validation skipped (toml not available)"
+        try:
+            parsed = toml.loads(content)
+            formatted_content = toml.dumps(parsed)
+            return formatted_content, True, "TOML validated and formatted"
+        except toml.TomlDecodeError as e:
+            return content, False, f"Invalid TOML: {str(e)}"
+
+    elif file_format in ['csv', 'tsv']:
+        try:
+            # Detect delimiter
+            sniffer = csv.Sniffer()
+            try:
+                delimiter = sniffer.sniff(content[:1024]).delimiter
+            except:
+                delimiter = ',' if file_format == 'csv' else '\t'
+
+            # Parse and reformat
+            csv_input = StringIO(content)
+            reader = csv.reader(csv_input, delimiter=delimiter)
+
+            csv_output = StringIO()
+            writer = csv.writer(csv_output, quoting=csv.QUOTE_MINIMAL)
+
+            row_count = 0
+            for row in reader:
+                cleaned_row = [cell.strip() if isinstance(
+                    cell, str) else cell for cell in row]
+                writer.writerow(cleaned_row)
+                row_count += 1
+
+            formatted_content = csv_output.getvalue()
+            return formatted_content, True, f"CSV validated with {row_count} rows"
+        except Exception as e:
+            return content, False, f"Invalid CSV: {str(e)}"
+
+    elif file_format == 'xml':
+        try:
+            import xml.etree.ElementTree as ET
+            ET.fromstring(content)
+            return content, True, "XML validated"
+        except ET.ParseError as e:
+            return content, False, f"Invalid XML: {str(e)}"
+
+    else:
+        # For other formats, no validation needed
+        return content, True, f"Content accepted as {file_format} format"
+    
+
+def detect_file_format(file_name: str, content: str) -> str:
+    """Detect file format from filename and content."""
+    # First try from filename extension
+    if '.' in file_name:
+        extension = file_name.split('.')[-1].lower()
+        if extension in ['json', 'yaml', 'yml', 'toml', 'csv', 'tsv', 'txt', 'xml']:
+            return extension
+
+    # Try to detect from content
+    content_stripped = content.strip()
+
+    if content_stripped.startswith('{') and content_stripped.endswith('}'):
+        return 'json'
+    elif content_stripped.startswith('[') and content_stripped.endswith(']'):
+        return 'json'
+    elif any(line.strip().startswith('[') and line.strip().endswith(']') for line in content_stripped.split('\n')[:5]):
+        return 'toml'
+    elif ',' in content_stripped and '\n' in content_stripped:
+        return 'csv'
+
+    return 'txt'  # Default fallback
+
+def fix_json_string(content: str) -> str:
+    """Fix common JSON string issues."""
+    
+    # Remove literal \n characters (not actual newlines)
+    content = content.replace('\\n', '')
+
+    # Remove potential BOM
+    if content.startswith('\ufeff'):
+        content = content[1:]
+
+    # Fix escaped quotes within string values
+    content = re.sub(r'\\\"', '"', content)
+
+    # Fix single quotes to double quotes (only for keys and string values)
+    content = re.sub(r"'([^']*)':", r'"\1":', content)  # Fix keys
+    content = re.sub(r":\s*'([^']*)'", r': "\1"', content)  # Fix string values
+
+    return content.strip()    
