@@ -3131,18 +3131,19 @@ def check_applications_publish_status(app_info: List[Dict]) -> Dict[str, Any]:
 @mcp.tool()
 def check_rule_publish_status(rule_name: str) -> Dict[str, Any]:
     """
-    Check if a rule is already published.  
+    Check if a rule is already published.
 
-    - If the rule is already published, prompt the user:  
-    "Do you want to attach this rule to a ComplianceCow control? (yes/no)"  
-    - If yes → call attach_rule_to_control()  
+    - If not published → publish the rule so it becomes available for control attachment  
+    - Once published, prompt the user:  
+      "Do you want to attach this rule to a ComplianceCow control? (yes/no)"  
+    - If yes → ask for assessment name and control alias to proceed with association  
     - If no → end workflow  
 
-    Args:  
-        rule_name: Name of the rule to check  
+    Args:
+        rule_name: Name of the rule to check
 
-    Returns:  
-        Dict with publication status and details  
+    Returns:
+        Dict with publication status and details
     """
     try:
         headers = wsutils.create_header()
@@ -3338,10 +3339,10 @@ def publish_rule(rule_name: str, cc_rule_name: str = None) -> Dict[str, Any]:
     - Inform user: "Published successfully" or "Publication failed"
 
     8. Rule Association:
-    - Ask user: "Do you want to attach this rule to ComplianceCow control? (yes/no)"
-    - If yes: Call attach_rule_to_control() to associate the rule
-    - If no: End workflow
-    
+        - Publishes the rule to make it available for control attachment
+        - Ask user: "Do you want to attach this rule to a ComplianceCow control? (yes/no)"
+        - If yes: Proceed to associate the rule with control and request assessment name and control alias from the user
+        - If no: End workflow
 
     EXECUTION CONTROL MECHANISMS:
     - STEP GATE: Each step requires completion before next
@@ -3403,23 +3404,24 @@ def publish_rule(rule_name: str, cc_rule_name: str = None) -> Dict[str, Any]:
 @mcp.tool()
 def fetch_assessments(categoryId: str = "", categoryName: str = "", assessmentName: str = "") -> vo.AssessmentListVO:
     """
-    Fetch assessment to verify assessment exists in compliancecow and prepare for control selection.
+    Fetch the list of available assessments in ComplianceCow.  
 
-    ASSESSMENT VERIFICATION:
-    - Verifies that the specified assessment exists
-    - Returns basic assessment info without the full control hierarchy
-    - Used to confirm assessment before asking for control alias
+    TOOL PURPOSE:
+    - Retrieves a list of available assessments if no specific match is provided.  
+    - Returns only basic assessment info (id, name, category) without the full control hierarchy.  
+    - Used to confirm the assessment name while attaching a rule to a specific control.  
 
     Args:
-    categoryId: assessment category id (Optional)
-    categoryName: assessment category name (Optional)
-    assessmentName: assessment name (Optional)
+        categoryId (Optional[str]): Assessment category ID.  
+        categoryName (Optional[str]): Assessment category name.  
+        assessmentName (Optional[str]): Assessment name.  
+
     Returns:
-        - assessments (List[Assessments]): A list of assessments objects, where each assessment includes:
-            - id (str): Unique identifier of the assessment.
-            - name (str): Name of the assessment.
-            - category_name (str): Name of the category.
-        - error (Optional[str]): An error message if any issues occurred during retrieval.
+        - assessments (List[Assessments]): A list of assessment objects, each containing:  
+            - id (str): Unique identifier of the assessment.  
+            - name (str): Name of the assessment.  
+            - category_name (str): Name of the category.  
+        - error (Optional[str]): An error message if any issues occurred during retrieval.  
     """
     try:
         params = {
@@ -3583,7 +3585,7 @@ def attach_rule_to_control(rule_id: str, assessment_name: str, control_alias: st
     Attach a rule to a specific control in an assessment.
 
     🚨 CRITICAL EXECUTION BLOCKERS — DO NOT SKIP 🚨
-    Before **any** part of this tool can run, three preconditions MUST be met:
+    Before **any** part of this tool can run, five preconditions MUST be met:
 
     1. Control Verification:
     - You MUST verify the control exists in the assessment by calling `verify_control_in_assessment()`.
@@ -3596,17 +3598,27 @@ def attach_rule_to_control(rule_id: str, assessment_name: str, control_alias: st
     - If resolution fails or `rule_id` is still not a UUID after this step → STOP immediately.
     - Execution is STRICTLY PROHIBITED with a plain name.
 
-    3. Evidence Creation Acknowledgment:
+    3. Rule Publish Validation:
+    - You MUST check if the rule is published in ComplianceCow before proceeding.
+    - If the rule is not published → STOP immediately.  
+    - Published status is a hard requirement for attachment.
+
+    4. Evidence Creation Acknowledgment:
     - Before proceeding, you MUST request confirmation from the user about `create_evidence`.
     - Ask: "Do you want to auto-generate evidence from the rule output? (default: True)"
     - Only proceed after the user explicitly acknowledges their choice.
 
+    5. Override Acknowledgment:
+    - If the control already has a rule attached, you MUST request user confirmation before overriding.
+    - Ask: "This control already has a rule attached. Do you want to override it? (yes/no)"
+    - Only proceed if the user explicitly confirms.
+
     RULE ATTACHMENT WORKFLOW:
     1. Perform control verification using `verify_control_in_assessment()` (MANDATORY).
     2. Resolve rule_id using the CRITICAL EXECUTION BLOCKERS above (use `fetch_cc_rule_by_name()` when needed).
-    3. Confirm evidence creation preference from the user (acknowledgment REQUIRED).
-    4. Check for existing rule attachments.
-    5. Handle override scenarios if needed.
+    3. Validate that the rule is published in ComplianceCow.
+    4. Confirm evidence creation preference from the user (acknowledgment REQUIRED).
+    5. Check for existing rule attachments and request override acknowledgment if needed.
     6. Attach rule to control.
     7. Optionally create evidence for the control.
 
@@ -3617,7 +3629,9 @@ def attach_rule_to_control(rule_id: str, assessment_name: str, control_alias: st
     VALIDATION REQUIREMENTS:
     - Control must be verified and confirmed as a leaf control.
     - Rule must be published.
+    - Rule ID must be a valid UUID.
     - Assessment and control must exist.
+    - User must acknowledge override before replacing an existing rule.
 
     Args:
         rule_id: ID of the rule to attach (UUID). If an alphabetic string is provided, 
