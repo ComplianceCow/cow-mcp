@@ -2536,6 +2536,10 @@ def execute_rule(rule_name: str, from_date: str, to_date:str, rule_inputs: List[
         c. Ask: "View file contents? (yes/no)"
         d. If yes: Call fetch_output_file() for each requested file
         e. Display results with formatting
+    9. Rule Publication (optional):
+    - Ask user: "Do you want to publish this rule to make it available in ComplianceCow system? (yes/no)"
+    - If yes: Call publish_rule() to publish the rule
+    - If no: End workflow    
 
     Args:
         rule_name: Rule to execute
@@ -2569,7 +2573,7 @@ def execute_rule(rule_name: str, from_date: str, to_date:str, rule_inputs: List[
             "success": True, 
             "rule_name": rule_name, 
             "execution_id": execution_result.get("id"), 
-            "message": f"Rule '{rule_name}' started executing.",
+            "message": f"Rule '{rule_name}' started executing."
         }
 
     except Exception as e:
@@ -3192,7 +3196,7 @@ def publish_rule(rule_name: str, cc_rule_name: str = None) -> Dict[str, Any]:
 
     1. Fetch applications and check status
     - Call fetch_applications() to get available applications
-    - Extract appTypes from ALL tasks in rule spec.tasks[].appTags.appType
+    - Extract appTypes from ALL tasks in rule spec.tasks[].appTags.appType - MUST TAKE ALL THE TASKS APPTYPE AND REMOVE DUPLICATES - CRITICAL: DO NOT SKIP ANY TASK APPTYPES
     - Match ALL task appTypes with applications app_type to get application_class_name
     - Call check_applications_publish_status() for ALL matched applications
 
