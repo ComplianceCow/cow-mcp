@@ -84,6 +84,11 @@ URL_FETCH_FILE = "/pc-api/v1/storage/fetch-file"
 URL_PUBLISH_RULE = "/pc-api/v1/rules/publish-rule"
 URL_FETCH_CC_RULES = "/pc-api/v1/rules/fetch-cc-rules"
 
+#CC RULES
+URL_GET_CC_RULE = "/v1/rules"
+URL_GET_CC_RULE_BY_ID = "/v1/rules/{id}"
+URL_LINK_CC_RULE_TO_CONTROL = "/v1/plan-controls/{control_id}/link-rule"
+
 # STORAGE
 URL_UPLOAD_FILE = "/pc-api/v1/storage/upload-file"
 

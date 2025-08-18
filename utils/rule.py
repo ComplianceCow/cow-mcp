@@ -10,8 +10,10 @@ import toml
 from ruamel.yaml import YAML
 
 from constants import constants
-from mcptypes.rule_type import TaskInputVO, SimplifiedRuleListVO, SimplifiedRuleVO
+import mcptypes.rule_type as vo
 from utils import rule,wsutils
+from utils.debug import logger
+
 
 yaml = YAML()
 yaml.indent(mapping=2, sequence=4, offset=2)
@@ -106,7 +108,7 @@ def extract_use_cases_from_readme(readme_content: str) -> List[str]:
     return use_cases[:3]
 
 
-def generate_detailed_template_guidance(template_content: str, task_input: TaskInputVO) -> Dict[str, Any]:
+def generate_detailed_template_guidance(template_content: str, task_input: vo.TaskInputVO) -> Dict[str, Any]:
     """Generate detailed guidance for filling out a template"""
     guidance = {"overview": f"This template is for {task_input.description}", "format": f"Please provide content in {task_input.format.upper()} format", "structure_explanation": explain_template_structure(
         template_content, task_input.format), "required_fields": extract_required_fields(template_content, task_input.format), "field_descriptions": generate_field_descriptions(template_content, task_input.format), "tips": generate_format_tips(task_input.format)}
@@ -253,7 +255,7 @@ def generate_content_preview(content: str, format_type: str) -> str:
     return preview
 
 
-def validate_template_content_enhanced(task_input: TaskInputVO, user_content: str) -> Dict[str, Any]:
+def validate_template_content_enhanced(task_input: vo.TaskInputVO, user_content: str) -> Dict[str, Any]:
     """Enhanced validation for template content including JSON arrays"""
     errors = []
     suggestions = []
@@ -378,7 +380,7 @@ def validate_parameter_value(value: str, data_type: str) -> Dict[str, Any]:
     return {"valid": len(errors) == 0, "errors": errors, "converted_value": converted_value}
 
 
-def generate_parameter_presentation(task_input: TaskInputVO, task_name: str) -> str:
+def generate_parameter_presentation(task_input: vo.TaskInputVO, task_name: str) -> str:
     """Generate parameter collection presentation"""
     required_text = "Yes" if task_input.required else "No"
     default_text = task_input.defaultValue if task_input.defaultValue else "None"
@@ -622,7 +624,7 @@ def fetch_rule(rule_name: str, include_read_me: bool = False) -> Dict[str, Any]:
         else:
             return {"error": f"unable to find the rule named: {rule_name}"}
     except Exception as e:
-        return {"error": f"Failed to fetch the rule: {e}"}
+        return {"error": f"Failed to fetch the rule by name '{rule_name}': {str(e)}"}
 
 
 def encode_content(data: Union[Dict[str, Any], str]) -> str:
@@ -637,18 +639,20 @@ def encode_content(data: Union[Dict[str, Any], str]) -> str:
     except Exception:
         return ""
 
-def fetch_rules_api(params: Dict[str, Any] = None ) -> List[SimplifiedRuleVO]:
+def fetch_rules_api(params: Dict[str, Any] = None ) -> List[vo.SimplifiedRuleVO]:
     if params is None:
         params = {}
 
+    if not is_valid_key(params,"page_size"):
+        params["page_size"] = 10
+
     headers = wsutils.create_header()
     cur_page = 1
-    page_size = 10
     has_next = True
     combined_rules = []
 
     while has_next:
-        paginated_params = { **params, "page": cur_page, "pageSize": page_size, "tags":constants.MCP_GET_RULES_TAG }
+        paginated_params = { **params, "page": cur_page, "tags":constants.MCP_GET_RULES_TAG }
 
         response = wsutils.get(
             path=wsutils.build_api_url(endpoint=constants.URL_FETCH_RULES),
@@ -668,7 +672,7 @@ def fetch_rules_api(params: Dict[str, Any] = None ) -> List[SimplifiedRuleVO]:
                 
                 meta =data.get('meta',None)
                 if meta:
-                    combined_rules.append(SimplifiedRuleVO.model_validate(meta))
+                    combined_rules.append(vo.SimplifiedRuleVO.model_validate(meta))
                 
             total_pages = int(response.get("totalPage", 0))
             cur_page += 1
@@ -678,17 +682,17 @@ def fetch_rules_api(params: Dict[str, Any] = None ) -> List[SimplifiedRuleVO]:
 
     return combined_rules
 
-def create_support_ticket_api(body: Dict[str, Any] = None ) -> List[SimplifiedRuleVO]:
+def create_support_ticket_api(body: Dict[str, Any] = None ) -> Dict[str, Any]:
     headers = wsutils.create_header()
     try:
-        ticket_detials = wsutils.post(
+        ticket_details = wsutils.post(
             path=wsutils.build_api_url(endpoint=constants.URL_CREATE_TICKET),
             data=json.dumps(body),
             header=headers
         )
-        return {**ticket_detials, "status": "created", "message": "Ticket created successfully Created ", "timestamp": datetime.now().isoformat()}
+        return {**ticket_details, "status": "created", "message": "Ticket created successfully", "timestamp": datetime.now().isoformat()}
     except Exception as e:
-        return {"error": f"Failed to fetch support ticket categories: {e}"}
+        return {"error": f"Failed to create support ticket: {e}"}
     
 def get_json_preview(content: str, file_size_kb: float) -> tuple[str, str]:
     """Extract preview of JSON content. Shows all if < 1KB or only 1 record, first 3 if >= 1KB with multiple records."""
@@ -788,3 +792,110 @@ def get_parquet_preview(content: str, file_size_kb: float) -> tuple[str, str]:
         
     except Exception as e:
         return f"Error processing Parquet: {e}", "Processing failed"
+    
+def get_assessment_controls(params: Dict[str, Any] = None ) -> List[vo.AssessmentControlVO]:
+    if params is None:
+        params = {}
+
+    if not is_valid_key(params,"page_size"):
+        params["page_size"] = 100
+
+    headers = wsutils.create_header()
+    cur_page = 1
+    has_next = True
+    combined_leaf_controls = []
+
+
+    while has_next:
+        paginated_params = { **params, "page": cur_page}
+
+        response = wsutils.get(
+            path=wsutils.build_api_url(endpoint=constants.URL_PLAN_CONTROLS),
+            params=paginated_params,
+            header=headers,
+        )
+
+        if rule.is_valid_key(response, "items", array_check=True):
+            leaf_controls = response["items"]
+            if not leaf_controls:
+                return combined_leaf_controls 
+
+            for control in leaf_controls:
+                combined_leaf_controls.append(vo.AssessmentControlVO.model_validate(control))
+
+            total_pages = int(response.get("TotalPage", 0)) or 1
+            cur_page += 1
+            has_next = cur_page <= total_pages
+        else:
+            has_next = False
+
+    return combined_leaf_controls
+
+def get_assessments(params: Dict[str, Any] = None ) -> List[vo.AssessmentVO]:
+    headers = wsutils.create_header()
+    assessment_response = wsutils.get(
+        path=wsutils.build_api_url(endpoint=constants.URL_PLANS),
+        params=params,
+        header=headers,
+    )
+
+    if isinstance(assessment_response, str) or (isinstance(assessment_response, dict) and "error" in assessment_response):
+        return vo.AssessmentListVO(error="Unable to retrieve assessment details. Please try again later.")                
+    assessments = []
+    for item in assessment_response.get("items", []):
+        if "name" in item and "categoryName" in item:
+            assessments.append(vo.AssessmentVO.model_validate(item))
+    
+    return assessments
+
+
+def fetch_cc_rule_by_id(rule_id: str) -> Dict[str, Any]:
+
+    headers = wsutils.create_header()
+    try:
+        rule_response = wsutils.get(
+            path=wsutils.build_api_url(endpoint=f"{constants.URL_GET_CC_RULE_BY_ID.replace('{id}',rule_id)}"),
+            header=headers
+        )
+        return rule_response
+    except Exception as e:
+        return {"error": f"Failed to fetch the rule: {e}"}
+    
+def fetch_cc_rule_by_name(rule_name: str) -> Dict[str, Any]:
+    params={
+        "name":rule_name,
+        "page_size":10,
+        "page":1
+    }
+
+    headers = wsutils.create_header()
+    try:
+        rule_response = wsutils.get(
+            path=wsutils.build_api_url(endpoint=f"{constants.URL_GET_CC_RULE}"),
+            params=params,
+            header=headers
+        )
+        if rule.is_valid_key(rule_response, "items", array_check=True):
+            leaf_controls = rule_response["items"]
+            return leaf_controls
+        else:
+            return []
+    except Exception as e:
+        return {"error": f"Failed to fetch the rule: {e}"}
+    
+def attach_rule_to_control_api(control_id: str, body:dict) -> Dict[str, Any]:
+
+    headers = wsutils.create_header()
+    try:
+        wsutils.post(
+            path=wsutils.build_api_url(endpoint=f"{constants.URL_LINK_CC_RULE_TO_CONTROL.replace('{control_id}',control_id)}"),
+            data=json.dumps(body),
+            header=headers
+        )
+
+        logger.debug(f"debug : attached the rule to the control: {control_id}\n")
+
+        return {"success":True ,"status": "attached", "message": "Rule attached to control successfully", "timestamp": datetime.now().isoformat()}
+    
+    except Exception as e:
+        return {"error": f"Failed while associating rule with control: {e}"}

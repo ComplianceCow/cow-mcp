@@ -134,4 +134,25 @@ class SimplifiedRuleVO(BaseModel):
 class SimplifiedRuleListVO(BaseModel):
     rules: Optional[List[SimplifiedRuleVO]] = None
 
-    
+class AssessmentVO(BaseModel):
+    id: Optional[str] = ""
+    name: Optional[str] = ""
+    categoryName: Optional[str] = ""
+
+    model_config = {
+        "extra": "ignore"
+    }
+
+class AssessmentListVO:
+    assessments: Optional[List[AssessmentVO]] = None
+    error: Optional[str] = ""
+
+class AssessmentControlVO(BaseModel):
+    id: Optional[str] = ""
+    name: Optional[str] = ""
+    alias: Optional[str] = ""
+    ruleId: Optional[str] = ""
+
+    model_config = {
+        "extra": "ignore"
+    }
