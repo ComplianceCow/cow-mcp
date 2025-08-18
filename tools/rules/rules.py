@@ -3173,36 +3173,93 @@ def publish_application(rule_name: str, app_info: List[Dict]) -> Dict[str, Any]:
 def publish_rule(rule_name: str, cc_rule_name: str = None) -> Dict[str, Any]:
     """
     Publish a rule to make it available for ComplianceCow system.
-    
+
+    CRITICAL WORKFLOW RULES:
+    - MUST FOLLOW THESE STEPS EXACTLY
+    - DO NOT ASSUME OR SKIP ANY STEPS
+    - APPLICATIONS FIRST, THEN RULE
+    - WAIT FOR USER AT EACH STEP
+    - NO SHORTCUTS OR BYPASSING ALLOWED
+
+    RULE PUBLISHING HANDLING:
+
     WHEN TO USE:
     - After successful rule creation
     - User wants to make rule available for others
     - Rule has been tested and validated
-    
+
     WORKFLOW (step-by-step with user confirmation):
+
+    1. Fetch applications and check status
+    - Call fetch_applications() to get available applications
+    - Extract appTypes from ALL tasks in rule spec.tasks[].appTags.appType
+    - Match ALL task appTypes with applications app_type to get application_class_name
+    - Call check_applications_publish_status() for ALL matched applications
+
+    2. Present consolidated applications with meaningful format
+    Applications for your rule:
+    [1] App Name | Type: xyz | Status: Published | Action: Republish
+    [2] App Name | Type: abc | Status: Not Published | Action: Publish
     
-    1. Fetch applications → Show published/unpublished status → Ask to (re)publish
-    2. Extract appTypes from rule → Show to user → Get confirmation
-    3. Match rule appTypes with applications → Show matches → Get confirmation
-    4. Check app publication status → Ask to publish/republish → Get confirmation
-    5. Publish applications if user agrees → Show results → Get confirmation
-    6. Check rule publication status with check_rule_publish_status():
-       - If valid=true (published): "Rule is already published. Options:"
-         * "Republish with same name" → Get confirmation → Proceed with publishing
-         * "Publish with another name" → Collect new name → Check availability with check_rule_publish_status(new_name)
-           - If new name exists: "Name already exists. Choose different name"
-           - If new name available: Proceed with publishing using new name
-       - If valid=false (not published): "Rule is not published. Do you want to publish it? (yes/no)"
-         * If yes: Proceed with publishing
-       → WAIT: Show publication status and get user choice/confirmation before proceeding
-    7. Execute publish → Show final results
+    Select applications to publish: ___
+    - MANDATORY: WAIT for user selection before proceeding to next step
+    - DO NOT CONTINUE without explicit user input
+    - BLOCK execution until user provides selection
+    - STOP HERE: Cannot proceed to step 3 without user response
+    - HALT WORKFLOW: Wait for user to select application numbers
+    - NEVER SKIP THIS STEP: User must select applications first
+    - ALWAYS ASK FOR SELECTION EVEN IF ALL APPLICATIONS ARE PUBLISHED
+
+    3. Publish selected applications (BLOCKED until step 2 complete)
+    - ENTRY REQUIREMENT: User selection from step 2 must be provided
+    - PREREQUISITE CHECK: Verify user provided application numbers
+    - CANNOT EXECUTE: Without completing step 2 user selection
+    - Get user selection numbers
+    - Call publish_application() for selected applications only
+    - Inform user whether successfully published or not
+    - CHECKPOINT: All applications must be published before rule steps
+
+    4. Check rule publication status (APPLICATIONS MUST BE COMPLETE FIRST)
+    - GATE KEEPER: Cannot proceed without application publishing completion
+    - MANDATORY PREREQUISITE: All application steps finished
+    - BLOCKED ACCESS: No rule operations until applications handled
+    - Call check_rule_publish_status()
+    - Check response valid field:
+        - True = Already published
+        - False = Not published
+
+    5. Handle rule publishing based on status
+    If valid=False (not published):
+    - Show: "Rule is not published. Do you want to publish it? (yes/no)"
+    - If yes: Proceed with publishing using current name
     
-    CONFIRMATION RULE:
-    - STOP after each step
-    - Ask: "Proceed to next step? (yes/no)"
-    - Continue ONLY after explicit "yes"
-    - Handle "no" responses and address concerns
-    
+    If valid=True (already published):
+    - Show: "Rule is already published. Choose option:"
+        - [1] Republish with same name
+        - [2] Publish with another name
+    - Get user choice
+
+    6. Handle alternative name logic
+    If "another name" chosen:
+    1. Ask: "Enter new rule name: ___"
+    2. Call check_rule_publish_status(new_name)
+    3. If name exists: "Name already exists. Choose option:"
+        - [1] Use same name (republish)
+        - [2] Enter another name
+    4. If name available: Proceed with new name
+    5. Keep checking until user chooses available name or decides to republish existing
+
+    7. Final publication
+    - Call publish_rule() with confirmed name
+    - Inform user: "Published successfully" or "Publication failed"
+
+    EXECUTION CONTROL MECHANISMS:
+    - STEP GATE: Each step requires completion before next
+    - USER GATE: Each step requires user input/confirmation
+    - EXECUTION BLOCKER: No tool calls without user response
+    - WORKFLOW ENFORCER: Steps cannot be skipped or assumed
+    - SEQUENTIAL LOCK: Must complete in exact order
+
     Args:
         rule_name: Name of the rule to publish
         cc_rule_name: Optional alternative name for publishing
