@@ -5,7 +5,7 @@ import base64
 headers = {"X-CALLER": "mcp_server-user_intent"}
 cid = os.environ.get('CCOW_CLIENT_ID', "")
 cs = os.environ.get('CCOW_CLIENT_SECRET', "")
-t = os.environ.get('CCOW_TOKEN', "bd4054d5-e1a9-4c7a-8e19-e3357db13391")
+t = os.environ.get('CCOW_TOKEN', "710ffde6-43ac-4ac0-b5ce-d4f606e5e45f")
 if cid == "" or cs == "":
     headers = {"Authorization": t}
 else:
