@@ -3245,17 +3245,23 @@ def publish_rule(rule_name: str, cc_rule_name: str = None) -> Dict[str, Any]:
 
     6. Handle alternative name logic
     If "another name" chosen:
-    1. Ask: "Enter new rule name: ___"
-    2. Call check_rule_publish_status(new_name)
-    3. If name exists: "Name already exists. Choose option:"
-        - [1] Use same name (republish)
-        - [2] Enter another name
-    4. If name available: Proceed with new name
-    5. Keep checking until user chooses available name or decides to republish existing
+        1. Ask: "Enter new rule name: ___"
+        2. Call check_rule_publish_status(new_name)
+        3. If name exists: "Name already exists. Choose option:"
+            - [1] Use same name (republish)
+            - [2] Enter another name
+        4. If name available: Proceed with new name
+        5. Keep checking until user chooses available name or decides to republish existing
 
     7. Final publication
     - Call publish_rule() with confirmed name
     - Inform user: "Published successfully" or "Publication failed"
+
+    8. Rule Association (optional):
+    - Ask user: "Do you want to attach this rule to ComplianceCow control? (yes/no)"
+    - If yes: Call attach_rule_to_control() to associate the rule
+    - If no: End workflow
+    
 
     EXECUTION CONTROL MECHANISMS:
     - STEP GATE: Each step requires completion before next
