@@ -6,12 +6,12 @@ import json
 from datetime import datetime
 from typing import Any, Dict, List, Optional, Tuple, get_type_hints
 
+import mcptypes.rule_type as vo
 from constants import constants
 from mcpconfig.config import mcp
 from mcptypes import exception
 from mcptypes.rule_type import TaskVO
 from utils import rule, wsutils
-import mcptypes.rule_type as vo
 from utils.debug import logger
 
 # Phase 1: Lightweight task summary resource
@@ -290,30 +290,86 @@ def get_template_guidance(task_name: str, input_name: str) -> Dict[str, Any]:
     - Provides decoded template content and structure explanation
     - Returns required fields, format-specific tips, and validation rules
 
-    STEP 2 - TEMPLATE PRESENTATION TO USER:
+    STEP 2 - AUTOMATIC DOCUMENTATION ANALYSIS (MANDATORY):
+    - BEFORE showing template to user, analyze if template requires external documentation
+    - IDENTIFY configuration elements that reference:
+      * API endpoints, schemas, or data structures
+      * System-specific configurations or settings
+      * Integration patterns or authentication methods
+      * Standard formats or protocols
+    - PERFORM web search for relevant documentation when template contains:
+      * API references (search: "{system_name} API documentation")
+      * Configuration schemas (search: "{system_name} configuration schema")
+      * Integration guides (search: "{system_name} integration setup")
+      * Authentication patterns (search: "{system_name} authentication configuration")
+    - EXTRACT relevant information from documentation to prefill template
+    - POPULATE template with realistic, documentation-based values
+    - SHOW prefilled template to user with source citations
+
+    PREFILLING PROCESS:
+    1. Analyze template structure for external dependencies
+    2. If dependencies found: Search for official documentation
+    3. Extract relevant configuration patterns from documentation
+    4. Prefill template with realistic values based on documentation
+    5. Cite documentation sources used for prefilling
+    6. Present prefilled template to user for review and modification
+    7. User can accept prefilled values or provide their own modifications
+
+    DOCUMENTATION SEARCH STRATEGY:
+    - Prioritize official documentation (docs.{system}.com, developer.{system}.com)
+    - Use API reference guides for endpoint and schema information
+    - Search for configuration examples and best practices
+    - Look for integration tutorials and setup guides
+    - Verify information currency (prefer recent documentation)
+
+    SEARCH QUERY PATTERNS:
+    - API Documentation: "{system_name} API reference", "{system_name} REST API docs"
+    - Configuration: "{system_name} configuration guide", "{system_name} setup tutorial" 
+    - Authentication: "{system_name} authentication", "{system_name} API credentials"
+    - Integration: "{system_name} integration guide", "{system_name} webhook setup"
+    - Schema: "{system_name} data schema", "{system_name} API response format"
+
+    STEP 3 - ENHANCED TEMPLATE PRESENTATION TO USER:
     Show the template with this EXACT format:
     "Now configuring: [X of Y inputs]
 
     Task: {task_name}
     Input: {input_name} - {description}
 
-    Here's the template structure:
+    📚 Documentation Analysis: Found configuration guidance from [source links]
 
-    [Show decoded_template]
+    Here's the prefilled template based on documentation:
 
-    This {format} file requires:
-    - Field 1: [description]
-    - Field 2: [description]
+    [Show prefilled template with realistic values]
 
-    Please provide your actual configuration following this template."
+    This {format} file has been prefilled with values from:
+    - Source 1: [citation]
+    - Source 2: [citation]
 
-    STEP 3 - COLLECT USER CONTENT:
-    - Wait for the user to provide their actual content
+    You can:
+    - Accept these prefilled values (type 'accept')
+    - Modify specific sections (provide your modifications)
+    - Replace entirely (provide your complete configuration)
+
+    Please review and confirm or modify the prefilled configuration:"
+
+    STEP 4 - FALLBACK TO ORIGINAL TEMPLATE:
+    If no documentation found or prefilling fails:
+    - Show original empty template with standard format
+    - Include note: "No documentation found for prefilling. Please provide your configuration."
+    - Continue with existing workflow
+
+    STEP 5 - COLLECT USER CONTENT:
+    - Wait for the user to provide their response (accept/modify/replace)
+    - Handle "accept" by using prefilled content
+    - Handle modifications by merging with prefilled baseline
+    - Handle complete replacement with user content
     - Do NOT proceed until the user provides content
-    - NEVER use template content as default values
+    - NEVER use template content as default values without documentation analysis
 
-    STEP 4 - PROCESS TEMPLATE INPUT:
+    STEP 6 - PROCESS TEMPLATE INPUT:
     - Call collect_template_input(task_name, input_name, user_content)
+    - Include documentation source metadata
     - Validates content format, checks required fields, uploads file
     - Returns file URL for use in rule structure
 
@@ -328,26 +384,29 @@ def get_template_guidance(task_name: str, input_name: str) -> Dict[str, Any]:
     - Required field presence checking
     - Data type validation where applicable
     - Template structure compliance
+    - Documentation standard compliance (when applicable)
 
     CRITICAL TEMPLATE RULES:
     - ALWAYS call get_template_guidance() for inputs with templates
-    - ALWAYS show the decoded template to the user with exact presentation format
-    - ALWAYS wait for the user to provide actual content
+    - ALWAYS analyze documentation before showing template to user
+    - ALWAYS show the prefilled template (or original if no docs found) with exact presentation format
+    - ALWAYS wait for the user to provide response (accept/modify/replace)
     - ALWAYS call collect_template_input() to process user content
-    - NEVER use template content directly - always use the user's actual content
+    - NEVER use template content directly - always use documentation-enhanced or user-provided content
     - ALWAYS use returned file URLs in rule structure
 
     PROGRESS TRACKING:
     - Show "Now configuring: [X of Y inputs]" for user progress
     - Include clear task and input identification
     - Provide format-specific guidance and tips
+    - Include documentation analysis results and source citations
 
     Args:
         task_name: Name of the task
         input_name: Name of the input that has a template
 
     Returns:
-        Dict containing template content and guidance
+        Dict containing template content, documentation analysis, prefilled values, and guidance
     """
 
     try:
@@ -398,6 +457,35 @@ def collect_template_input(task_name: str, input_name: str, user_content: str) -
     - MANDATORY: Gets final confirmation for EVERY input before proceeding
     - CRITICAL: Only processes user-provided content, never use default templates
 
+    DOCUMENTATION-ENHANCED INPUT PROCESSING:
+    - Receives prefilled template content from get_template_guidance()
+    - Validates user modifications against documentation-based prefills
+    - Handles three input scenarios:
+      * User accepts prefilled values: "accept"
+      * User provides modifications: partial or complete replacement
+      * User provides entirely new content: full replacement
+    - MAINTAINS documentation source tracking for audit trails
+    - VALIDATES user modifications against known patterns from documentation
+    - PROVIDES helpful suggestions when user content differs from documentation standards
+
+    USER INPUT HANDLING WITH PREFILLS:
+    - "accept": Use the prefilled content from documentation analysis
+    - Partial modifications: Merge user changes with prefilled baseline
+    - Complete replacement: Use user content entirely (still validate format)
+    - Empty/minimal input: Guide user back to prefilled template
+
+    ENHANCED VALIDATION WITH DOCUMENTATION CONTEXT:
+    - Compare user content against documentation-based patterns
+    - Flag potential issues with API endpoints, schema mismatches, or configuration errors
+    - Suggest corrections based on official documentation standards
+    - Provide warnings for deprecated or non-standard configurations
+
+    DOCUMENTATION AUDIT TRAIL:
+    - Track which documentation sources informed the prefilled values
+    - Include source citations in file metadata for future reference
+    - Log any deviations from documentation standards
+    - Maintain prefill source information for troubleshooting
+
     JSON ARRAY HANDLING:
     - Properly validates JSON arrays: [{"key": "value"}, {"key": "value"}]
     - Validates JSON objects: {"key": "value", "nested": {"key": "value"}}
@@ -410,27 +498,30 @@ def collect_template_input(task_name: str, input_name: str, user_content: str) -
     - YAML: Must have correct indentation and structure
     - XML: Must be well-formed XML with proper tags
     - Required fields: All template fields must be present in user content
+    - Documentation compliance: Validate against documented patterns when available
 
     FINAL CONFIRMATION WORKFLOW (MANDATORY):
-    1. After user provides template content
+    1. After user provides template content (accept/modify/replace)
     2. Validate content format and structure
-    3. Show preview of content to user
-    4. Ask: "You provided this [format] content: [preview]. Is this correct? (yes/no)"
-    5. If 'yes': Upload file (if FILE type) or store in memory
-    6. If 'no': Allow user to re-enter content
-    7. NEVER proceed without final confirmation
+    3. Check against documentation standards if available
+    4. Show preview of content to user with documentation compliance notes
+    5. Ask: "You provided this [format] content: [preview]. Documentation compliance: [status]. Is this correct? (yes/no)"
+    6. If 'yes': Upload file (if FILE type) or store in memory
+    7. If 'no': Allow user to re-enter content
+    8. NEVER proceed without final confirmation
 
     FILE NAMING CONVENTION:
     - Format: {task_name}_{input_name}.{extension}
     - Extensions: .json, .toml, .yaml, .xml, .txt based on format
 
     WORKFLOW INTEGRATION:
-    1. Called after get_template_guidance() shows template to user
-    2. User provides their actual configuration content
-    3. This tool validates content (including JSON arrays)
-    4. Shows content preview and asks for confirmation
-    5. Only after confirmation: uploads file or stores in memory
-    6. Returns file URL or memory reference for rule structure
+    1. Called after get_template_guidance() shows prefilled template to user
+    2. User provides their response (accept/modify/replace)
+    3. This tool processes user choice and validates content (including JSON arrays)
+    4. Shows content preview with documentation compliance status
+    5. Gets final confirmation from user
+    6. Only after confirmation: uploads file or stores in memory
+    7. Returns file URL or memory reference with documentation metadata for rule structure
 
     CRITICAL RULES:
     - ONLY upload files for inputs with dataType = "FILE" or "HTTP_CONFIG"
@@ -438,16 +529,18 @@ def collect_template_input(task_name: str, input_name: str, user_content: str) -
     - Store non-FILE template content in memory
     - ALWAYS get final confirmation before proceeding
     - Handle JSON arrays properly: validate each element
-    - Never use template defaults - always use user-provided content
+    - Never use template defaults - always use documentation-enhanced or user-provided content
+    - Maintain documentation source tracking throughout process
 
     Args:
         task_name: Name of the task this input belongs to
         input_name: Name of the input parameter
-        user_content: Content provided by the user based on the template
+        user_content: Content provided by the user based on the template (can be "accept", modifications, or complete replacement)
 
     Returns:
-        Dict containing validation results and file URL or memory reference
+        Dict containing validation results, documentation compliance status, and file URL or memory reference
     """
+
     try:
         task = None
         tasks_resp = rule.fetch_task_api(params={
@@ -495,11 +588,38 @@ def confirm_template_input(rule_name: str, task_name: str, input_name: str, conf
     - Stores content in memory for non-FILE inputs
     - MANDATORY step before proceeding to next input
 
+    DOCUMENTATION-INFORMED CONFIRMATION:
+    - Includes documentation source metadata in file uploads
+    - Tracks whether final content uses prefilled values or user modifications
+    - Maintains audit trail of documentation sources used
+    - Provides context about any deviations from documented standards
+
+    CONFIRMATION METADATA ENHANCEMENT:
+    - Include documentation_sources: List of URLs/sources used for prefilling
+    - Include prefill_status: "accepted", "modified", or "replaced"
+    - Include validation_against_docs: Compliance with documented patterns
+    - Include deviation_notes: Any significant differences from documentation standards
+
+    FILE METADATA WITH DOCUMENTATION CONTEXT:
+    - Embed source documentation references in file metadata
+    - Include prefill analysis summary for future rule debugging
+    - Track configuration confidence level based on documentation quality
+    - Provide troubleshooting context for execution issues
+
     PROCESSING RULES:
     - FILE dataType: Upload content as file, return file URL
     - HTTP_CONFIG dataType: Upload content as file, return file URL
     - Non-FILE dataType: Store content in memory
     - Include metadata about confirmation and timestamp
+    - Include documentation analysis metadata for audit purposes
+
+    ENHANCED FILE UPLOAD WITH DOCUMENTATION METADATA:
+    When uploading files, include additional metadata:
+    - documentation_sources: URLs of sources used for prefilling
+    - prefill_analysis: Summary of documentation findings
+    - user_modification_level: "none", "minor", "major", "complete_replacement"
+    - documentation_compliance: "compliant", "partial", "non_compliant", "unknown"
+    - confidence_level: "high", "medium", "low" based on documentation quality
 
     Args:
         rule_name: Descriptive name for the rule based on the user's use case. 
@@ -510,7 +630,7 @@ def confirm_template_input(rule_name: str, task_name: str, input_name: str, conf
         confirmed_content: The content user confirmed
 
     Returns:
-        Dict containing processing results (file URL or memory reference)
+        Dict containing processing results (file URL or memory reference) with documentation metadata
     """
     try:
         task = None
@@ -819,24 +939,32 @@ def prepare_input_collection_overview(selected_tasks: List[Dict[str, str]]) -> D
     - Maintains clear mapping between task aliases and their specific inputs
     - Task aliases should be simple, meaningful step indicators (e.g., "step1", "validation", "processing")
 
+    ENHANCED DOCUMENTATION ANALYSIS PREVIEW:
+    - IDENTIFY template inputs that will require documentation analysis
+    - ESTIMATE additional time for documentation research and prefilling
+    - PREVIEW which systems/APIs will need documentation lookup
+    - INFORM user about enhanced template processing with documentation
+
     OVERVIEW REQUIREMENTS:
     1. Analyze ALL selected tasks with their aliases for input requirements
     2. Categorize inputs: templates vs parameters
-    3. Create unique identifiers for each task-alias-input combination
-    4. Count total inputs needed
-    5. Present clear overview to user
-    6. Get user confirmation before proceeding
-    7. Return structured overview for systematic collection
+    3. Identify which templates will need documentation analysis
+    4. Create unique identifiers for each task-alias-input combination
+    5. Count total inputs needed (including documentation analysis time)
+    6. Present clear overview to user including documentation enhancement info
+    7. Get user confirmation before proceeding
+    8. Return structured overview for systematic collection
 
     OVERVIEW PRESENTATION FORMAT:
     "INPUT COLLECTION OVERVIEW:
 
     I've analyzed your selected tasks. Here's what we need to configure:
 
-    TEMPLATE INPUTS (Files):
+    TEMPLATE INPUTS (Files) - Enhanced with Documentation Analysis:
     • Task: [TaskAlias] ([TaskName]) → Input: [InputName] ([Format] file)
         Unique ID: [TaskAlias.InputName]
         Description: [InputDescription]
+        📚 Documentation Analysis: [Will search for {system_name} documentation and prefill template]
 
     PARAMETER INPUTS (Values):
     • Task: [TaskAlias] ([TaskName]) → Input: [InputName] ([DataType])
@@ -844,14 +972,22 @@ def prepare_input_collection_overview(selected_tasks: List[Dict[str, str]]) -> D
         Description: [InputDescription]
         Required: [Yes/No]
 
-    SUMMARY:
+    ENHANCED PROCESSING SUMMARY:
     - Total inputs needed: X
-    - Template files: Y ([formats])
+    - Template files: Y ([formats]) - with documentation prefilling
     - Parameter values: Z
-    - Estimated time: ~[X] minutes
+    - Documentation sources to analyze: [list of systems/APIs]
+    - Estimated time: ~[X] minutes (including documentation research)
 
-    This will be collected step-by-step with progress indicators.
-    Ready to start systematic input collection?"
+    📚 DOCUMENTATION ENHANCEMENT:
+    Templates will be automatically researched and prefilled using official documentation from:
+    - API references and configuration guides
+    - Integration tutorials and best practices
+    - Authentication and setup documentation
+    - System-specific configuration patterns
+
+    This will be collected step-by-step with progress indicators and documentation analysis.
+    Ready to start enhanced input collection with documentation prefilling?"
 
     CRITICAL WORKFLOW RULES:
     - ALWAYS call this tool first before any input collection
@@ -859,6 +995,8 @@ def prepare_input_collection_overview(selected_tasks: List[Dict[str, str]]) -> D
     - NEVER proceed without user confirmation
     - Create unique task_alias.input identifiers to avoid conflicts
     - Show clear task-alias-input relationships to user
+    - Include documentation analysis preview for templates
+    - Estimate additional time for documentation research
 
     Args:
         selected_tasks: List of dicts with 'task_name' and 'task_alias'
@@ -869,7 +1007,7 @@ def prepare_input_collection_overview(selected_tasks: List[Dict[str, str]]) -> D
                        ]
 
     Returns:
-        Dict containing structured input overview and collection plan with unique identifiers
+        Dict containing structured input overview, documentation analysis plan, and collection plan with unique identifiers
     """
 
     if not selected_tasks:
@@ -1017,27 +1155,38 @@ def verify_collected_inputs(collected_inputs: Dict[str, Any]) -> Dict[str, Any]:
     - Creates structured inputs for rule creation with unique names when needed
     - Maintains clear separation between inputs from different task instances
 
+    ENHANCED DOCUMENTATION VERIFICATION:
+    - Shows documentation sources used for template prefilling
+    - Displays documentation compliance status for each template input
+    - Indicates confidence level based on documentation quality
+    - Provides audit trail of all documentation sources referenced
+
     VERIFICATION REQUIREMENTS:
     1. Show complete summary of ALL collected inputs with unique IDs
     2. Display both template files and parameter values
     3. Show file URLs for uploaded templates
-    4. Present clear verification checklist
-    5. Get explicit user confirmation
-    6. Allow user to modify values if needed
-    7. Prepare inputs for rule structure creation with proper task alias mapping
+    4. Include documentation analysis results for templates
+    5. Present clear verification checklist with documentation status
+    6. Get explicit user confirmation
+    7. Allow user to modify values if needed
+    8. Prepare inputs for rule structure creation with proper task alias mapping
 
     VERIFICATION PRESENTATION FORMAT:
     "INPUT VERIFICATION SUMMARY:
 
     Please review all collected inputs before rule creation:
 
-    TEMPLATE INPUTS (Uploaded Files):
+    TEMPLATE INPUTS (Uploaded Files) - Enhanced with Documentation:
     ✓ Task Input: [TaskAlias.InputName]
         Task: [TaskAlias] ([TaskName]) → Input: [InputName]
         Format: [Format]
         File: [filename]
         URL: [file_url]
         Size: [file_size] bytes
+        📚 Documentation Sources: [list of source URLs]
+        📊 Prefill Status: [accepted/modified/replaced]
+        ✅ Documentation Compliance: [compliant/partial/non_compliant]
+        🎯 Confidence Level: [high/medium/low]
         Status: ✓ Validated
 
     PARAMETER INPUTS (Values):
@@ -1048,31 +1197,45 @@ def verify_collected_inputs(collected_inputs: Dict[str, Any]) -> Dict[str, Any]:
         Required: [Yes/No]
         Status: ✓ Set
 
-    VERIFICATION CHECKLIST:
+    ENHANCED VERIFICATION CHECKLIST:
     □ All required inputs collected
     □ Template files uploaded and validated
+    □ Documentation analysis completed for templates
     □ Parameter values set and confirmed
+    □ Documentation compliance verified
     □ No missing or invalid inputs
+    □ Documentation sources properly cited
     □ Ready for rule creation
+
+    📚 DOCUMENTATION SUMMARY:
+    - Templates analyzed: [count]
+    - Documentation sources used: [count]
+    - High confidence configurations: [count]
+    - Medium/Low confidence configurations: [count] (may need review)
 
     Are all these inputs correct?
     - Type 'yes' to proceed with rule creation
     - Type 'modify [TaskAlias.InputName]' to change a specific input
+    - Type 'review-docs' to see detailed documentation analysis
     - Type 'cancel' to abort rule creation"
 
     CRITICAL VERIFICATION RULES:
     - NEVER proceed to create_rule() without user verification
     - ALWAYS show complete input summary with unique identifiers
+    - ALWAYS include documentation analysis results for templates
     - ALWAYS get explicit user confirmation
     - Allow input modifications using unique IDs
     - Validate completeness before approval
     - Prepare structured inputs for rule creation with proper task mapping
+    - Include documentation metadata in verification summary
 
     Args:
-        collected_inputs: Dict containing all collected template files and parameter values with unique IDs
+        collected_inputs: Dict containing all collected template files and parameter values with unique IDs,
+                         plus documentation analysis metadata
 
     Returns:
-        Dict containing verification status, user confirmation, and structured inputs for rule creation
+        Dict containing verification status, user confirmation, documentation analysis summary, 
+        and structured inputs for rule creation
     """
 
     if not collected_inputs:
