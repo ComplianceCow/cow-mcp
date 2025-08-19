@@ -442,7 +442,7 @@ async def fetch_workflow_resource_data(resource: str) -> List[any]:
     This function retrieves available data for a specific resource type.
     
     Args:
-        resource: The resource type to fetch data for
+        resource: The resource type to fetch data for. Resource options: USER_BLOCK
         
     Returns:
         List of resource data items or error message
@@ -462,7 +462,7 @@ async def fetch_workflow_resource_data(resource: str) -> List[any]:
     except Exception as e:
         logger.error(traceback.format_exc())
         logger.error("list_user_blocks error: {}\n".format(e))
-        return "Facing internal error";
+        return "Facing internal error"
 
 @mcp.tool()
 async def create_workflow(workflow_yaml: str) -> str:
