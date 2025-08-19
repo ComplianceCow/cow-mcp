@@ -26,15 +26,37 @@ def get_tasks_summary() -> str:
     - Brief description
     - Purpose and capabilities
     - Tags for categorization
+    - Inputs/Outputs params with minimal details
     - Basic README summary
 
     Use this for initial task discovery and selection. Detailed information can be
     retrieved later using `tasks://details/{task_name}` for selected tasks only.
 
+    AUTOMATIC OUTPUT ANALYSIS BY INTENTION:
+    - MANDATORY: Analyze each task's output purpose and completion level during selection
+    - IDENTIFY output intentions that require follow-up processing:
+        * SPLITTING INTENTION: Outputs that divide data into separate categories → REQUIRE consolidation
+        * EXTRACTION INTENTION: Outputs that pull raw data without formatting → REQUIRE transformation  
+        * VALIDATION INTENTION: Outputs that check compliance without final reporting → REQUIRE analysis/reporting
+        * PROCESSING INTENTION: Outputs that transform data but don't create final deliverables → REQUIRE finalization
+
+    OUTPUT COMPLETION ASSESSMENT:
+    - EVALUATE: Does this output serve as a final deliverable for end users?
+    - ASSESS: Is this output consumable without additional processing?
+    - DETERMINE: Does this output require combination with other outputs to be meaningful?
+    - IDENTIFY: Is this output an intermediate step in a larger workflow?
+
+    WORKFLOW COMPLETION ENFORCEMENT:
+    - NEVER present task selections that end with intermediate processing outputs
+    - AUTOMATICALLY suggest tasks that fulfill incomplete intentions
+    - ENSURE every workflow produces actionable final deliverables
+    - RECOMMEND tasks that bridge gaps between current outputs and user goals
+
     Mandatory functionality:
-    - Retrieve a list of task summaries based on the user's request.
-    - If no matching task is found for the requested functionality, the system must prompt the user for confirmation.
-    - Based on the user's response, the system will either proceed accordingly or create a support ticket using the `create_support_ticket()` tool.
+    - Retrieve a list of task summaries based on the user's request
+    - Analyze task outputs and suggest additional tasks for workflow completion
+    - If no matching task is found for the requested functionality, prompt user for confirmation
+    - Based on user response, either proceed accordingly or create support ticket using create_support_ticket()
 
     """
 
@@ -56,10 +78,13 @@ def get_tasks_summary() -> str:
             readme_content = rule.decode_content(task.readmeData)
             capabilities = rule.extract_capabilities_from_readme(
                 readme_content)
+            
+            inputs = [{"name":input.name,"description":input.description} for input in task.inputs]
+            outputs = [{"name":output.name,"description":output.description} for output in task.outputs]
+
 
             # Minimal info for selection
-            task_summary = {"name": task.name, "displayName": task.displayName, "description": task.description, "purpose": rule.extract_purpose_from_description(task.description), "tags": task.tags, "capabilities": capabilities, "input_count": len(
-                task.inputs), "output_count": len(task.outputs), "has_templates": any(inp.templateFile for inp in task.inputs), "app_type": task.appTags.get("appType", ["generic"])[0] if task.appTags.get("appType") else "generic"}
+            task_summary = {"name": task.name, "displayName": task.displayName, "description": task.description, "purpose": rule.extract_purpose_from_description(task.description), "tags": task.tags, "capabilities": capabilities, "input_params":inputs, "output_params": outputs, "has_templates": any(inp.templateFile for inp in task.inputs), "app_type": task.appTags.get("appType", ["generic"])[0] if task.appTags.get("appType") else "generic"}
             tasks_summary.append(task_summary)
 
         return json.dumps({"total_tasks": len(tasks_summary), "tasks": tasks_summary, "message": f"Found {len(tasks_summary)} available tasks - use tasks://details/{{task_name}} for full details", "categories": rule.categorize_tasks_by_tags(tasks_summary)}, indent=2)
@@ -161,6 +186,24 @@ def get_task_details(task_name: str) -> Dict[str, Any]:
     - Analyze appTags to determine the application type
     - Review all metadata and configuration options
     - Use this information for accurate task matching and rule structure creation
+
+    INTENTION-BASED OUTPUT CHAINING:
+    - ANALYZE output purpose: Is this meant for direct user consumption or further processing?
+    - ASSESS completion level: Does this output fulfill the user's end goal or serve as a stepping stone?
+    - EVALUATE consolidation needs: Are multiple outputs meant to be combined for complete picture?
+    - DETERMINE transformation requirements: Does raw output need formatting for usability?
+
+    WORKFLOW GAP DETECTION:
+    - IDENTIFY outputs that represent partial solutions to user problems
+    - DETECT outputs that split information requiring reunification
+    - RECOGNIZE outputs that extract data without presenting insights
+    - FLAG outputs that validate without providing actionable summaries
+
+    COMPLETION INTENTION MATCHING:
+    - SUGGEST tasks that transform intermediate outputs into final deliverables
+    - RECOMMEND tasks that consolidate split information into unified reports
+    - PROPOSE tasks that add analysis layer to raw validation results
+    - ENSURE suggested tasks align with user's stated end goals
 
     IMPORTANT (MANDATORY BEHAVIOR):
     If the requested task is not found with the user's specification, the system MUST:
@@ -755,6 +798,18 @@ def prepare_input_collection_overview(selected_tasks: List[Dict[str, str]]) -> D
     This tool MUST be called before collecting any inputs. It analyzes all selected tasks
     and presents a complete overview of what inputs will be needed.
 
+    INTENTION-BASED WORKFLOW VALIDATION:
+    - ASSESS: Do selected tasks fulfill the user's complete intention?
+    - EVALUATE: Are there gaps between task outputs and user's stated goals?
+    - IDENTIFY: Which outputs serve intermediate purposes vs final delivery purposes?
+    - DETERMINE: What additional processing intentions are needed for completion?
+
+    COMPLETION INTENTION ANALYSIS:
+    - USER GOAL ALIGNMENT: Do final outputs match what user wants to achieve?
+    - DELIVERABLE COMPLETENESS: Can user take action based on final outputs?
+    - INFORMATION UNITY: Are split outputs properly consolidated for user consumption?
+    - ACTIONABILITY: Do outputs provide clear, usable insights rather than raw data?
+
     HANDLES DUPLICATE INPUT NAMES WITH TASK ALIASES:
     - Creates unique identifiers for each task-alias-input combination
     - Format: "{task_alias}.{input_name}" for uniqueness
@@ -904,7 +959,7 @@ def prepare_input_collection_overview(selected_tasks: List[Dict[str, str]]) -> D
                     "task_name": task_name,
                     "task_alias": task_alias,
                     "input_name": inp.name,
-                    "task_input_obj": inp
+                    # "task_input_obj": inp
                 }
 
                 if inp.templateFile or inp.dataType.upper() in ["FILE", "HTTP_CONFIG"]:
@@ -1173,6 +1228,21 @@ def create_rule(rule_structure: Dict[str, Any]) -> Dict[str, Any]:
     COMPLETE RULE CREATION PROCESS:
 
     CRITICAL: This tool should ONLY be called after complete input collection and verification workflow.
+
+    TASK SEQUENCE FINAL VALIDATION:
+    MCP INSTRUCTION: Before creating the rule, perform final sequence validation:
+    1. Review the ioMap to ensure proper data flow between tasks
+    2. Verify that intermediate outputs have consuming tasks in the sequence
+    3. Confirm that the final task in the sequence produces end-user deliverables
+    4. Check that the task sequence aligns with the user's stated use case
+    5. If sequence issues are detected, warn user and suggest modifications before rule creation
+
+    AUTOMATIC OUTPUT FINALIZATION CHECK:
+    MCP INSTRUCTION: Automatically validate that the rule structure includes:
+    - Proper data flow from intermediate outputs to processing tasks
+    - Final outputs that provide complete user deliverables (reports, action plans, summaries)
+    - No "dead-end" intermediate outputs that aren't consumed by subsequent tasks
+    - Compliance with standard patterns: Collection → Processing → Analysis → Reporting
 
     PRE-CREATION REQUIREMENTS:
     1. All inputs must be collected through systematic workflow
