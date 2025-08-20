@@ -1677,7 +1677,7 @@ def create_rule(rule_structure: Dict[str, Any]) -> Dict[str, Any]:
             "status": result.get("status", auto_status),
             "design_notes_info": design_notes_result,
             "readme_info": readme_info,
-            "tag_status": tag_status,
+            # "tag_status": tag_status,
             "next_step": determine_next_action(creation_phase, completion_analysis)
         }
         
