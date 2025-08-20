@@ -169,21 +169,35 @@ def get_template_guidance(task_name: str, input_name: str) -> Dict[str, Any]:
     - Provides decoded template content and structure explanation
     - Returns required fields, format-specific tips, and validation rules
 
-    STEP 2 - AUTOMATIC DOCUMENTATION ANALYSIS (MANDATORY):
-    - BEFORE showing template to user, analyze if template requires external documentation
-    - IDENTIFY configuration elements that reference:
-      * API endpoints, schemas, or data structures
-      * System-specific configurations or settings
-      * Integration patterns or authentication methods
-      * Standard formats or protocols
-    - PERFORM web search for relevant documentation when template contains:
-      * API references (search: "{system_name} API documentation")
-      * Configuration schemas (search: "{system_name} configuration schema")
-      * Integration guides (search: "{system_name} integration setup")
-      * Authentication patterns (search: "{system_name} authentication configuration")
-    - EXTRACT relevant information from documentation to prefill template
+    ENHANCED DOCUMENTATION SOURCING REQUIREMENTS:
+    - PRIORITIZE latest documentation versions and recent updates
+    - SUPPORT multiple documentation sources beyond traditional limits:
+        * Official documentation portals and developer sites
+        * API reference documentation and OpenAPI specs
+        * Community-maintained wikis and knowledge repositories
+        * GitHub repositories with configuration examples
+        * Video tutorials and interactive documentation
+        * Stack Overflow answers and community forums
+        * Third-party integration guides and vendor resources
+        * Blog posts and technical articles with recent timestamps
+    - VALIDATE source recency and prefer documentation with clear version/date indicators
+    - CROSS-REFERENCE multiple sources to ensure comprehensive coverage
+    - EXTRACT configuration patterns from diverse source types
     - POPULATE template with realistic, documentation-based values
     - SHOW prefilled template to user with source citations
+
+    TASK-AWARE DOCUMENTATION SEARCH:
+    - EXTRACT task purpose from task.description and user's rule context
+    - GENERATE search queries that combine system name + task functionality
+    - EXAMPLES:
+    * Task about user permissions → "{system_name} user permissions API latest"
+    * Task about security scanning → "{system_name} security scan configuration 2025"
+    * Task about data validation → "{system_name} data validation setup guide"
+    - CUSTOMIZE search terms based on:
+    * Rule purpose and description
+    * Task capabilities and intended outcomes
+    * User's specific compliance requirements
+    * Integration context and environment
 
     PREFILLING PROCESS:
     1. Analyze template structure for external dependencies
@@ -195,18 +209,32 @@ def get_template_guidance(task_name: str, input_name: str) -> Dict[str, Any]:
     7. User can accept prefilled values or provide their own modifications
 
     DOCUMENTATION SEARCH STRATEGY:
-    - Prioritize official documentation (docs.{system}.com, developer.{system}.com)
-    - Use API reference guides for endpoint and schema information
-    - Search for configuration examples and best practices
-    - Look for integration tutorials and setup guides
-    - Verify information currency (prefer recent documentation)
+    - PRIORITIZE latest documentation versions and recent updates
+    - USE version-specific search queries: "{system_name} API v2 documentation", "{system_name} latest API reference"
+    - INCLUDE date filters: "{system_name} API 2024", "{system_name} documentation 2025"
+    - PREFER official sources with version indicators: "docs.{system}.com", "developer.{system}.com"
+    - VALIDATE source recency by checking for timestamps, version numbers, or "last updated" indicators
+    - CROSS-REFERENCE multiple sources to ensure comprehensive coverage
+    - EXTRACT configuration patterns from diverse source types
+    - SUPPORT multiple documentation sources beyond just 2 options:
+        * Primary: Official vendor documentation and API references (v2, v3, latest)
+        * Secondary: Community guides, GitHub repositories, and tutorials (recent commits)
+        * Tertiary: Stack Overflow answers (recent, highly-voted), technical forums
+        * Quaternary: Video content, blogs, and alternative documentation formats (2024-2025)
 
-    SEARCH QUERY PATTERNS:
-    - API Documentation: "{system_name} API reference", "{system_name} REST API docs"
-    - Configuration: "{system_name} configuration guide", "{system_name} setup tutorial" 
-    - Authentication: "{system_name} authentication", "{system_name} API credentials"
-    - Integration: "{system_name} integration guide", "{system_name} webhook setup"
-    - Schema: "{system_name} data schema", "{system_name} API response format"
+    ENHANCED SEARCH QUERY PATTERNS:
+    - Latest API Documentation: "{system_name} API reference 2025", "{system_name} REST API docs latest"
+    - Version-Specific Configuration: "{system_name} v2 configuration guide", "{system_name} latest setup tutorial"
+    - Recent Authentication: "{system_name} authentication 2024", "{system_name} API credentials latest"
+    - Current Integration: "{system_name} integration guide latest", "{system_name} webhook setup 2025"
+    - Updated Schema: "{system_name} API schema v2", "{system_name} latest response format"
+    - Task-Specific Searches: "{system_name} {task_purpose} configuration", "{system_name} {user_use_case} setup"
+
+    RELEVANCE FILTERING:
+    - ANALYZE task description and user use case to create targeted search queries
+    - EXTRACT key terms from rule purpose and task capabilities
+    - COMBINE system name with specific functionality being configured
+    - PRIORITIZE documentation that matches the exact use case scenario
 
     STEP 3 - ENHANCED TEMPLATE PRESENTATION TO USER:
     Show the template with this EXACT format:
@@ -896,6 +924,28 @@ def prepare_input_collection_overview(selected_tasks: List[Dict[str, str]]) -> D
     After user confirms the input overview, this tool automatically creates the initial 
     rule structure with selected tasks. The rule will be saved with DRAFT status and 
     can be progressively updated as inputs are collected.
+
+    **MANDATORY WORKFLOW ENFORCEMENT - CRITICAL INSTRUCTION:**
+    - AFTER user confirms the input overview, IMMEDIATELY call create_rule() with initial structure
+    - This call is MANDATORY and CANNOT be skipped or deferred
+    - The initial rule structure MUST be created before any input collection begins
+    - BLOCK all subsequent input collection if initial rule creation fails
+    - NEVER proceed to input collection without successful initial rule creation
+    - If create_rule() fails, STOP workflow and resolve the issue before continuing
+    - The rule creation establishes the foundation for progressive updates during input collection
+
+    **ENFORCEMENT STEPS:**
+    1. Present overview to user
+    2. Get user confirmation
+    3. **IMMEDIATELY call create_rule() with initial structure - NO EXCEPTIONS**
+    4. Verify rule creation success before proceeding
+    5. Only then allow input collection to begin
+
+    **FAILURE HANDLING:**
+    - If user confirms but create_rule() fails → STOP and fix issue
+    - If user declines → End workflow, no rule creation needed
+    - If create_rule() succeeds → Proceed to input collection
+    - NEVER skip the create_rule() call after user confirmation
 
     HANDLES DUPLICATE INPUT NAMES WITH TASK ALIASES (Preserved):
     - Creates unique identifiers for each task-alias-input combination
@@ -1641,25 +1691,25 @@ def create_rule(rule_structure: Dict[str, Any]) -> Dict[str, Any]:
         
         rule_name = rule_structure["meta"]["name"]
 
-        # Add MCP tag to the rule with proper error handling
-        # try:
-        #     tag_result = add_rule_tag(rule_name)
-        #     if not tag_result.get("success", False):
-        #         tag_message = tag_result.get("message", "Unknown error occurred")
-        #         tag_status = {
-        #             "tagged": False,
-        #             "message": f"Rule created successfully but MCP tag addition failed: {tag_message}"
-        #         }
-        #     else:
-        #         tag_status = {
-        #             "tagged": True,
-        #             "message": tag_result.get("message", "MCP tag added successfully")
-        #         }
-        # except Exception as e:
-        #     tag_status = {
-        #         "tagged": False,
-        #         "message": f"Rule created successfully but MCP tag addition encountered an exception: {e}"
-        #     }
+        #Add MCP tag to the rule with proper error handling
+        try:
+            tag_result = add_rule_tag(rule_name)
+            if not tag_result.get("success", False):
+                tag_message = tag_result.get("message", "Unknown error occurred")
+                tag_status = {
+                    "tagged": False,
+                    "message": f"Rule created successfully but MCP tag addition failed: {tag_message}"
+                }
+            else:
+                tag_status = {
+                    "tagged": True,
+                    "message": tag_result.get("message", "MCP tag added successfully")
+                }
+        except Exception as e:
+            tag_status = {
+                "tagged": False,
+                "message": f"Rule created successfully but MCP tag addition encountered an exception: {e}"
+            }
 
         return {
             "success": True,
@@ -1677,7 +1727,7 @@ def create_rule(rule_structure: Dict[str, Any]) -> Dict[str, Any]:
             "status": result.get("status", auto_status),
             "design_notes_info": design_notes_result,
             "readme_info": readme_info,
-            # "tag_status": tag_status,
+            "tag_status": tag_status,
             "next_step": determine_next_action(creation_phase, completion_analysis)
         }
         
@@ -1700,8 +1750,6 @@ def add_rule_tag(rule_name: str) -> Dict[str, Any]:
     """
     try:
         headers = wsutils.create_header()
-
-        print("headers",headers)
         
         # Prepare request data for adding rule tags
         request_data = {
@@ -1709,10 +1757,6 @@ def add_rule_tag(rule_name: str) -> Dict[str, Any]:
             "tags": ["MCP"],
             "operation": "ADD"
         }
-
-        print("request_data",request_data)
-
-        print("wsutils.build_api_url(endpoint=constants.URL_UPDATE_RULE_TAGS) :",wsutils.build_api_url(endpoint=constants.URL_UPDATE_RULE_TAGS))
         
         wsutils.post(
             path=wsutils.build_api_url(endpoint=constants.URL_UPDATE_RULE_TAGS),
@@ -2649,11 +2693,14 @@ def get_rules_summary() -> Dict[str, Any]:
 
     PURPOSE:
     - To analyze the user's use case and avoid duplicate rule creation by identifying the most suitable existing rule based on its name, description, and purpose.
+    - **NEW: Check for partially developed rules in local system before allowing new rule creation**
+    - **NEW: Present resumption options if incomplete rules are found to prevent duplicate work**
 
     WHEN TO USE:
     - As the first step before initiating a new rule creation process
     - When the user wants to retrieve and review all available rules in the **catalog**
     - When verifying if a similar rule already exists that can be reused or customized
+    - **NEW: When checking for incomplete local rules that should be resumed instead of creating new ones**
 
     🚫 DO NOT USE THIS TOOL FOR:
     - Checking what rules are available in the ComplianceCow system.
@@ -2873,6 +2920,7 @@ def execute_rule(rule_name: str, from_date: str, to_date:str, rule_inputs: List[
     RULE EXECUTION WORKFLOW:
 
     PREREQUISITE STEPS:
+    0. **MANDATORY: Check rule status to ensure rule is fully developed before execution**
     1. User chooses to execute rule after creation
     2. Extract unique appTags from selected tasks → get user confirmation
     3. For each tag:
@@ -3570,6 +3618,7 @@ def publish_rule(rule_name: str, cc_rule_name: str = None) -> Dict[str, Any]:
     Publish a rule to make it available for ComplianceCow system.
 
     CRITICAL WORKFLOW RULES:
+    - **MANDATORY: Check rule status to ensure rule is fully developed before publishing**
     - MUST FOLLOW THESE STEPS EXACTLY
     - DO NOT ASSUME OR SKIP ANY STEPS
     - APPLICATIONS FIRST, THEN RULE

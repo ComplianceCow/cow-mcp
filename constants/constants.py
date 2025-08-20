@@ -1,6 +1,5 @@
-import os
 import base64
-
+import os
 
 headers = {"X-CALLER": "mcp_server-user_intent"}
 cid = os.environ.get('CCOW_CLIENT_ID', "")
@@ -83,7 +82,7 @@ URL_FETCH_EXECUTION_PROGRESS = "/pc-api/v2/rules/fetch-execution-progress"
 URL_FETCH_FILE = "/pc-api/v1/storage/fetch-file"
 URL_PUBLISH_RULE = "/pc-api/v1/rules/publish-rule"
 URL_FETCH_CC_RULES = "/pc-api/v1/rules/fetch-cc-rules"
-URL_UPDATE_RULE_TAGS ="/v5/partner/pc/rules/update-tags"
+URL_UPDATE_RULE_TAGS ="/pc-api/v2/rules/update-tags"
 
 #CC RULES
 URL_GET_CC_RULE = "/v1/rules"
