@@ -161,6 +161,8 @@ def ccow_workflow_knowledge() -> str:
             
             ## If a resource field is available in the input, use that resource to retrieve the resource data, and then use the data for the input.
 
+            ## Generate workflow YAML ensuring that inside `spec` the keys `states`, `activities`, `transitions`, and `conditions` are always present, even if empty.
+
             1) The output edge of a State node always represents an event. This means that some event (e.g., user action or time-based trigger) will occur before moving to the next node.
 
             2) A State node can only connect to either an Activity node or a Condition node or state node.
@@ -434,7 +436,8 @@ def ccow_workflow_knowledge() -> str:
             ------------------------
                 - For type textarray use string separated by comma's 
                 - Send all options if available
-                - ALL STRINGS MUST BE ENCLOSED IN DOUBLE QUOTES. This applies to all string values in the workflow YAML, including names, descriptions, labels, and any text fields.
+                - ALL STRINGS IN PROPERTY VALUE MUST BE ENCLOSED IN DOUBLE QUOTES. This applies to all string values in the workflow YAML, including names, descriptions, labels, and any text fields, exclude expr.
+                - BOOLEAN VALUES MUST BE STRING FOR ACTIVITY IN YAML.
 
             EXAMPLE
             --------------------

@@ -43,7 +43,7 @@ async def list_workflow_event_categories() -> vo.WorkflowEventCategoryListVO:
             if "type" in item and "displayable" in item:
                 eventCategories.append(vo.WorkflowEventCategoryItemVO.model_validate(item))
         
-        logger.debug("modified event categories: {}\n".format(vo.WorkflowEventCategoryListVO(eventCategories=event_categories).model_dump()))
+        logger.debug("modified event categories: {}\n".format(vo.WorkflowEventCategoryListVO(eventCategories=eventCategories).model_dump()))
 
         return vo.WorkflowEventCategoryListVO(eventCategories=eventCategories)
     except Exception as e:
@@ -107,7 +107,7 @@ async def list_workflow_activity_types() -> List[str]:
         List of available activity types
     """
     try:
-        return ['Pre-build Function', 'Pre-build Rule', 'Pre-build Task']
+        return ['Pre-build Function', 'Pre-build Rule', 'Pre-build Task', 'Existing Workflow']
     except Exception as e:
         logger.error(traceback.format_exc())
         logger.error("list_workflow_activity_types error: {}\n".format(e))
@@ -442,7 +442,7 @@ async def fetch_workflow_resource_data(resource: str) -> List[any]:
     This function retrieves available data for a specific resource type.
     
     Args:
-        resource: The resource type to fetch data for
+        resource: The resource type to fetch data for. Resource options: USER_BLOCK
         
     Returns:
         List of resource data items or error message
@@ -462,7 +462,7 @@ async def fetch_workflow_resource_data(resource: str) -> List[any]:
     except Exception as e:
         logger.error(traceback.format_exc())
         logger.error("list_user_blocks error: {}\n".format(e))
-        return "Facing internal error";
+        return "Facing internal error"
 
 @mcp.tool()
 async def create_workflow(workflow_yaml: str) -> str:
