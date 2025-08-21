@@ -898,7 +898,7 @@ def prepare_input_collection_overview(selected_tasks: List[Dict[str, str]]) -> D
     **ENFORCEMENT STEPS:**
     1. Present overview to user
     2. Get user confirmation
-    3. **IMMEDIATELY call create_rule() with initial structure - NO EXCEPTIONS**
+    3. **IMMEDIATELY call create_rule() with initial structure that MUST INCLUDE inputs and inputsMeta__ sections - NO EXCEPTIONS**
     4. Verify rule creation success before proceeding
     5. Only then allow input collection to begin
 
@@ -1073,10 +1073,81 @@ def prepare_input_collection_overview(selected_tasks: List[Dict[str, str]]) -> D
                     input_analysis["estimated_minutes"] += 0.5
 
         input_analysis["total_count"] = input_analysis["template_count"] + input_analysis["parameter_count"]
+        
+        # Generate initial inputs, inputsMeta__ for rule creation
+        initial_inputs = {}
+        initial_inputs_meta = []
+        
+        # Track duplicate input names to handle conflicts
+        input_name_counts = {}
+
+        task_to_inputs_map = {}  # Maps task_alias to list of input names
+
+        # Process only required inputs from template_inputs and parameter_inputs
+        all_required_inputs = input_analysis["template_inputs"] + input_analysis["parameter_inputs"]
+        
+        for input_info in all_required_inputs:
+            input_name = input_info["input_name"]
+            task_alias = input_info["task_alias"]
+            unique_input_id = input_info["unique_input_id"]
+            
+            # Get the task input object from unique_input_map
+            task_input_obj = input_analysis["unique_input_map"][unique_input_id]["task_input_obj"]
+            
+            # Handle duplicate input names by creating unique names
+            if input_name in input_name_counts:
+                input_name_counts[input_name] += 1
+                unique_name = f"{task_alias}_{input_name}"
+            else:
+                input_name_counts[input_name] = 1
+                # Check if this input name appears in other required inputs
+                duplicate_count = sum(1 for other_input in all_required_inputs 
+                                    if other_input["input_name"] == input_name and other_input["required"])
+                if duplicate_count > 1:
+                    unique_name = f"{task_alias}_{input_name}"
+                else:
+                    unique_name = input_name
+            
+            # Set initial value based on dataType
+            data_type = task_input_obj.dataType.upper()
+            if data_type in ["FILE", "HTTP_CONFIG"]:
+                initial_value = ""  # Empty string for file inputs
+            elif data_type == "BOOLEAN":
+                initial_value = False  # Default boolean value
+            elif data_type in ["INT", "INTEGER"]:
+                initial_value = 0  # Default integer value
+            elif data_type == "FLOAT":
+                initial_value = 0.0  # Default float value
+            elif data_type in ["STRING", "TEXT"]:
+                initial_value = ""  # Empty string for text inputs
+            elif data_type in ["DATE", "DATETIME"]:
+                initial_value = ""  # Empty string for date inputs
+            else:
+                initial_value = ""  # Default to empty string for unknown types
+            
+            # Add to inputs with dataType-appropriate initial value
+            initial_inputs[unique_name] = initial_value
+            
+            # Add to inputsMeta__ with complete metadata
+            input_meta = {
+                "name": unique_name,
+                "dataType": task_input_obj.dataType,
+                "defaultValue": initial_value,  # Same as inputs value
+                "showField": True,
+                "required": task_input_obj.required,
+                "allowedValues": [],
+                "repeated": False
+            }
+            
+            # Add format if it's available
+            if hasattr(task_input_obj, 'format') and task_input_obj.format:
+                input_meta["format"] = task_input_obj.format
+            
+            initial_inputs_meta.append(input_meta)
 
         # Generate overview presentation (preserved)
         overview_text = rule.generate_input_overview_presentation_with_unique_ids(input_analysis)
-
+        
         return {
             "success": True,
             "input_analysis": input_analysis,
@@ -1091,6 +1162,8 @@ def prepare_input_collection_overview(selected_tasks: List[Dict[str, str]]) -> D
             },
             "rule_creation_ready": True,  # NEW: Indicates ready for initial rule creation
             "selected_tasks": selected_tasks,  # NEW: Store for rule creation
+            "initial_inputs": initial_inputs,  # NEW: Store for rule creation
+            "initial_inputs_meta": initial_inputs_meta,  # NEW: Store for rule creation
             "message": "Input overview prepared with task aliases. Present to user and get confirmation before proceeding.",
             "next_action": "Show overview_presentation to user and wait for confirmation, then create initial rule"
         }
@@ -1605,20 +1678,22 @@ def create_rule(rule_structure: Dict[str, Any]) -> Dict[str, Any]:
         # Completion analysis
         completion_analysis = {
             "has_tasks": len(tasks) > 0,
-            "has_inputs": len(inputs) > 0, 
+            "has_inputs": len(inputs) > 0 and any(value != "" and value is not None for value in inputs.values()),  # Check for actual values
             "has_inputs_meta": len(inputs_meta) > 0,
             "has_io_mapping": len(io_map) > 0,
             "has_mandatory_outputs": has_mandatory_outputs,
             "tasks_count": len(tasks),
-            "inputs_collected": len(inputs),
+            "inputs_collected": sum(1 for value in inputs.values() if value != "" and value is not None),  # Count non-empty values
             "inputs_meta_count": len(inputs_meta),
             "io_mappings_count": len(io_map),
-            "inputs_match_metadata": len(inputs) == len(inputs_meta)
+            "inputs_match_metadata": len(inputs) == len(inputs_meta),
+            "total_required_inputs": len(inputs),  # Total inputs that need values
+            "inputs_completion_percentage": (sum(1 for value in inputs.values() if value != "" and value is not None) / max(len(inputs), 1)) * 100 if inputs else 0
         }
         
-        # Automatic status determination with detailed logic
+        # Enhanced automatic status determination
         if (completion_analysis["has_io_mapping"] and 
-            completion_analysis["has_inputs"] and 
+            completion_analysis["inputs_collected"] == completion_analysis["total_required_inputs"] and  # All inputs have values
             completion_analysis["has_tasks"] and
             completion_analysis["has_mandatory_outputs"] and
             completion_analysis["inputs_match_metadata"]):
@@ -1626,7 +1701,7 @@ def create_rule(rule_structure: Dict[str, Any]) -> Dict[str, Any]:
             creation_phase = "completed"
             progress_percentage = 100
             
-        elif (completion_analysis["has_inputs"] and 
+        elif (completion_analysis["inputs_collected"] == completion_analysis["total_required_inputs"] and  # All inputs collected
               completion_analysis["has_tasks"] and
               completion_analysis["has_mandatory_outputs"] and
               completion_analysis["inputs_match_metadata"]):
@@ -1635,12 +1710,11 @@ def create_rule(rule_structure: Dict[str, Any]) -> Dict[str, Any]:
             progress_percentage = 85
             
         elif completion_analysis["has_tasks"]:
-            if completion_analysis["has_inputs"]:
+            if completion_analysis["inputs_collected"] > 0:  # Some inputs have values
                 auto_status = "DRAFT"
                 creation_phase = "collecting_inputs"
-                # Calculate progress based on inputs collected (25% base + 60% for inputs)
-                input_progress = (completion_analysis["inputs_collected"] / max(completion_analysis["tasks_count"] * 2, 1)) * 60
-                progress_percentage = min(25 + int(input_progress), 85)
+                # Calculate progress: 25% base + (input completion percentage * 0.6)
+                progress_percentage = min(25 + int(completion_analysis["inputs_completion_percentage"] * 0.6), 85)
             else:
                 auto_status = "DRAFT"
                 creation_phase = "tasks_selected"
@@ -4115,12 +4189,12 @@ def check_rule_status(rule_name: str) -> Dict[str, Any]:
         # Real-time completion analysis based on actual content
         completion_analysis = {
             "has_tasks": len(tasks) > 0,
-            "has_inputs": len(inputs) > 0, 
+            "has_inputs": len(inputs) > 0 and any(value != "" and value is not None and value != 0 and value != False for value in inputs.values()),  # Check for actual non-default values
             "has_inputs_meta": len(inputs_meta) > 0,
             "has_io_mapping": len(io_map) > 0,
             "has_mandatory_outputs": has_mandatory_outputs,
             "tasks_count": len(tasks),
-            "inputs_collected": len(inputs),
+            "inputs_collected": sum(1 for value in inputs.values() if value != "" and value is not None and value != 0 and value != False),  # Count non-empty, non-default values
             "inputs_meta_count": len(inputs_meta),
             "io_mappings_count": len(io_map),
             "inputs_match_metadata": len(inputs) == len(inputs_meta),
@@ -4156,6 +4230,11 @@ def check_rule_status(rule_name: str) -> Dict[str, Any]:
                 estimated_total_inputs = completion_analysis["tasks_count"] * 2  # Estimate 2 inputs per task
                 input_progress = (completion_analysis["inputs_collected"] / max(estimated_total_inputs, 1)) * 60
                 progress_percentage = min(25 + int(input_progress), 85)
+            elif completion_analysis["has_inputs_meta"]:
+                # Tasks defined, inputs metadata exists but no values collected yet - SHOULD BE COLLECTING_INPUTS
+                inferred_status = "DRAFT"
+                inferred_phase = "collecting_inputs"  # CHANGED: was "tasks_selected"
+                progress_percentage = 30  # Slightly higher since metadata is prepared
             else:
                 # Tasks defined but no inputs yet
                 inferred_status = "DRAFT"
