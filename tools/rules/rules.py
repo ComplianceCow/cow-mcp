@@ -169,27 +169,9 @@ def get_template_guidance(task_name: str, input_name: str) -> Dict[str, Any]:
     - Provides decoded template content and structure explanation
     - Returns required fields, format-specific tips, and validation rules
 
-    DOCUMENTATION SEARCH REQUIREMENTS:
-    - Prioritize latest documentation versions and recent updates
-    - Search official documentation, API references, and community guides
-    - Use version-specific queries with date filters for current information
-    - Extract configuration patterns from documentation sources
-    - Prefill template with realistic, documentation-based values
-
-    SEARCH STRATEGY:
-    - Generate task-aware queries combining system name + functionality
-    - Use recent date filters (2024-2025) for current documentation
-    - Prefer official sources with version indicators
-    - Cross-reference multiple sources for comprehensive coverage
-
     PREFILLING PROCESS:
     1. Analyze template structure for external dependencies
-    2. If dependencies found: Search for official documentation
-    3. Extract relevant configuration patterns from documentation
-    4. Prefill template with realistic values based on documentation
-    5. Cite documentation sources used for prefilling
-    6. Present prefilled template to user for review and modification
-    7. User can accept prefilled values or provide their own modifications
+    2. Prefill template with realistic values based on the instructions
 
     RELEVANCE FILTERING:
     - ANALYZE task description and user use case to create targeted search queries
@@ -203,16 +185,6 @@ def get_template_guidance(task_name: str, input_name: str) -> Dict[str, Any]:
 
     Task: {task_name}
     Input: {input_name} - {description}
-
-    📚 Documentation Analysis: Found configuration guidance from [source links]
-
-    Here's the prefilled template based on documentation:
-
-    [Show prefilled template with realistic values]
-
-    This {format} file has been prefilled with values from:
-    - Source 1: [citation]
-    - Source 2: [citation]
 
     You can:
     - Accept these prefilled values (type 'accept')
