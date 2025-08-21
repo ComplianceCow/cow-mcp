@@ -169,35 +169,18 @@ def get_template_guidance(task_name: str, input_name: str) -> Dict[str, Any]:
     - Provides decoded template content and structure explanation
     - Returns required fields, format-specific tips, and validation rules
 
-    ENHANCED DOCUMENTATION SOURCING REQUIREMENTS:
-    - PRIORITIZE latest documentation versions and recent updates
-    - SUPPORT multiple documentation sources beyond traditional limits:
-        * Official documentation portals and developer sites
-        * API reference documentation and OpenAPI specs
-        * Community-maintained wikis and knowledge repositories
-        * GitHub repositories with configuration examples
-        * Video tutorials and interactive documentation
-        * Stack Overflow answers and community forums
-        * Third-party integration guides and vendor resources
-        * Blog posts and technical articles with recent timestamps
-    - VALIDATE source recency and prefer documentation with clear version/date indicators
-    - CROSS-REFERENCE multiple sources to ensure comprehensive coverage
-    - EXTRACT configuration patterns from diverse source types
-    - POPULATE template with realistic, documentation-based values
-    - SHOW prefilled template to user with source citations
+    DOCUMENTATION SEARCH REQUIREMENTS:
+    - Prioritize latest documentation versions and recent updates
+    - Search official documentation, API references, and community guides
+    - Use version-specific queries with date filters for current information
+    - Extract configuration patterns from documentation sources
+    - Prefill template with realistic, documentation-based values
 
-    TASK-AWARE DOCUMENTATION SEARCH:
-    - EXTRACT task purpose from task.description and user's rule context
-    - GENERATE search queries that combine system name + task functionality
-    - EXAMPLES:
-    * Task about user permissions → "{system_name} user permissions API latest"
-    * Task about security scanning → "{system_name} security scan configuration 2025"
-    * Task about data validation → "{system_name} data validation setup guide"
-    - CUSTOMIZE search terms based on:
-    * Rule purpose and description
-    * Task capabilities and intended outcomes
-    * User's specific compliance requirements
-    * Integration context and environment
+    SEARCH STRATEGY:
+    - Generate task-aware queries combining system name + functionality
+    - Use recent date filters (2024-2025) for current documentation
+    - Prefer official sources with version indicators
+    - Cross-reference multiple sources for comprehensive coverage
 
     PREFILLING PROCESS:
     1. Analyze template structure for external dependencies
@@ -207,28 +190,6 @@ def get_template_guidance(task_name: str, input_name: str) -> Dict[str, Any]:
     5. Cite documentation sources used for prefilling
     6. Present prefilled template to user for review and modification
     7. User can accept prefilled values or provide their own modifications
-
-    DOCUMENTATION SEARCH STRATEGY:
-    - PRIORITIZE latest documentation versions and recent updates
-    - USE version-specific search queries: "{system_name} API v2 documentation", "{system_name} latest API reference"
-    - INCLUDE date filters: "{system_name} API 2024", "{system_name} documentation 2025"
-    - PREFER official sources with version indicators: "docs.{system}.com", "developer.{system}.com"
-    - VALIDATE source recency by checking for timestamps, version numbers, or "last updated" indicators
-    - CROSS-REFERENCE multiple sources to ensure comprehensive coverage
-    - EXTRACT configuration patterns from diverse source types
-    - SUPPORT multiple documentation sources beyond just 2 options:
-        * Primary: Official vendor documentation and API references (v2, v3, latest)
-        * Secondary: Community guides, GitHub repositories, and tutorials (recent commits)
-        * Tertiary: Stack Overflow answers (recent, highly-voted), technical forums
-        * Quaternary: Video content, blogs, and alternative documentation formats (2024-2025)
-
-    ENHANCED SEARCH QUERY PATTERNS:
-    - Latest API Documentation: "{system_name} API reference 2025", "{system_name} REST API docs latest"
-    - Version-Specific Configuration: "{system_name} v2 configuration guide", "{system_name} latest setup tutorial"
-    - Recent Authentication: "{system_name} authentication 2024", "{system_name} API credentials latest"
-    - Current Integration: "{system_name} integration guide latest", "{system_name} webhook setup 2025"
-    - Updated Schema: "{system_name} API schema v2", "{system_name} latest response format"
-    - Task-Specific Searches: "{system_name} {task_purpose} configuration", "{system_name} {user_use_case} setup"
 
     RELEVANCE FILTERING:
     - ANALYZE task description and user use case to create targeted search queries
