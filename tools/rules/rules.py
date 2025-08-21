@@ -1498,6 +1498,7 @@ def create_rule(rule_structure: Dict[str, Any]) -> Dict[str, Any]:
                 valid_aliases.add(task["alias"])
         
         # Validate I/O mappings use correct task aliases (preserved validation)
+        io_mapping_errors = []
         for mapping in io_map:
             if "." in mapping and ":=" in mapping:
                 left_side = mapping.split(":=")[0].strip()
@@ -1520,6 +1521,49 @@ def create_rule(rule_structure: Dict[str, Any]) -> Dict[str, Any]:
                             "success": False,
                             "error": f"Unknown task alias '{alias_part}' in I/O mapping: {mapping}. Valid aliases: {list(valid_aliases)}"
                         }
+
+                # Validate right side (source) output exists in task
+                if not right_side.startswith("*."):
+                    parts = right_side.split(".")
+                    if len(parts) >= 3:  # task_alias.Output.output_name format
+                        source_task_alias = parts[0]
+                        direction = parts[1]
+                        output_name = parts[2]
+                        
+                        if direction == "Output":
+                            # Find the task with this alias
+                            source_task = None
+                            for task in tasks_section:
+                                if task.get("alias") == source_task_alias:
+                                    source_task = task
+                                    break
+                            
+                            if source_task:
+                                # Get task details to validate output exists
+                                task_name = source_task.get("name")
+                                task_details = get_task_details(task_name)
+                                
+                                if task_details.get("error"):
+                                    io_mapping_errors.append(f"Could not validate task '{task_name}': {task_details['error']}")
+                                else:
+                                    # Check if the output exists in task definition
+                                    task_outputs = task_details.get("outputs", [])
+                                    valid_output_names = [out["name"] for out in task_outputs]
+                                    
+                                    if output_name not in valid_output_names:
+                                        io_mapping_errors.append(
+                                            f"Output '{output_name}' not found in task '{task_name}'. "
+                                            f"Valid outputs: {valid_output_names}"
+                                        )  
+
+        # Return validation errors if any I/O mapping issues found
+        if io_mapping_errors:
+            return {
+                "success": False,
+                "error": "I/O mapping validation failed",
+                "validation_errors": io_mapping_errors,
+                "message": "Some I/O mappings reference outputs that don't exist in the specified tasks"
+            }    
 
         # NEW: AUTOMATIC STATUS DETECTION based on rule content
         spec = rule_structure.get("spec", {})
@@ -1735,7 +1779,7 @@ def add_rule_tag(rule_name: str) -> Dict[str, Any]:
         return {
             "success": False,
             "rule_name": rule_name,
-            "message": f"Error adding MCP tag to rule '{rule_name}': {e}"
+            "message": f"Error: {e}"
         }
     
 
