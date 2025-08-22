@@ -1,5 +1,6 @@
 from pydantic import BaseModel, Field
 from typing import List, Optional
+from enum import Enum
     
 
 class WorkflowEventCategoryItemVO(BaseModel):
@@ -78,7 +79,8 @@ class WorkflowEventVO(BaseModel):
     }
 
 class WorkflowEventListVO(BaseModel):
-    events: Optional[List[WorkflowEventVO]] = None
+    systemEvents: Optional[List[WorkflowEventVO]] = None
+    customEvents: Optional[List[WorkflowEventVO]] = None
     error: Optional[str] = ""
 
 
@@ -190,3 +192,31 @@ class WorkflowPredefinedVariableVO(BaseModel):
 class WorkflowPredefinedVariableListVO(BaseModel):
     items: Optional[List[WorkflowPredefinedVariableVO]] = None
     error: Optional[str] = ""
+
+class EventPayloadTypeEnum(str, Enum):
+    Text = "Text"
+    MultilineText = "MultilineText"
+    TextArray = "TextArray"
+    DynamicTextArray = "DynamicTextArray"
+    Number = "Number"
+    File = "File"
+    Boolean = "Boolean"
+    Json = "Json"
+
+class WorkflowCustomEventPayloadVO(BaseModel):
+    name: str
+    desc: str
+    type: EventPayloadTypeEnum
+    model_config = {
+        "extra": "ignore"
+    }
+
+class WorkflowCustomEventCreateVO(BaseModel):
+    displayable: str
+    desc: str
+    categoryId: str
+    payload: List[WorkflowCustomEventPayloadVO]
+    type: str = "CUSTOM_EVENT"
+    model_config = {
+        "extra": "ignore"
+    }
