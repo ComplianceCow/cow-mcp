@@ -1723,22 +1723,35 @@ def create_rule(rule_structure: Dict[str, Any]) -> Dict[str, Any]:
         # Completion analysis
         completion_analysis = {
             "has_tasks": len(tasks) > 0,
-            "has_inputs": len(inputs) > 0 and any(value != "" and value is not None for value in inputs.values()),  # Check for actual values
+            "has_inputs": len(inputs) > 0 and any(
+                (isinstance(value, str) and value.strip() != "" and value != "<<MINIO_FILE_PATH>>" and not value.startswith("<<")) or
+                (isinstance(value, bool)) or
+                (isinstance(value, (int, float)) and value is not None)
+                for value in inputs.values()
+            ),
             "has_inputs_meta": len(inputs_meta) > 0,
             "has_io_mapping": len(io_map) > 0,
             "has_mandatory_outputs": has_mandatory_outputs,
             "tasks_count": len(tasks),
-            "inputs_collected": sum(1 for value in inputs.values() if value != "" and value is not None),  # Count non-empty values
+            "inputs_collected": sum(1 for value in inputs.values() if (
+                (isinstance(value, str) and value.strip() != "" and value != "<<MINIO_FILE_PATH>>" and not value.startswith("<<")) or
+                (isinstance(value, bool)) or
+                (isinstance(value, (int, float)) and value is not None)
+            )),
             "inputs_meta_count": len(inputs_meta),
             "io_mappings_count": len(io_map),
             "inputs_match_metadata": len(inputs) == len(inputs_meta),
-            "total_required_inputs": len(inputs),  # Total inputs that need values
-            "inputs_completion_percentage": (sum(1 for value in inputs.values() if value != "" and value is not None) / max(len(inputs), 1)) * 100 if inputs else 0
+            "total_inputs_needed": len(inputs_meta),  # Total inputs from inputsMeta__
+            "inputs_completion_percentage": (sum(1 for value in inputs.values() if (
+                (isinstance(value, str) and value.strip() != "" and value != "<<MINIO_FILE_PATH>>" and not value.startswith("<<")) or
+                (isinstance(value, bool)) or
+                (isinstance(value, (int, float)) and value is not None)
+            )) / max(len(inputs_meta), 1)) * 100 if inputs_meta else 0
         }
         
         # Enhanced automatic status determination
         if (completion_analysis["has_io_mapping"] and 
-            completion_analysis["inputs_collected"] == completion_analysis["total_required_inputs"] and  # All inputs have values
+            completion_analysis["inputs_collected"] == completion_analysis["inputs_meta_count"] and  # All inputsMeta__ inputs collected
             completion_analysis["has_tasks"] and
             completion_analysis["has_mandatory_outputs"] and
             completion_analysis["inputs_match_metadata"]):
@@ -1746,10 +1759,10 @@ def create_rule(rule_structure: Dict[str, Any]) -> Dict[str, Any]:
             creation_phase = "completed"
             progress_percentage = 100
             
-        elif (completion_analysis["inputs_collected"] == completion_analysis["total_required_inputs"] and  # All inputs collected
-              completion_analysis["has_tasks"] and
-              completion_analysis["has_mandatory_outputs"] and
-              completion_analysis["inputs_match_metadata"]):
+        elif (completion_analysis["inputs_collected"] == completion_analysis["inputs_meta_count"] and  # All inputsMeta__ inputs collected
+            completion_analysis["has_tasks"] and
+            completion_analysis["has_mandatory_outputs"] and
+            completion_analysis["inputs_match_metadata"]):
             auto_status = "READY_FOR_CREATION"  
             creation_phase = "inputs_collected"
             progress_percentage = 85
@@ -4234,21 +4247,30 @@ def check_rule_status(rule_name: str) -> Dict[str, Any]:
         # Real-time completion analysis based on actual content
         completion_analysis = {
             "has_tasks": len(tasks) > 0,
-            "has_inputs": len(inputs) > 0 and any(value != "" and value is not None and value != 0 and value != False for value in inputs.values()),  # Check for actual non-default values
+            "has_inputs": len(inputs) > 0 and any(
+                (isinstance(value, str) and value.strip() != "" and value != "<<MINIO_FILE_PATH>>" and not value.startswith("<<")) or
+                (isinstance(value, bool)) or
+                (isinstance(value, (int, float)) and value is not None)
+                for value in inputs.values()
+            ),
             "has_inputs_meta": len(inputs_meta) > 0,
             "has_io_mapping": len(io_map) > 0,
             "has_mandatory_outputs": has_mandatory_outputs,
             "tasks_count": len(tasks),
-            "inputs_collected": sum(1 for value in inputs.values() if value != "" and value is not None and value != 0 and value != False),  # Count non-empty, non-default values
+            "inputs_collected": sum(1 for value in inputs.values() if (
+                (isinstance(value, str) and value.strip() != "" and value != "<<MINIO_FILE_PATH>>" and not value.startswith("<<")) or
+                (isinstance(value, bool)) or
+                (isinstance(value, (int, float)) and value is not None)
+            )), 
             "inputs_meta_count": len(inputs_meta),
             "io_mappings_count": len(io_map),
             "inputs_match_metadata": len(inputs) == len(inputs_meta),
             "outputs_count": len(outputs_meta)
         }
         
-        # AUTO-DETECT status and progress (identical logic to create_rule)
+        # AUTO-DETECT status and progress - FIXED LOGIC
         if (completion_analysis["has_io_mapping"] and 
-            completion_analysis["has_inputs"] and 
+            completion_analysis["inputs_collected"] == completion_analysis["inputs_meta_count"] and 
             completion_analysis["has_tasks"] and
             completion_analysis["has_mandatory_outputs"] and
             completion_analysis["inputs_match_metadata"]):
@@ -4257,28 +4279,23 @@ def check_rule_status(rule_name: str) -> Dict[str, Any]:
             inferred_phase = "completed"
             progress_percentage = 100
             
-        elif (completion_analysis["has_inputs"] and 
-              completion_analysis["has_tasks"] and
-              completion_analysis["has_mandatory_outputs"] and
-              completion_analysis["inputs_match_metadata"]):
-            # All inputs collected, ready for I/O mapping
-            inferred_status = "READY_FOR_CREATION"  
-            inferred_phase = "inputs_collected"
-            progress_percentage = 85
-            
         elif completion_analysis["has_tasks"]:
-            if completion_analysis["has_inputs"]:
-                # Tasks defined, some inputs collected
+            if completion_analysis["inputs_collected"] == completion_analysis["inputs_meta_count"]:
+                # ALL inputs collected - ready for finalization
+                inferred_status = "READY_FOR_CREATION"
+                inferred_phase = "inputs_collected" 
+                progress_percentage = 85
+            elif completion_analysis["inputs_collected"] > 0:
+                # SOME inputs collected - still collecting
                 inferred_status = "DRAFT"
                 inferred_phase = "collecting_inputs"
-                # Calculate progress based on inputs collected (25% base + 60% for inputs)
-                estimated_total_inputs = completion_analysis["tasks_count"] * 2  # Estimate 2 inputs per task
-                input_progress = (completion_analysis["inputs_collected"] / max(estimated_total_inputs, 1)) * 60
+                # Calculate actual progress based on collected vs total
+                input_progress = (completion_analysis["inputs_collected"] / max(completion_analysis["inputs_meta_count"], 1)) * 60
                 progress_percentage = min(25 + int(input_progress), 85)
             elif completion_analysis["has_inputs_meta"]:
-                # Tasks defined, inputs metadata exists but no values collected yet - SHOULD BE COLLECTING_INPUTS
+                # Tasks defined, inputs metadata exists but no values collected yet
                 inferred_status = "DRAFT"
-                inferred_phase = "collecting_inputs"  # CHANGED: was "tasks_selected"
+                inferred_phase = "collecting_inputs"
                 progress_percentage = 30  # Slightly higher since metadata is prepared
             else:
                 # Tasks defined but no inputs yet
@@ -4291,11 +4308,11 @@ def check_rule_status(rule_name: str) -> Dict[str, Any]:
             inferred_phase = "initialized"
             progress_percentage = 5
 
-        # Determine what's missing and next actions based on inferred state
+        # Determine what's missing and next actions based on inferred state - FIXED LOGIC
         missing_components = []
         if not completion_analysis["has_tasks"]:
             missing_components.append("task_selection")
-        if not completion_analysis["has_inputs"]:
+        if completion_analysis["inputs_collected"] < completion_analysis["inputs_meta_count"]:
             missing_components.append("input_collection")
         if not completion_analysis["has_io_mapping"]:
             missing_components.append("io_mapping")
@@ -4319,10 +4336,10 @@ def check_rule_status(rule_name: str) -> Dict[str, Any]:
             available_actions = ["start_input_collection", "view_input_overview"]
             
         elif inferred_phase == "collecting_inputs":
-            estimated_total = completion_analysis["tasks_count"] * 2
-            remaining = max(0, estimated_total - completion_analysis["inputs_collected"])
+            # FIXED: Use actual inputs_meta_count instead of estimation
+            remaining = max(0, completion_analysis["inputs_meta_count"] - completion_analysis["inputs_collected"])
             next_action = "continue_input_collection"
-            message = f"⏳ Rule '{rule_name}' input collection in progress: {completion_analysis['inputs_collected']} collected, ~{remaining} remaining. Continue where you left off."
+            message = f"⏳ Rule '{rule_name}' input collection in progress: {completion_analysis['inputs_collected']} collected, {remaining} remaining. Continue where you left off."
             available_actions = ["continue_collecting_inputs", "view_collected_inputs", "input_overview"]
             
         elif inferred_phase == "initialized":
@@ -4335,14 +4352,13 @@ def check_rule_status(rule_name: str) -> Dict[str, Any]:
             message = f"❓ Rule '{rule_name}' is in unknown state. Manual review may be needed."
             available_actions = ["view_rule_details", "restart_creation"]
 
-        # Estimate remaining time based on what's missing
+        # Estimate remaining time based on what's missing - FIXED LOGIC
         if inferred_status == "ACTIVE":
             estimated_time = "Complete"
         elif inferred_status == "READY_FOR_CREATION":
             estimated_time = "~5 minutes (I/O mapping and finalization)"
         elif completion_analysis["has_tasks"]:
-            estimated_total_inputs = completion_analysis["tasks_count"] * 2
-            remaining_inputs = max(0, estimated_total_inputs - completion_analysis["inputs_collected"])
+            remaining_inputs = max(0, completion_analysis["inputs_meta_count"] - completion_analysis["inputs_collected"])
             estimated_time = f"~{remaining_inputs * 2 + 5} minutes ({remaining_inputs} inputs + finalization)"
         else:
             estimated_time = "~15-20 minutes (full setup needed)"
@@ -4399,8 +4415,7 @@ def check_rule_status(rule_name: str) -> Dict[str, Any]:
         }
         
     except Exception as e:
-        return {"success": False, "error": f"Failed to check rule status: {e}"}
-    
+        return {"success": False, "error": f"Failed to check rule status: {e}"}   
 
 def create_initial_rule_from_planning(rule_name: str, purpose: str, description: str, selected_tasks: List[Dict], primary_app_type: str = None) -> Dict[str, Any]:
     """
