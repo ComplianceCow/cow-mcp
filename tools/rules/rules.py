@@ -898,7 +898,7 @@ def prepare_input_collection_overview(selected_tasks: List[Dict[str, str]]) -> D
     **ENFORCEMENT STEPS:**
     1. Present overview to user
     2. Get user confirmation
-    3. **IMMEDIATELY call create_rule() with initial structure that MUST INCLUDE inputs and inputsMeta__ sections - NO EXCEPTIONS**
+    3. **IMMEDIATELY call create_rule() with initial structure that MUST INCLUDE inputs and inputsMeta__ sections WITH ACTUAL INPUT DATA - DO NOT LEAVE inputs and inputsMeta__ SECTION EMPTY - INPUTS AND INPUTSMETA__ ARE MANDATORY CORE COMPONENTS THAT MUST CONTAIN THE REQUIRED INPUT MAPPINGS - THIS IS NON-NEGOTIABLE - NO EXCEPTIONS**
     4. Verify rule creation success before proceeding
     5. Only then allow input collection to begin
 
