@@ -13,7 +13,7 @@ from mcpconfig.config import mcp
 
 from constants import constants
 from mcptypes import workflow_tools_type as vo
-
+import yaml
 
 @mcp.tool()
 async def list_workflow_event_categories() -> vo.WorkflowEventCategoryListVO:
@@ -57,10 +57,29 @@ async def list_workflow_events() -> vo.WorkflowEventListVO:
     Retrieve available workflow events that can trigger workflows.
     
     Events are the starting points of workflows. Each event has a payload that 
-    provides data to subsequent workflow nodes.
+    provides data to subsequent workflow nodes. Events are categorized into two types:
+    
+    **System Events**: Automatically triggered by the system when specific actions occur.
+    Examples include:
+    - Assessment run completed
+    - Form submitted
+    - Scheduled time-based triggers
+    
+    **Custom Events**: Manually triggered events that can be used to:
+    - Trigger workflows from within other workflows
+    - Integrate with external systems
+    - Enable manual workflow execution
     
     Returns:
-        - events (List[WorkflowEventVO]): A list of events.
+        - systemEvents (List[WorkflowEventVO]): A list of system events that are automatically triggered.
+            - id (str)
+            - categoryId (str)
+            - desc (str)
+            - displayable (str)
+            - payload [List[WorkflowPayloadVO]]
+            - status (str)
+            - type (str)
+        - customEvents (List[WorkflowEventVO]): A list of custom events that can be manually triggered.
             - id (str)
             - categoryId (str)
             - desc (str)
@@ -80,14 +99,23 @@ async def list_workflow_events() -> vo.WorkflowEventListVO:
             logger.error(f"Failed to fetch events: {output}")
             return vo.WorkflowEventListVO(error="Failed to retrieve events")
         
-        events: List[vo.WorkflowEventVO]=[]
+        systemEvents: List[vo.WorkflowEventVO] = []
+        customEvents: List[vo.WorkflowEventVO] = []
+        
         for item in output.get("items", []):
             if "type" in item and "displayable" in item and item.get("status") == "Active":
-                events.append(vo.WorkflowEventVO.model_validate(item))
+                event = vo.WorkflowEventVO.model_validate(item)
+                
+                # Categorize events based on eventType
+                if item.get("type") == "CUSTOM_EVENT":
+                    customEvents.append(event)
+                else:
+                    systemEvents.append(event)
         
-        logger.debug("modified events: {}\n".format(vo.WorkflowEventListVO(events=events).model_dump()))
+        logger.debug("modified events - systemEvents: {}, customEvents: {}\n".format(
+            len(systemEvents), len(customEvents)))
 
-        return vo.WorkflowEventListVO(events=events)
+        return vo.WorkflowEventListVO(systemEvents=systemEvents, customEvents=customEvents)
     except Exception as e:
         logger.error(traceback.format_exc())
         logger.error("workflow events: {}\n".format(e))
@@ -216,7 +244,7 @@ async def list_workflow_rules() -> vo.WorkflowRuleListVO:
     try:
         logger.info("list_workflow_prebuild_rules: \n")
 
-        output=await utils.make_GET_API_call_to_CCow(f"{constants.URL_WORKFLOW_PREBUILD_RULES}?page_size=100&page=1")
+        output=await utils.make_GET_API_call_to_CCow(f"{constants.URL_WORKFLOW_PREBUILD_RULES}?meta_tags=MCP")
         logger.debug("workflow rules output: {}\n".format(output))
         
         if isinstance(output, str) or  "error" in output:
@@ -484,17 +512,122 @@ async def create_workflow(workflow_yaml: str) -> str:
         logger.info("Creating workflow from YAML")
         logger.debug(f"Workflow YAML: {workflow_yaml}")
 
-        output=await utils.make_API_call_to_CCow_and_get_response(constants.URL_WORKFLOW_CREATE,"POST",workflow_yaml,type="yaml")
+        workflow_name = ""
+        workflow_description = ""
+        try:
+            parsed_yaml = yaml.safe_load(workflow_yaml) if isinstance(workflow_yaml, str) else workflow_yaml
+            if isinstance(parsed_yaml, dict):
+                metadata = parsed_yaml.get("metadata")
+                if not isinstance(metadata, dict):
+                    metadata = {}
+                    parsed_yaml["metadata"] = metadata
+                metadata["tags"] = {"Channel": ["MCP_HOST"]}
+                workflow_name = metadata.get("name") or ""
+                workflow_description = metadata.get("description") or ""
+                workflow_yaml = yaml.safe_dump(parsed_yaml, sort_keys=False)
+        except Exception:
+            logger.warning("Failed to set MCP tags or extract metadata from workflow YAML; proceeding with defaults")
+
+        # Create workflow configuration first
+        output = await utils.make_API_call_to_CCow_and_get_response(constants.URL_WORKFLOW_CREATE,"POST",workflow_yaml,type="yaml")
         logger.debug("create workflow output: {}\n".format(output))
-        
-        if output and output.get("status") and output["status"].get("id"):
-            workflow_id = output["status"]["id"]
-            logger.info(f"Workflow created successfully with ID: {workflow_id}")
-            return f"Workflow created successfully with ID: {workflow_id}"
-        else:
+
+        if not (output and isinstance(output, dict) and output.get("status") and output["status"].get("id")):
             logger.error(f"Failed to create workflow: {output}")
             return f"Failed to create workflow: {output}"
-    
+
+        workflow_id = output["status"]["id"]
+
+        logger.info(f"Workflow created successfully with ID: {workflow_id}")
+
+        # Build UI URL
+        try:
+            base_host = constants.host.rstrip("/api") if hasattr(constants, "host") and isinstance(constants.host, str) else getattr(constants, "host", "")
+            ui_url = f"{base_host}/ui/workflow-config/{workflow_id}" if base_host else ""
+        except Exception:
+            ui_url = ""
+
+        logger.info(f"Workflow created URL : {ui_url}")
+        
+        # Create Workflow Specification 
+        spec_payload = {
+            "metadata": {
+                "name": workflow_name,
+                "description": workflow_description,
+                "tags":{
+                    "Channel":["MCP_HOST"]
+                }
+            },
+            "spec": {
+                "resources": [
+                    {
+                        "type": "GENERAL",
+                        "includes": [],
+                        "excludes": [],
+                    }
+                ],
+                "reviewers": {"references": []},
+                "approvers": {"references": []},
+            },
+        }
+
+        spec_resp = await utils.make_API_call_to_CCow_and_get_response(constants.URL_WORKFLOW_SPECS, "POST", spec_payload)
+        logger.debug("create workflow spec output: {}\n".format(spec_resp))
+
+        spec_id = None
+        if isinstance(spec_resp, dict) and spec_resp.get("status") and spec_resp["status"].get("id"):
+            spec_id = spec_resp["status"]["id"]
+            logger.info(f"Workflow spec created successfully with ID: {spec_id}")
+        else:
+            logger.error(f"Failed to create workflow spec: {spec_resp}")
+
+        # If spec creation failed, return summary without attempting binding
+        if not spec_id:
+            msg = f"Workflow created (ID: {workflow_id})."
+            if ui_url:
+                msg += f" UI: {ui_url}"
+            return msg
+
+        # Create Workflow Binding using the same name/description
+        binding_payload = {
+            "metadata": {
+                "name": workflow_name,
+                "description": workflow_description,
+                "tags":{
+                    "Channel":["MCP_HOST"]
+                }
+            },
+            "spec": {
+                "workflowResourceSpec": workflow_name,
+                "workflowConfiguration": "",
+                "workflowAdvancedConfig": workflow_name,
+                "reviewers": {"references": []},
+                "approvers": {"references": []},
+            },
+        }
+
+        binding_resp = await utils.make_API_call_to_CCow_and_get_response(constants.URL_WORKFLOW_BINDINGS, "POST", binding_payload)
+        logger.debug("create workflow binding output: {}\n".format(binding_resp))
+
+        binding_id = None
+        if isinstance(binding_resp, dict) and binding_resp.get("status") and binding_resp["status"].get("id"):
+            binding_id = binding_resp["status"]["id"]
+            logger.info(f"Workflow binding created successfully with ID: {binding_id}")
+        else:
+            logger.error(f"Failed to create workflow binding: {binding_resp}")
+
+        # Build final message summarizing all creations
+        if not binding_id:
+            msg = f"Workflow created (ID: {workflow_id})."
+            if ui_url:
+                msg += f" UI: {ui_url}"
+            return msg
+
+        msg = f"Workflow created (ID: {workflow_id})."
+        if ui_url:
+            msg += f" UI: {ui_url}"
+        return msg
+
     except Exception as e:
         logger.error(traceback.format_exc())
         logger.error("create_workflow: {}\n".format(e))
@@ -656,3 +789,89 @@ async def list_workflow_predefined_variables() -> vo.WorkflowPredefinedVariableL
         logger.error(traceback.format_exc())
         logger.error("workflow predefined variables: {}\n".format(e))
         return vo.WorkflowPredefinedVariableListVO(error="Facing internal error")
+
+
+@mcp.tool()
+async def create_workflow_custom_event(
+    displayable: str,
+    desc: str,
+    payload: List[vo.WorkflowCustomEventPayloadVO],
+    categoryId: str = "7",
+    eventType: str = "CUSTOM_EVENT",
+    confirm: bool = False
+) -> str:
+    """
+    Create a Workflow Catalog Custom Event.
+    Show a preview of the event configuration and ask for user confirmation before proceeding.
+    Only create the event after explicit confirmation from user (confirm=True)
+    This tool validates payload item types against allowed values and requires explicit
+    user confirmation before creating the event.
+
+    Args:
+        - displayable: Event display name
+        - desc: Event description
+        - categoryId: Event category identifier
+        - payload: List of payload items. Each item must have {name, type, desc}
+                   and type must be one of: Text, MultilineText, TextArray, DynamicTextArray,
+                   Number, File, Boolean, Json
+        - eventType: Event type. Default: "CUSTOM_EVENT"
+        - confirm: Boolean flag. If False, will show a preview for user confirmation.
+                  Only returns True after user explicitly accepts the preview.
+    Returns:
+        - Success or error message
+    """
+    try:
+        logger.info("create_workflow_custom_event: validating inputs")
+
+        sanitized_payload: List[dict] = []
+        for idx, item in enumerate(payload):
+            if not isinstance(item, vo.WorkflowCustomEventPayloadVO):
+                try:
+                    item = vo.WorkflowCustomEventPayloadVO.model_validate(item)
+                except Exception:
+                    return f"Invalid payload item at index {idx}."
+
+            sanitized_payload.append(item.model_dump())
+
+        body_model = vo.WorkflowCustomEventCreateVO(
+            displayable=displayable,
+            desc=desc,
+            categoryId=str(categoryId),
+            payload=[vo.WorkflowCustomEventPayloadVO(**item) for item in sanitized_payload],
+            type=eventType or "CUSTOM_EVENT",
+        )
+        body = body_model.model_dump()
+
+        if not confirm:
+            return json.dumps(
+                {
+                    "message": "Confirmation required before creating event",
+                    "preview": body,
+                    "next_step": "Re-run with confirm=True to create",
+                },
+                indent=2,
+            )
+
+        logger.info("create_workflow_custom_event: submitting request to API")
+        output = await utils.make_API_call_to_CCow_and_get_response(
+            constants.URL_WORKFLOW_EVENTS,
+            "POST",
+            body,
+        )
+        logger.debug("create_workflow_custom_event output: {}\n".format(output))
+
+        if isinstance(output, str) or (isinstance(output, dict) and "id" not in output):
+            logger.error(f"create_workflow_custom_event error: {output}")
+            return f"Failed to create event: {output}"
+
+        created_id = output.get("id")
+
+        if created_id:
+            return json.dumps({"id": created_id})
+
+        return "Failed to create event"
+
+    except Exception as e:
+        logger.error(traceback.format_exc())
+        logger.error("create_workflow_custom_event: {}\n".format(e))
+        return "Facing internal error"
