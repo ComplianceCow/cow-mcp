@@ -576,7 +576,7 @@ async def create_workflow(workflow_yaml: str) -> str:
             "spec": {
                 "resources": [
                     {
-                        "type": "GENERAL",
+                        "type": "GENERIC",
                         "includes": [],
                         "excludes": [],
                     }
@@ -937,4 +937,122 @@ async def create_workflow_custom_event(
     except Exception as e:
         logger.error(traceback.format_exc())
         logger.error("create_workflow_custom_event: {}\n".format(e))
+        return "Facing internal error"
+
+@mcp.tool()
+async def trigger_workflow(
+    workflowConfigId: str,
+    event: str,
+    inputs: dict | None = None,
+    confirm: bool = False
+) -> str:
+    """
+    Trigger a workflow by the given workflow config id.
+    
+    Args:
+        - workflowConfigId: The workflow config id 
+        - event: Start event name.
+        - inputs: Additional input payload for the event. IMPORTANT: Input values must be obtained from the user only - do not pass random/placeholder values. Each field requires meaningful user-provided values.
+        - confirm: If False, shows a preview of required inputs and does not execute. If True, executes.
+
+    Returns:
+        - JSON string containing execution acknowledgement or error message
+    """
+    try:
+        logger.info(f"trigger_workflow: workflowConfigId={workflowConfigId}, event={event}, inputs={inputs}, confirm={confirm}")
+
+        query = {
+            "workflow_advanced_config_id": workflowConfigId,
+            "page": 1,
+            "page_size": 1,
+        }
+        bindings_resp = await utils.make_API_call_to_CCow_and_get_response(
+            f"{constants.URL_WORKFLOW_BINDINGS}", "GET", query
+        )
+        logger.debug(f"trigger_workflow bindings_resp: {bindings_resp}")
+
+        if isinstance(bindings_resp, str) or not isinstance(bindings_resp, dict) or not bindings_resp.get("items"):
+            logger.error(f"Failed to resolve workflow binding: {bindings_resp}")
+            return "Failed to execute workflow"
+
+        item = bindings_resp["items"][0]
+        status = item.get("status", {}) if isinstance(item, dict) else {}
+        binding_id = status.get("id", "")
+
+        if not binding_id:
+            logger.error("No binding ID found in response")
+            return "Failed to execute workflow"
+
+        exec_inputs = inputs.copy() if isinstance(inputs, dict) else {}
+        if event and isinstance(event, str):
+            exec_inputs["event"] = event
+        if "event" not in exec_inputs or not isinstance(exec_inputs["event"], str) or not exec_inputs["event"].strip():
+            logger.error("Missing or invalid event in inputs")
+            return "Starting event is required"
+
+        required_fields: List[str] = []
+        try:
+            logger.info("Fetching workflow events to validate required fields")
+            events_resp = await utils.make_GET_API_call_to_CCow(constants.URL_WORKFLOW_EVENTS)
+
+            if isinstance(events_resp, dict) and events_resp.get("items"):
+                for ev in events_resp["items"]:
+                    displayable = ev.get("displayable")
+                    if isinstance(displayable, str) and displayable.strip() == exec_inputs["event"].strip():
+                        payload_list = ev.get("payload") or []
+                        for p in payload_list:
+                            name = p.get("name") if isinstance(p, dict) else None
+                            if isinstance(name, str) and name:
+                                required_fields.append(name)
+                        break
+            logger.debug(f"Required fields for event: {required_fields}")
+        except Exception as e:
+            logger.error(f"Error fetching workflow events: {e}")
+            required_fields = required_fields
+
+        missing = []
+        if required_fields:
+            for f in required_fields:
+                if f not in exec_inputs or exec_inputs.get(f) in [None, ""]:
+                    missing.append(f)
+            logger.debug(f"Missing required fields: {missing}")
+
+        preview_body = {
+            "workflowBindingId": binding_id,
+            "input": exec_inputs,
+        }
+
+        if not confirm or missing:
+            logger.info("Returning preview/validation response")
+            return json.dumps({
+                "message": "Confirmation required before executing workflow",
+                "event": exec_inputs.get("event"),
+                "requiredInputs": required_fields,
+                "provided": {k: v for k, v in exec_inputs.items() if k != "event"},
+                "missing": missing,
+                "next_step": "Provide missing inputs (if any) and re-run with confirm=True to execute"
+            })
+
+        body = {
+            "workflowBindingId": binding_id,
+            "input": exec_inputs,
+        }
+
+        logger.info(f"Executing workflow: {json.dumps(body)}")
+
+
+        exec_resp = await utils.make_API_call_to_CCow_and_get_response(
+            constants.URL_WORKFLOW_BINDINGS_EXECUTE, "POST", body
+        )
+        logger.debug(f"trigger_workflow exec_resp: {exec_resp}")
+
+        if isinstance(exec_resp, str):
+            logger.error(f"Error response from execute API: {exec_resp}")
+            return exec_resp
+
+        logger.info("Workflow triggered successfully")
+        return json.dumps(exec_resp)
+    except Exception as e:
+        logger.error(traceback.format_exc())
+        logger.error("trigger_workflow error: {}\n".format(e))
         return "Facing internal error"
