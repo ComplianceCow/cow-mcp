@@ -161,6 +161,14 @@ def formatResources (data: dict, includeChecks: bool) -> dict:
             data["items"][index]=newItem
     return data
 
+def trimWorkflowDetails (item: dict):
+    deleteKey(item,"domainId")
+    deleteKey(item,"orgId")
+    deleteKey(item,"groupId")
+    deleteKey(item,"spec")
+    if "status" in item:
+        deleteKey(item["status"],"filePathHash")
+
 def copyValue(src: dict, dest: dict, srcKey: str, destKey: str=""):
     if src is None:
         src= {}

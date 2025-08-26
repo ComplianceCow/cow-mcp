@@ -495,12 +495,27 @@ async def fetch_workflow_resource_data(resource: str) -> List[any]:
 @mcp.tool()
 async def create_workflow(workflow_yaml: str) -> str:
     """
-    Create a new workflow using YAML definition.
+    Create a new workflow using YAML definition. Always display the workflow diagram. 
+    Before creation confirm workflow name and creation with the user before executing this tool. 
+    Later use 'modify_workflow' tool to update states, activities, conditions, and transitions.
+
+    yaml struct:
     
-    This function creates a workflow from a YAML specification. The YAML should 
-    define the workflow structure including states, activities, conditions, and 
-    transitions. Always display the workflow diagram and confirm with the user 
-    before executing this tool.
+    metadata:
+        name:
+        description:
+
+    This function creates a workflow from a YAML specification.
+
+    Create workflow (establishes the ID)
+    Update summary (document what we're building)
+    Update mermaid diagram (visualize the flow)
+    Then modify workflow (implement the actual logic)
+
+    After any workflow modification or plan change:
+    1. ALWAYS update the workflow summary using update_workflow_summary
+    2. ALWAYS update the mermaid diagram using update_workflow_mermaid_diagram 
+    3. Ensure all documentation reflects the current workflow state
     
     Args:
         workflow_yaml: YAML string defining the workflow structure
@@ -636,23 +651,25 @@ async def create_workflow(workflow_yaml: str) -> str:
 @mcp.tool()
 async def list_workflows() -> dict | str:
     try:
-        logger.info("get_workflows: \n")
+        logger.info("list_workflows: \n")
 
         output=await utils.make_GET_API_call_to_CCow("/v3/workflow-configs?fields=meta")
-        logger.debug("get_workflows output: {}\n".format(output))
+        logger.debug("list_workflows output: {}\n".format(output))
         
         if isinstance(output, str) or  "error" in output:
-            logger.error("get_workflows error: {}\n".format(output))
+            logger.error("list_workflows error: {}\n".format(output))
             return "Facing internal error"
         if "items" in output:
             for item in output["items"]:
-                utils.deleteKey(item,"domainId")
-                utils.deleteKey(item,"orgId")
-                utils.deleteKey(item,"groupId")
-                utils.deleteKey(item,"spec")
-                if "status" in item:
-                    utils.deleteKey(item["status"],"filePathHash")
-        logger.debug("get_workflows output: {}\n".format(output))
+                utils.trimWorkflowDetails(item)
+                # utils.deleteKey(item,"domainId")
+                # utils.deleteKey(item,"orgId")
+                # utils.deleteKey(item,"groupId")
+                # utils.deleteKey(item,"spec")
+                # if "status" in item:
+                #     utils.deleteKey(item["status"],"filePathHash")
+        # output["items"]=[]
+        logger.debug("list_workflows output: {}\n".format(output))
         return output["items"]
     except Exception as e:
         logger.error(traceback.format_exc())
@@ -666,18 +683,18 @@ async def fetch_workflow_details(id:str) -> dict | str:
             - id (str): workflow id. This can be fetched from path /status/id of 'get_workflows' output
     """
     try:
-        logger.info(f"get_workflow_details: {id}\n")
+        logger.info(f"fetch_workflow_details: {id}\n")
 
         output=await utils.make_GET_API_call_to_CCow("/v3/workflow-configs/"+id)
-        logger.debug("get_workflows output: {}\n".format(output))
+        logger.debug("fetch_workflow_details output: {}\n".format(output))
         
         if isinstance(output, str) or  "error" in output:
-            logger.error("get_workflows error: {}\n".format(output))
+            logger.error("fetch_workflow_details error: {}\n".format(output))
             return "Facing internal error"
         return output
     except Exception as e:
         logger.error(traceback.format_exc())
-        logger.error("create_workflow: {}\n".format(e))
+        logger.error("fetch_workflow_details: {}\n".format(e))
         return "Facing internal error"
 
 @mcp.tool()
@@ -685,7 +702,7 @@ async def update_workflow_summary(id:str,summary:str) -> dict | str:
     """
         Args:
             - id (str): workflow id. This can be fetched from path /status/id of 'get_workflows' output
-            - summary (str): workflow summary
+            - summary (str): workflow summary, preferably ReadMe.
     """
     try:
         logger.info(f"update_workflow_summary: {id}, {summary}\n")
@@ -698,15 +715,44 @@ async def update_workflow_summary(id:str,summary:str) -> dict | str:
             }
         ]
         output=await utils.make_API_call_to_CCow_and_get_response("/v3/workflow-configs/"+id,"PATCH",req)
-        logger.debug("get_workflows output: {}\n".format(output))
+        logger.debug("update_workflow_summary output: {}\n".format(output))
         
         if isinstance(output, str) or  "error" in output:
-            logger.error("get_workflows error: {}\n".format(output))
+            logger.error("update_workflow_summary error: {}\n".format(output))
             return "Facing internal error"
         return output
     except Exception as e:
         logger.error(traceback.format_exc())
-        logger.error("create_workflow: {}\n".format(e))
+        logger.error("update_workflow_summary: {}\n".format(e))
+        return "Facing internal error"
+
+@mcp.tool()
+async def update_workflow_mermaid_diagram(id:str,mermaidDiagram:str) -> dict | str:
+    """
+        Args:
+            - id (str): workflow id. This can be fetched from path /status/id of 'get_workflows' output
+            - mermaidDiagram (str): workflow mermaid diagram
+    """
+    try:
+        logger.info(f"update_workflow_mermaid_diagram: {id}, {mermaidDiagram}\n")
+
+        req=[
+            {
+                "op":"add",
+                "path": "/metadata/mermaidDiagram",
+                "value": mermaidDiagram
+            }
+        ]
+        output=await utils.make_API_call_to_CCow_and_get_response("/v3/workflow-configs/"+id,"PATCH",req)
+        logger.debug("update_workflow_mermaid_diagram output: {}\n".format(output))
+        
+        if isinstance(output, str) or  "error" in output:
+            logger.error("update_workflow_mermaid_diagram error: {}\n".format(output))
+            return "Facing internal error"
+        return output
+    except Exception as e:
+        logger.error(traceback.format_exc())
+        logger.error("update_workflow_mermaid_diagram: {}\n".format(e))
         return "Facing internal error"
 
 @mcp.tool()
@@ -714,10 +760,27 @@ async def modify_workflow(workflow_yaml: str, workflow_id: str) -> str:
     """
     Modify an existing workflow using YAML definition.
     
-    This function updates an existing workflow with a new YAML specification. 
-    The workflow ID is required to identify which workflow to modify. Always 
-    display the workflow diagram and confirm with the user before executing 
-    this tool.
+    The workflow ID (UUID) is required to identify which workflow to modify. This 
+    function updates an existing workflow with a new YAML specification. The YAML 
+    should define the workflow structure including states, activities, conditions, 
+    and transitions. Always display the workflow diagram and confirm with the 
+    user before executing this tool.
+
+    BEFORE using 'modify_workflow' tool, you MUST check:
+    - Do I have the complete CCow workflow YAML schema?
+    - Do I know the exact state configuration requirements?
+    - Do I understand the data flow and variable reference patterns?
+    If the answer to ANY of these is "no", respond with:
+    "I need CCow workflow schema knowledge to properly implement this workflow. 
+    Please provide the workflow YAML specification, state definitions, and 
+    integration patterns before I proceed with modify_workflow."
+
+    **CRITICAL REMINDER**: After any workflow modification or plan change:
+    1. ALWAYS update the workflow summary using update_workflow_summary
+    2. ALWAYS update the mermaid diagram using update_workflow_mermaid_diagram 
+    3. Ensure all documentation reflects the current workflow state. Never skip these steps - they are mandatory for workflow integrity
+
+    If you modify a workflow and don't update both summary and diagram, explicitly acknowledge the oversight and correct it immediately.
     
     Args:
         workflow_yaml: YAML string defining the updated workflow structure
