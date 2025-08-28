@@ -131,6 +131,15 @@ class SimplifiedRuleVO(BaseModel):
         "extra": "ignore"
     }
 
+class SimplifiedRulesAndTasksSuggestionVO(BaseModel):
+    name: Optional[str] = ""
+    purpose: Optional[str] = ""
+    description: Optional[str] = ""
+
+    model_config = {
+        "extra": "ignore"
+    }
+
 class SimplifiedRuleListVO(BaseModel):
     rules: Optional[List[SimplifiedRuleVO]] = None
 

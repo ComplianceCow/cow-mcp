@@ -15,6 +15,7 @@ host = os.environ.get('CCOW_HOST', "https://dev.compliancecow.live")
 if not host.endswith("/api"):
     host += "/api"
 
+ENABLE_CONTEXTUAL_VECTOR_SEARCH=os.environ.get("ENABLE_CONTEXTUAL_VECTOR_SEARCH", "false").lower() == "true"
 
 # DASHBOARD
 URL_CCF_DASHBOARD_CONTROL_DETAILS = "/v2/aggregator/ccf-dashboard-control-details"
@@ -83,6 +84,7 @@ URL_FETCH_FILE = "/pc-api/v1/storage/fetch-file"
 URL_PUBLISH_RULE = "/pc-api/v1/rules/publish-rule"
 URL_FETCH_CC_RULES = "/pc-api/v1/rules/fetch-cc-rules"
 URL_UPDATE_RULE_TAGS ="/pc-api/v2/rules/update-tags"
+URL_FETCH_RULES_AND_TASKS_SUGGESTIONS = "/v1/llm/rule-and-task/suggestions/fetch"
 
 #CC RULES
 URL_GET_CC_RULE = "/v1/rules"
