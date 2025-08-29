@@ -17,10 +17,93 @@ from utils.debug import logger
 # Phase 1: Lightweight task summary resource
 
 
+if constants.ENABLE_CONTEXTUAL_VECTOR_SEARCH:
+    @mcp.tool()
+    def fetch_tasks_suggestions(user_requirement: str, summary_string: str) -> Dict[str, Any]:
+        
+        """
+        Resource for intelligent task suggestion based on user requirements.
+
+        PURPOSE:
+        - Analyze the user's requirement and generate a concise **summary string** that
+        captures the intent in natural language (not bullet points, not verbatim input).
+        - Use the summary string to query task suggestions via the Suggestions API.
+        - Match suggested tasks with the user’s intent to prevent redundant or duplicate task creation.
+        - Provide resumption options if partially developed tasks exist.
+
+        SUMMARY STRING CREATION:
+        - Always derive a clear, single-paragraph summary string from the user's input.
+        - Convert it into a structured summary string that clearly outlines each step/task that must be performed.
+        - Each part of the summary string should represent an atomic action that could later be mapped to an individual task.
+        - The summary must express the intended goal in natural language.
+        - This summary string is what will be passed to `fetch_rules_and_tasks_suggestions`.
+        - Example:
+            Input: "Create a rule to update CC workflow user actions that remain 'in progress' for more than one day.
+            The process should first check if any workflow user actions are pending, meaning their status is still 'in progress'.
+            If such actions exist and were assigned more than one day ago, they should be marked as completed. Finally,
+            send a notification to the user informing them that their action has been automatically marked as completed after waiting for a long time."
+            Summary: "Check for workflow user actions with status 'in progress'.
+            If they were assigned more than one day ago, mark them as completed and notify the user about the auto-completion."
+
+        DECISION LOGIC:
+        - If **matching tasks** are found in the suggestions:
+            * Present them to the user for selection.
+            * Include explanation of purpose, description, and relevance.
+        - If **no matching tasks** are found:
+            * FALLBACK: Call `get_tasks_summary()` to provide a broader list of tasks for discovery.
+            * Clearly inform the user that no direct match was found and present fallback results.
+
+        AUTOMATIC WORKFLOW HANDLING:
+        - Detect if suggested tasks are only intermediate steps (splitting, extraction, validation, processing).
+        - If intermediate: automatically recommend additional tasks that can complete the workflow.
+        - Never leave the user with incomplete workflows.
+        - Ensure the final task suggestions always lead to actionable, consumable deliverables.
+
+        MANDATORY FUNCTIONALITY:
+        - Generate summary string from raw requirement.
+        - Fetch task suggestions using this summary.
+        - Validate suggestions and ensure workflow completeness.
+        - If suggestions fail → fallback to `get_tasks_summary()`.
+        - Always explain reasoning when no suggestions are found and why fallback is triggered.
+        
+        NEXT STEPS AFTER MATCH:
+        - Once matching task suggestions are presented to the user:
+            * Wait for user selection.
+            * Once matching tasks are found, show to user with explanation before fetching full details using `tasks://details/{task_name}`.
+            * For each selected task, fetch complete task details using `tasks://details/{task_name}`.
+            * Provide the full description, input/output parameters, templates, and usage guidance.
+        - Apply the same **workflow completeness enforcement** as in `get_tasks_summary`:
+            * If the selected task is only an intermediate step, automatically recommend additional tasks to complete the workflow.
+            * Ensure that the final set of tasks always produces actionable, consumable deliverables.
+
+        DEDUPLICATION HANDLING:
+        - The `fetch_rules_and_tasks_suggestions` API may return the same task name multiple times
+        with different descriptions and purpose.
+        - In such cases:
+            * Consolidate results under a single task entry.
+            * Merge or summarize all unique descriptions and purpose into one combined explanation.
+            * Ensure the final presentation avoids duplicates while still capturing all variations.
+        - Always prioritize clarity: the user should see only one task name, with a rich combined description
+        that reflects all possible contexts.
+
+        """
+        try:
+            task_response = rule.fetch_rules_and_tasks_suggestions(query=summary_string, identifierType="tasks")
+            if not task_response:
+                return {"error": f"No task found that matches the specified requirements."}
+            return task_response
+        except Exception as e:
+            return {
+                "error": f"An error occurred while retrieving the task with the specified details: {e}"
+            }
+
 @mcp.tool()
 def get_tasks_summary() -> str:
     """
     Resource containing minimal task information for initial selection.
+    
+    This tool is also used as a fallback resource when fetch_tasks_suggestions is disabled or does not return suitable matches, ensuring
+    the user always has access to a broader list of available tasks for manual selection.
 
     This resource provides only the essential information needed for task selection:
     - Task name and display name
@@ -2820,6 +2903,121 @@ def fetch_rule_readme(rule_name: str) -> Dict[str, Any]:
             "rule_name": rule_name,
             "message": f"Error fetching README for rule {rule_name}: {e}"
         }
+
+if constants.ENABLE_CONTEXTUAL_VECTOR_SEARCH:
+    @mcp.tool()
+    def fetch_rules_suggestions(user_requirement: str, summary_string: str) -> Dict[str, Any]:
+        """
+        Tool-based version of `fetch_rules_and_tasks_suggestions` for improved compatibility and prevention of duplicate rule creation.
+
+        This tool serves as the initial step in the rule creation process. It helps determine whether the user's proposed use case matches any existing rule in the catalog.
+
+        PURPOSE:
+        - To analyze the user's use case and avoid duplicate rule creation by identifying the most suitable existing rule based on its name, description, and purpose.
+        - **NEW: Check for partially developed rules in local system before allowing new rule creation**
+        - **NEW: Present resumption options if incomplete rules are found to prevent duplicate work**
+
+        WHEN TO USE:
+        - As the first step before initiating a new rule creation process.
+        - When the user wants to check if similar rules already exist by leveraging the Rules Suggestions API, instead of browsing the entire catalog manually.
+        - When verifying if a suggested rule can be reused or adapted rather than creating one from scratch.
+        - When checking for incomplete local rules that should be resumed instead of creating new ones.
+
+        🚫 DO NOT USE THIS TOOL FOR:
+        - Checking what rules are available in the ComplianceCow system.
+        - This tool only works with the **rule catalog** (not the entire ComplianceCow system).
+        - The catalog contains only rules that are published and available for reuse in the catalog.
+        - For direct ComplianceCow system lookups, use dedicated system tools instead:
+        - `fetch_cc_rule_by_name`
+        - `fetch_cc_rule_by_id`
+        
+        MANDATORY STEP: CONTEXT SUMMARY
+        - Before calling the rule catalog API, always rewrite the user’s raw requirement into a single-paragraph
+        descriptive summary string (not bullet points, not verbatim input).
+        - The summary must capture the essence of the requirement in clear, natural language.
+        - This summary string is what will be passed to `fetch_rules_and_tasks_suggestions`.
+        - Example:
+            User input: "Use GitHub GraphQL API to fetch merged PRs and check if approvals >= 2"
+            Summary: "The proposed rule validates compliance for GitHub Pull Requests by retrieving all merged PRs
+            through the GitHub GraphQL API, checking whether the number of approvers meets a required threshold,
+            and marking them as compliant or non-compliant."
+
+        WHAT IT DOES:
+        - Generates a concise summary string from the user's intent or requirements.
+        - Calls the Rules Suggestions API with this summary string to retrieve a narrowed list of relevant rules.
+        - Performs intelligent matching using metadata (name, description, purpose) from the suggested rules against the user-provided use case details.
+        - Uses semantic pattern recognition to identify similar or related rules, even across different systems (e.g., AzureUserUnusedPermission vs SalesforceUserUnusedPermissions).
+        - Analyzes the `readmeData` field from the `fetch_rule()` response to validate the rule's suitability for the user's use case.
+        
+        IF A MATCHING RULE IS FOUND:
+
+        - Retrieves complete details via `fetch_rule()`.
+        - If the readmeData field is available in the fetch_rule() response, Performs README-based validation using the `readmeData` field from the `fetch_rule()` response to assess its suitability for the user’s use case.
+        - If suitable:
+        - Returns the rule with full metadata, explanation, and the analysis report.
+        - If not suitable:
+        - Informs the user that the rule's README content does not align with the intended use case.
+        - Prompts the user with clear next-step options:
+            - "The rule's README content does not align with your use case. Please choose one of the following options:"
+            - Customize the existing rule
+            - Evaluate alternative matching rules
+            - Proceed with new rule creation
+        - Waits for the user's choice before proceeding.
+        
+        IF A SIMILAR RULE EXISTS FOR AN ALTERNATE TECHNOLOGY STACK:
+
+        - Detects rules with the same logic but built for a different platform or system (e.g., AzureUserUnusedPermission for SalesforceUserUnusedPermissions)
+        - If the readmeData field is available in the fetch_rule() response, Retrieves and analyzes the `readmeData` from the `fetch_rule()` response to compare the implementation details against the user's proposed use case
+        - Based on the comparison:
+            - If the README content matches or is mostly reusable, suggest using the existing rule structure and logic as a foundation to create a new rule tailored to the user's target system
+            - If the README content does not match or is not suitable, clearly inform the user and recommend either modifying the logic significantly or proceeding with a completely new rule from scratch
+
+        IF NO SUITABLE RULE IS FOUND:
+        - Clearly informs the user that no relevant rule matches the proposed use case
+        - Suggests continuing with new rule creation
+        - Optionally highlights similar rules that can be used as a reference
+
+        MANDATORY STEPS:
+        README VALIDATION:
+        - Always retrieve and analyze `readmeData` from `fetch_rule()`.
+        - Ensure the rule's logic, behavior, and intended use align with the user's proposed use case.
+
+        README ANALYSIS REPORT:
+        - Generate a clear and concise report for each `readmeData` analysis that classifies the result as a full match, partially reusable, or not aligned.
+        - Present this report to the user for review.
+
+        USER CONFIRMATION BEFORE PROCEEDING:
+        When analyzing a README file:
+        - If no relevant rule matches the proposed use case, or if the README is deemed unsuitable, the tool must pause and request explicit user confirmation before proceeding further.
+        - The tool should:
+        - Clearly inform the user that no matching rule was found or the README is not appropriate.
+        - Suggest creating a new rule as the next step.
+        - Optionally recommend similar existing rules that can serve as references to help the user craft the new rule.
+
+        ITERATE UNTIL MATCH:
+        - Repeat the above steps until a suitable rule is found or all options are exhausted.
+
+        CROSS-PLATFORM RULE HANDLING:
+        - For rules from a different stack:
+        - If reusable: suggest customization
+        - If not reusable: recommend new rule creation
+
+        Returns:
+        - A single rule object with full metadata and verified README match — if an exact match is found
+        - A similar rule suggestion with customization options — if a cross-system match is found (e.g., AzureUserUnusedPermission vs SalesforceUserUnusedPermissions)
+        - A message indicating no suitable rule found — with next steps and guidance to create a new rule
+        """
+
+        try:
+            rule_response = rule.fetch_rules_and_tasks_suggestions(query=summary_string, identifierType="rules")
+            if not rule_response:
+                return {"error": f"No rule found that matches the specified requirements."}
+            return rule_response
+        except Exception as e:
+            return {
+                "error": f"An error occurred while retrieving the rule with the specified details: {e}"
+            }
+            
 
 @mcp.tool()
 def get_rules_summary() -> Dict[str, Any]:
