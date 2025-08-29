@@ -244,7 +244,7 @@ async def list_workflow_rules() -> vo.WorkflowRuleListVO:
     try:
         logger.info("list_workflow_prebuild_rules: \n")
 
-        output=await utils.make_GET_API_call_to_CCow(f"{constants.URL_WORKFLOW_PREBUILD_RULES}?meta_tags=MCP")
+        output=await utils.make_GET_API_call_to_CCow(f"{constants.URL_WORKFLOW_PREBUILD_RULES}?type=rule&meta_tags=MCP")
         logger.debug("workflow rules output: {}\n".format(output))
         
         if isinstance(output, str) or  "error" in output:
