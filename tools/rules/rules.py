@@ -1463,6 +1463,9 @@ def create_rule(rule_structure: Dict[str, Any]) -> Dict[str, Any]:
     - Maintains all existing validation and creation logic
     - Preserves all original docstring instructions and requirements
 
+    CRITICAL REQUIREMENT - INPUTS META:
+    - `spec.inputsMeta__` is **mandatory** for all rules, and rule creation cannot proceed without it.
+
     AUTOMATIC STATUS DETECTION:
     - DRAFT: Rule has tasks but missing inputs or I/O mapping (5-85% complete)
     - READY_FOR_CREATION: All inputs collected but I/O mapping incomplete (85% complete)
@@ -1470,6 +1473,7 @@ def create_rule(rule_structure: Dict[str, Any]) -> Dict[str, Any]:
 
     RULE COMPLETION ANALYSIS:
     - Checks if tasks are defined in spec.tasks
+    - Validates that `spec.inputsMeta__` exists
     - Counts collected inputs in spec.inputs vs spec.inputsMeta__
     - Validates I/O mapping presence and completeness in spec.ioMap
     - Analyzes outputsMeta__ for mandatory compliance outputs
@@ -1497,13 +1501,14 @@ def create_rule(rule_structure: Dict[str, Any]) -> Dict[str, Any]:
     4. Rule status and progress automatically detected each time
 
     PRE-CREATION REQUIREMENTS (Original):
-    1. All inputs must be collected through systematic workflow
-    2. User must provide input overview confirmation  
-    3. All template inputs processed via collect_template_input()
-    4. All parameter values collected and verified
-    5. User must confirm all input values before rule creation
-    6. Primary application type must be determined
-    7. Rule structure must be shown to user in YAML format for final approval
+    1. `spec.inputsMeta__` must be defined and contain valid input definitions
+    2. All inputs must be collected through systematic workflow
+    3. User must provide input overview confirmation  
+    4. All template inputs processed via collect_template_input()
+    5. All parameter values collected and verified
+    6. User must confirm all input values before rule creation
+    7. Primary application type must be determined
+    8. Rule structure must be shown to user in YAML format for final approval
 
     STEP 1 - PRIMARY APPLICATION TYPE DETERMINATION (Preserved):
     Before creating rule structure, determine primary application type:
@@ -1535,8 +1540,8 @@ def create_rule(rule_structure: Dict[str, Any]) -> Dict[str, Any]:
             inputsMeta__:
             - name: InputName  # Use original or unique names based on conflicts
               dataType: FILE|HTTP_CONFIG|STRING|INT|FLOAT|BOOLEAN|DATE|DATETIME
-              required: true
-              defaultValue: [ACTUAL_USER_VALUE_OR_FILE_URL] # Values collected from users
+              required: true   # Taken from task details
+              defaultValue: [ACTUAL_USER_VALUE] #Values are collected from users, except when the dataType is FILE or HTTP_CONFIG.
               format: [ACTUAL_FILE_FORMAT] # Only include for FILE types (json, yaml, toml, xml, etc.)
             outputsMeta__:
             - name: FinalOutput
