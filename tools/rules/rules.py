@@ -4677,6 +4677,128 @@ def create_initial_rule_from_planning(rule_name: str, purpose: str, description:
     # Create rule - status will be auto-detected as DRAFT
     return create_rule(initial_rule_structure)
 
+@mcp.tool()
+def configure_rule_output_schema() -> Dict[str, Any]:
+    """
+    PREREQUISITE — MUST RUN FIRST (NON-SKIPPABLE)
+    This tool is a hard prerequisite and MUST be executed successfully before the
+    `prepare_input_collection_overview()` tool (and before any downstream rule-creation
+    or evaluation steps). If this tool has not run or did not complete, the workflow
+    MUST fail fast with an explicit error.
+
+    PURPOSE
+    Establish the rule's output schema policy for ComplianceCow and apply any required transformations. In ComplianceCow, we maintain a standard format for storing evidence records. The user MUST choose one of the following rule output options:
+
+    1) Standard schema only (ComplianceCow structured response fields)
+    2) Extended schema only (all fields from the source response)
+    3) Both standard + extended
+
+    USER PROMPT (MANDATORY — NEVER SKIPPABLE)
+    The workflow MUST always pause and explicitly prompt the user before proceeding.  
+    This step CANNOT be bypassed, defaulted, auto-selected, or inferred.  
+    If the user has not actively selected one of (a), (b), or (c), this tool MUST fail fast with a clear error message and stop execution.  
+
+    Inform the user:
+    '''
+    In ComplianceCow, evidence is stored in a structured format.  
+    Please select one of the following options:  
+    (a) Standard schema — Stores evidence in the ComplianceCow standard format (mandatory information only)
+    (b) Extended schema — Stores the raw or modified response (all information, not in standard structure)  
+    (c) Standard + Extended — Stores evidence in both standard and extended formats
+    '''
+
+    VALIDATION & ENFORCEMENT
+    - This tool is NON-SKIPPABLE. If not executed, or if the user does not provide an explicit choice (a/b/c), the workflow MUST stop immediately with an error.  
+    - No implicit defaults, assumptions, or auto-selections are allowed.  
+    - Mandatory Key mapping rules still apply if Standard schema is chosen.
+
+    BEHAVIOR BY SELECTION
+
+    A) If user selects STANDARD ONLY:
+    - Append a Transformation task at the END of the selected task pipeline.
+    - In that Transformation task, map ALL Mandatory Keys (listed below).
+    - Values for these keys MUST be taken from the pipeline's input file(s) and/or upstream task outputs, following the Deeper Analysis Rules.
+    - Continue collecting inputs for the Transformation task using:
+        `collect_template_input()` or `collect_parameter_input()`.
+    - For each input that requires user guidance, call:
+        `get_template_guidance('{task.name}', '<input_name>')`
+    to display the expected input format to the user.
+    - Ask the user to review and confirm OR edit the configuration before proceeding.
+    - Do not proceed unless all Mandatory Keys are mapped and the configuration is confirmed (fail fast with guidance).
+
+    B) If user selects EXTENDED ONLY:
+    - The Extended schema is a NON-STANDARD structure. It preserves the raw fields from the source response without enforcing ComplianceCow's standard schema format or mandatory key order.
+    - Use the LAST task's output directly as the Extended schema output.
+    - No mandatory field ordering or schema enforcement is applied — the structure is kept as-is for completeness and traceability.
+
+    C) If user selects BOTH:
+    - Perform all steps from (A) to create the Standard schema:
+    * Append a Transformation task at the END of the selected task pipeline.
+    * Map ALL Mandatory Keys in the exact required order.
+    * Include <AdditionalKeysBasedOnUseCase> as needed for compliance.
+    - Also add the Extended schema as a NON-STANDARD structure:
+    * Create exactly ONE output field named: ExtendedData_<filename>.
+        <filename> MUST be determinable from the use case (e.g., source, resource, or input artifact name).
+    * Map the SAME LAST task output that is used as the input to the Transformation task into ExtendedData_<filename>.
+    * Do NOT create duplicate extended outputs (for example, do not add both
+        ExtendedData_JSONToCSV and ConvertedCSVFile if they contain the same data).
+        Only ExtendedData_<filename> must exist.
+    - Continue collecting inputs for the Transformation task using:
+        collect_template_input() or collect_parameter_input().
+    - For each input that requires user guidance, call:
+        get_template_guidance('{task.name}', '<input_name>')
+    to display the expected input format to the user.
+    - Ask the user to review and confirm OR edit the configuration before proceeding.
+    - Do not proceed unless:
+    * All Mandatory Keys are mapped and validated in order
+    * Configuration is confirmed by the user
+
+    DEEPER ANALYSIS RULES
+    - Always extract and map the core Mandatory Keys required for compliance.
+    - For <AdditionalKeysBasedOnUseCase>, determine the minimal required fields based on the user's specific use case and map them under the Standard schema.
+    - If additional fields are critical for the use case, map them explicitly into the Standard schema.
+    - If fields are non-critical but useful, preserve them under `ExtendedData_<filename>`.
+    - If MCP cannot store certain fields, the tool MUST explain the omission clearly to the user before proceeding and request confirmation if needed.
+
+    MANDATORY KEYS (MUST ALWAYS BE MAPPED — IN THIS EXACT ORDER)
+    - System
+    - Source
+    - ResourceID
+    - ResourceName
+    - ResourceType
+    - ResourceLocation
+    - ResourceTags
+    - <Important Keys Based On User's Use Case>
+        (for example: fields from the response file such as user_id, username, email,
+        license_type, assigned_date, last_login_date, last_activity_date)
+    - ValidationStatusCode
+    - ValidationStatusNotes
+    - ComplianceStatus
+    - ComplianceStatusReason
+    - EvaluatedTime
+    - UserAction
+    - ActionStatus
+    - ActionResponseURL
+
+    VALIDATION & ENFORCEMENT
+    - This tool is NON-SKIPPABLE. If not executed, or if any Mandatory Key mapping is missing for the chosen Standard schema path, the workflow MUST stop with an error.
+    - Key names are case-sensitive and MUST NOT be renamed.
+    - The tool MUST persist the chosen option and mappings so that downstream tools consume a consistent schema contract.
+    - The workflow MUST NOT proceed to `prepare_input_collection_overview()` until:
+        * Inputs are collected via `collect_template_input()` or `collect_parameter_input()`
+        * `get_template_guidance()` has been used for each input needing guidance
+        * The user has confirmed or edited the configuration
+        * All Mandatory Keys are mapped and validated in order
+
+    EXECUTION ORDER GUARANTEE
+    On success, and ONLY after input collection and configuration confirmation,
+    the next tool to run MUST be `prepare_input_collection_overview()`.
+    """
+    return {
+        "nextStep": "USER PROMPT (MANDATORY)",
+        "message": "Proceeding to user selection: Standard schema, Extended schema, or Standard + Extended."
+    }
+
 
 def finalize_rule_with_io_mapping(rule_name: str, task_input_mapping: Dict = None) -> Dict[str, Any]:
     """
