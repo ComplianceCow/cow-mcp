@@ -72,6 +72,11 @@ URL_WORKFLOW_CREATE = "/v3/workflow-configs"
 
 URL_WORKFLOW_RESOURCE_DATA = "/v2/aggregator/fetch-resource-data"
 
+# WORKFLOW SPECS & BINDINGS
+URL_WORKFLOW_SPECS = "/v2/workflow-specs"
+URL_WORKFLOW_BINDINGS = "/v2/workflow-bindings"
+URL_WORKFLOW_BINDINGS_EXECUTE = "/v2/workflow-bindings/execute"
+
 
 # RULES
 MCP_GET_RULES_TAG = "MCP"
