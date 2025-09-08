@@ -10,12 +10,9 @@ from mcp.server.auth.settings import AuthSettings
 from mcpconfig.config import mcp
 
 
-mcp_tools_to_be_included = os.getenv("MCP_TOOLS_TO_BE_INCLUDED", "").lower().strip()
+mcp_tools_to_be_included = os.getenv("MCP_TOOLS_TO_BE_INCLUDED", "insights,rules,workflow").lower().strip()
 
-if not mcp_tools_to_be_included:
-    MCP_TOOLS = ["insights", "rules", "workflow"]
-else:
-    MCP_TOOLS = [t.strip() for t in mcp_tools_to_be_included.split(",") if t.strip()]
+MCP_TOOLS = [t.strip() for t in mcp_tools_to_be_included.split(",") if t.strip()]
 
 if "insights" in MCP_TOOLS:
     from tools.assessments.config import config
