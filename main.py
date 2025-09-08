@@ -5,22 +5,34 @@ import traceback
 
 from utils.debug import logger
 from utils.auth import CCowOAuthProvider
-
-# from tools.mcpconfig import mcp
-from mcpconfig.config import mcp
-from tools.assessments.config import config
-from tools.assessments.run import run
-from tools.graphdb import graphdb
-from tools.dashboard import dashboard
-from tools.assets import assets
-from tools.help import help
-from tools.workflow import workflow
-from resources.graphdb import graphdb
 from constants.constants import host
 from mcp.server.auth.settings import AuthSettings
-from prompts.workflow import workflow
-from prompts.rule import rule
-from tools.rules import rules
+from mcpconfig.config import mcp
+
+
+mcp_tools_to_be_included = os.getenv("MCP_TOOLS_TO_BE_INCLUDED", "").lower().strip()
+
+if not mcp_tools_to_be_included:
+    MCP_TOOLS = ["insights", "rules", "workflow"]
+else:
+    MCP_TOOLS = [t.strip() for t in mcp_tools_to_be_included.split(",") if t.strip()]
+
+if "insights" in MCP_TOOLS:
+    from tools.assessments.config import config
+    from tools.assessments.run import run
+    from tools.graphdb import graphdb
+    from tools.dashboard import dashboard
+    from tools.assets import assets
+    from tools.help import help
+    from resources.graphdb import graphdb
+
+if "rules" in MCP_TOOLS:
+    from tools.rules import rules
+    from prompts.rule import rule
+
+if "workflow" in MCP_TOOLS:
+    from tools.workflow import workflow
+    from prompts.workflow import workflow
 
 
 def signal_handler(sig, frame):
