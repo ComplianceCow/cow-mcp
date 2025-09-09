@@ -20,6 +20,7 @@ ENABLE_CONTEXTUAL_VECTOR_SEARCH=os.environ.get("ENABLE_CONTEXTUAL_VECTOR_SEARCH"
 # DASHBOARD
 URL_CCF_DASHBOARD_CONTROL_DETAILS = "/v2/aggregator/ccf-dashboard-control-details"
 URL_CCF_DASHBOARD_FRAMEWORK_SUMMARY = "/v2/aggregator/ccf-dashboard-framework-summary"
+URL_CCF_DASHBOARD_REVIEW_PERIODS = "/v2/aggregator/fetch-ccf-dashboard-review-periods"
 
 
 # ASSESSMENTS
