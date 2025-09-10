@@ -8,6 +8,7 @@ from utils.auth import CCowOAuthProvider
 from constants.constants import host
 from mcp.server.auth.settings import AuthSettings
 from mcpconfig.config import mcp
+from tools.general import general
 
 
 mcp_tools_to_be_included = os.getenv("MCP_TOOLS_TO_BE_INCLUDED", "insights,rules,workflow").lower().strip()
