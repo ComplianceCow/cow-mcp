@@ -13,6 +13,31 @@ from constants import constants
 from mcptypes import dashboard_tools_type as vo
 
 @mcp.tool()
+async def get_dashboard_review_periods() -> vo.CCFDashboardReviewPeriods:
+    """
+    Fetch list of review periods
+    Returns:
+        - items (List[str]): list of review periods
+        - error (Optional[str]): An error message if any issues occurred during retrieval. 
+    """
+    try:
+        logger.info("get_dashboard_review_periods: \n")
+        data={}
+
+        output=await utils.make_API_call_to_CCow(data, constants.URL_CCF_DASHBOARD_REVIEW_PERIODS)
+        logger.debug("output: {}\n".format(json.dumps(output)))
+        
+        if isinstance(output, str) or  "error" in output:
+            logger.error("get_dashboard_review_periods error: {}\n".format(output))
+            return vo.CCFDashboardReviewPeriods(error="Facing internal error")
+
+        return vo.CCFDashboardReviewPeriods.model_validate(output)
+    except Exception as e:
+        logger.error(traceback.format_exc())
+        logger.error("get_dashboard_review_periods error: {}\n".format(e))
+        return vo.CCFDashboardReviewPeriods(error="Facing internal error")
+
+@mcp.tool()
 async def get_dashboard_data(period: str = "Q1 2024") -> vo.DashboardSummaryVO:
     """
     Function accepts compliance period as 'period'. Period denotes for which quarter of year dashboard data is needed. Format: Q1 2024. 

@@ -110,6 +110,10 @@ class CommonControlListVO (BaseModel):
     page: Optional[int] = 0
     totalPage: Optional[int] = 0
     totalItems: Optional[int] = 0
+    error: Optional[str] = ""    
+
+class CCFDashboardReviewPeriods (BaseModel):
+    items: Optional[List[str]] = None
     error: Optional[str] = ""
     
     

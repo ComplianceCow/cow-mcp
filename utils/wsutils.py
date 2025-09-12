@@ -57,20 +57,13 @@ def get(path: str = None, params: dict = None, header: dict = None, timeout: int
 
 def headerbuilder(header):
     if header:
-        modifiedheader = dict()
-        if rule.is_valid_key(header, SECURITYCONTEXT):
-            securityCtx = header[SECURITYCONTEXT]
-            if not isinstance(securityCtx, str):
-                securityCtx = json.dumps(securityCtx)
-            modifiedheader[SECURITYCONTEXT] = securityCtx
-            return modifiedheader
-        elif rule.is_valid_key(header, "Authorization"):
-            return header
-        else:
-            modifiedheader[SECURITYCONTEXT] = "{}"
-            return modifiedheader
+        if not rule.is_valid_key(header, "Authorization"):
+            access_token = get_access_token()
+            if access_token and hasattr(access_token, "token"):
+                header["Authorization"] = access_token.token    
+        return header
 
-    return None
+    return create_header()
 
 
 def get_json_response(response):

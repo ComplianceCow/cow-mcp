@@ -3,8 +3,12 @@ from __future__ import annotations
 import asyncio
 import base64
 import json
+import mimetypes
+import os
 from datetime import datetime
+from pathlib import Path
 from typing import Any, Dict, List, Optional, Tuple, get_type_hints
+from urllib.parse import urlparse
 
 import mcptypes.rule_type as vo
 from constants import constants
@@ -17,10 +21,94 @@ from utils.debug import logger
 # Phase 1: Lightweight task summary resource
 
 
+if constants.ENABLE_CONTEXTUAL_VECTOR_SEARCH:
+    @mcp.tool()
+    def fetch_tasks_suggestions(user_requirement: str, summary_string: str) -> Dict[str, Any]:
+        
+        """
+        Resource for intelligent task suggestion based on user requirements.
+
+        PURPOSE:
+        - Analyze the user's requirement and generate a concise **summary string** that
+        captures the intent in natural language (not bullet points, not verbatim input).
+        - Use the summary string to query task suggestions via the Suggestions API.
+        - Match suggested tasks with the user’s intent to prevent redundant or duplicate task creation.
+        - Provide resumption options if partially developed tasks exist.
+
+        SUMMARY STRING CREATION:
+        - Always derive a clear, single-paragraph summary string from the user's input.
+        - Convert it into a structured summary string that clearly outlines each step/task that must be performed.
+        - Each part of the summary string should represent an atomic action that could later be mapped to an individual task.
+        - The summary must express the intended goal in natural language.
+        - This summary string is what will be passed to `fetch_rules_and_tasks_suggestions`.
+        - Example:
+            Input: "Create a rule to update CC workflow user actions that remain 'in progress' for more than one day.
+            The process should first check if any workflow user actions are pending, meaning their status is still 'in progress'.
+            If such actions exist and were assigned more than one day ago, they should be marked as completed. Finally,
+            send a notification to the user informing them that their action has been automatically marked as completed after waiting for a long time."
+            Summary: "Check for workflow user actions with status 'in progress'.
+            If they were assigned more than one day ago, mark them as completed and notify the user about the auto-completion."
+
+        DECISION LOGIC:
+        - If **matching tasks** are found in the suggestions:
+            * Present them to the user for selection.
+            * Include explanation of purpose, description, and relevance.
+        - If **no matching tasks** are found:
+            * FALLBACK: Call `get_tasks_summary()` to provide a broader list of tasks for discovery.
+            * Clearly inform the user that no direct match was found and present fallback results.
+
+        AUTOMATIC WORKFLOW HANDLING:
+        - Detect if suggested tasks are only intermediate steps (splitting, extraction, validation, processing).
+        - If intermediate: automatically recommend additional tasks that can complete the workflow.
+        - Never leave the user with incomplete workflows.
+        - Ensure the final task suggestions always lead to actionable, consumable deliverables.
+
+        MANDATORY FUNCTIONALITY:
+        - Generate summary string from raw requirement.
+        - Fetch task suggestions using this summary.
+        - Validate suggestions and ensure workflow completeness.
+        - If suggestions fail → fallback to `get_tasks_summary()`.
+        - Always explain reasoning when no suggestions are found and why fallback is triggered.
+        
+        NEXT STEPS AFTER MATCH:
+        - Once matching task suggestions are presented to the user:
+            * Wait for user selection.
+            * Once matching tasks are found, show to user with explanation before fetching full details using `tasks://details/{task_name}`.
+            * For each selected task, fetch complete task details using `tasks://details/{task_name}`.
+            * Provide the full description, input/output parameters, templates, and usage guidance.
+        - Apply the same **workflow completeness enforcement** as in `get_tasks_summary`:
+            * If the selected task is only an intermediate step, automatically recommend additional tasks to complete the workflow.
+            * Ensure that the final set of tasks always produces actionable, consumable deliverables.
+
+        DEDUPLICATION HANDLING:
+        - The `fetch_rules_and_tasks_suggestions` API may return the same task name multiple times
+        with different descriptions and purpose.
+        - In such cases:
+            * Consolidate results under a single task entry.
+            * Merge or summarize all unique descriptions and purpose into one combined explanation.
+            * Ensure the final presentation avoids duplicates while still capturing all variations.
+        - Always prioritize clarity: the user should see only one task name, with a rich combined description
+        that reflects all possible contexts.
+
+        """
+        try:
+            task_response = rule.fetch_rules_and_tasks_suggestions(query=summary_string, identifierType="tasks")
+            if not task_response:
+                return {"error": f"No task found that matches the specified requirements."}
+            return task_response
+        except Exception as e:
+            return {
+                "error": f"An error occurred while retrieving the task with the specified details: {e}"
+            }
+
+
 @mcp.tool()
 def get_tasks_summary() -> str:
     """
     Resource containing minimal task information for initial selection.
+    
+    This tool is also used as a fallback resource when fetch_tasks_suggestions is disabled or does not return suitable matches, ensuring
+    the user always has access to a broader list of available tasks for manual selection.
 
     This resource provides only the essential information needed for task selection:
     - Task name and display name
@@ -1463,6 +1551,9 @@ def create_rule(rule_structure: Dict[str, Any]) -> Dict[str, Any]:
     - Maintains all existing validation and creation logic
     - Preserves all original docstring instructions and requirements
 
+    CRITICAL REQUIREMENT - INPUTS META:
+    - `spec.inputsMeta__` is **mandatory** for all rules, and rule creation cannot proceed without it.
+
     AUTOMATIC STATUS DETECTION:
     - DRAFT: Rule has tasks but missing inputs or I/O mapping (5-85% complete)
     - READY_FOR_CREATION: All inputs collected but I/O mapping incomplete (85% complete)
@@ -1470,6 +1561,7 @@ def create_rule(rule_structure: Dict[str, Any]) -> Dict[str, Any]:
 
     RULE COMPLETION ANALYSIS:
     - Checks if tasks are defined in spec.tasks
+    - Validates that `spec.inputsMeta__` exists
     - Counts collected inputs in spec.inputs vs spec.inputsMeta__
     - Validates I/O mapping presence and completeness in spec.ioMap
     - Analyzes outputsMeta__ for mandatory compliance outputs
@@ -1497,13 +1589,14 @@ def create_rule(rule_structure: Dict[str, Any]) -> Dict[str, Any]:
     4. Rule status and progress automatically detected each time
 
     PRE-CREATION REQUIREMENTS (Original):
-    1. All inputs must be collected through systematic workflow
-    2. User must provide input overview confirmation  
-    3. All template inputs processed via collect_template_input()
-    4. All parameter values collected and verified
-    5. User must confirm all input values before rule creation
-    6. Primary application type must be determined
-    7. Rule structure must be shown to user in YAML format for final approval
+    1. `spec.inputsMeta__` must be defined and contain valid input definitions
+    2. All inputs must be collected through systematic workflow
+    3. User must provide input overview confirmation  
+    4. All template inputs processed via collect_template_input()
+    5. All parameter values collected and verified
+    6. User must confirm all input values before rule creation
+    7. Primary application type must be determined
+    8. Rule structure must be shown to user in YAML format for final approval
 
     STEP 1 - PRIMARY APPLICATION TYPE DETERMINATION (Preserved):
     Before creating rule structure, determine primary application type:
@@ -1535,8 +1628,8 @@ def create_rule(rule_structure: Dict[str, Any]) -> Dict[str, Any]:
             inputsMeta__:
             - name: InputName  # Use original or unique names based on conflicts
               dataType: FILE|HTTP_CONFIG|STRING|INT|FLOAT|BOOLEAN|DATE|DATETIME
-              required: true
-              defaultValue: [ACTUAL_USER_VALUE_OR_FILE_URL] # Values collected from users
+              required: true   # Taken from task details
+              defaultValue: [ACTUAL_USER_VALUE] #Values are collected from users, except when the dataType is FILE or HTTP_CONFIG.
               format: [ACTUAL_FILE_FORMAT] # Only include for FILE types (json, yaml, toml, xml, etc.)
             outputsMeta__:
             - name: FinalOutput
@@ -2820,6 +2913,121 @@ def fetch_rule_readme(rule_name: str) -> Dict[str, Any]:
             "rule_name": rule_name,
             "message": f"Error fetching README for rule {rule_name}: {e}"
         }
+
+if constants.ENABLE_CONTEXTUAL_VECTOR_SEARCH:
+    @mcp.tool()
+    def fetch_rules_suggestions(user_requirement: str, summary_string: str) -> Dict[str, Any]:
+        """
+        Tool-based version of `fetch_rules_and_tasks_suggestions` for improved compatibility and prevention of duplicate rule creation.
+
+        This tool serves as the initial step in the rule creation process. It helps determine whether the user's proposed use case matches any existing rule in the catalog.
+
+        PURPOSE:
+        - To analyze the user's use case and avoid duplicate rule creation by identifying the most suitable existing rule based on its name, description, and purpose.
+        - **NEW: Check for partially developed rules in local system before allowing new rule creation**
+        - **NEW: Present resumption options if incomplete rules are found to prevent duplicate work**
+
+        WHEN TO USE:
+        - As the first step before initiating a new rule creation process.
+        - When the user wants to check if similar rules already exist by leveraging the Rules Suggestions API, instead of browsing the entire catalog manually.
+        - When verifying if a suggested rule can be reused or adapted rather than creating one from scratch.
+        - When checking for incomplete local rules that should be resumed instead of creating new ones.
+
+        🚫 DO NOT USE THIS TOOL FOR:
+        - Checking what rules are available in the ComplianceCow system.
+        - This tool only works with the **rule catalog** (not the entire ComplianceCow system).
+        - The catalog contains only rules that are published and available for reuse in the catalog.
+        - For direct ComplianceCow system lookups, use dedicated system tools instead:
+        - `fetch_cc_rule_by_name`
+        - `fetch_cc_rule_by_id`
+        
+        MANDATORY STEP: CONTEXT SUMMARY
+        - Before calling the rule catalog API, always rewrite the user’s raw requirement into a single-paragraph
+        descriptive summary string (not bullet points, not verbatim input).
+        - The summary must capture the essence of the requirement in clear, natural language.
+        - This summary string is what will be passed to `fetch_rules_and_tasks_suggestions`.
+        - Example:
+            User input: "Use GitHub GraphQL API to fetch merged PRs and check if approvals >= 2"
+            Summary: "The proposed rule validates compliance for GitHub Pull Requests by retrieving all merged PRs
+            through the GitHub GraphQL API, checking whether the number of approvers meets a required threshold,
+            and marking them as compliant or non-compliant."
+
+        WHAT IT DOES:
+        - Generates a concise summary string from the user's intent or requirements.
+        - Calls the Rules Suggestions API with this summary string to retrieve a narrowed list of relevant rules.
+        - Performs intelligent matching using metadata (name, description, purpose) from the suggested rules against the user-provided use case details.
+        - Uses semantic pattern recognition to identify similar or related rules, even across different systems (e.g., AzureUserUnusedPermission vs SalesforceUserUnusedPermissions).
+        - Analyzes the `readmeData` field from the `fetch_rule()` response to validate the rule's suitability for the user's use case.
+        
+        IF A MATCHING RULE IS FOUND:
+
+        - Retrieves complete details via `fetch_rule()`.
+        - If the readmeData field is available in the fetch_rule() response, Performs README-based validation using the `readmeData` field from the `fetch_rule()` response to assess its suitability for the user’s use case.
+        - If suitable:
+        - Returns the rule with full metadata, explanation, and the analysis report.
+        - If not suitable:
+        - Informs the user that the rule's README content does not align with the intended use case.
+        - Prompts the user with clear next-step options:
+            - "The rule's README content does not align with your use case. Please choose one of the following options:"
+            - Customize the existing rule
+            - Evaluate alternative matching rules
+            - Proceed with new rule creation
+        - Waits for the user's choice before proceeding.
+        
+        IF A SIMILAR RULE EXISTS FOR AN ALTERNATE TECHNOLOGY STACK:
+
+        - Detects rules with the same logic but built for a different platform or system (e.g., AzureUserUnusedPermission for SalesforceUserUnusedPermissions)
+        - If the readmeData field is available in the fetch_rule() response, Retrieves and analyzes the `readmeData` from the `fetch_rule()` response to compare the implementation details against the user's proposed use case
+        - Based on the comparison:
+            - If the README content matches or is mostly reusable, suggest using the existing rule structure and logic as a foundation to create a new rule tailored to the user's target system
+            - If the README content does not match or is not suitable, clearly inform the user and recommend either modifying the logic significantly or proceeding with a completely new rule from scratch
+
+        IF NO SUITABLE RULE IS FOUND:
+        - Clearly informs the user that no relevant rule matches the proposed use case
+        - Suggests continuing with new rule creation
+        - Optionally highlights similar rules that can be used as a reference
+
+        MANDATORY STEPS:
+        README VALIDATION:
+        - Always retrieve and analyze `readmeData` from `fetch_rule()`.
+        - Ensure the rule's logic, behavior, and intended use align with the user's proposed use case.
+
+        README ANALYSIS REPORT:
+        - Generate a clear and concise report for each `readmeData` analysis that classifies the result as a full match, partially reusable, or not aligned.
+        - Present this report to the user for review.
+
+        USER CONFIRMATION BEFORE PROCEEDING:
+        When analyzing a README file:
+        - If no relevant rule matches the proposed use case, or if the README is deemed unsuitable, the tool must pause and request explicit user confirmation before proceeding further.
+        - The tool should:
+        - Clearly inform the user that no matching rule was found or the README is not appropriate.
+        - Suggest creating a new rule as the next step.
+        - Optionally recommend similar existing rules that can serve as references to help the user craft the new rule.
+
+        ITERATE UNTIL MATCH:
+        - Repeat the above steps until a suitable rule is found or all options are exhausted.
+
+        CROSS-PLATFORM RULE HANDLING:
+        - For rules from a different stack:
+        - If reusable: suggest customization
+        - If not reusable: recommend new rule creation
+
+        Returns:
+        - A single rule object with full metadata and verified README match — if an exact match is found
+        - A similar rule suggestion with customization options — if a cross-system match is found (e.g., AzureUserUnusedPermission vs SalesforceUserUnusedPermissions)
+        - A message indicating no suitable rule found — with next steps and guidance to create a new rule
+        """
+
+        try:
+            rule_response = rule.fetch_rules_and_tasks_suggestions(query=summary_string, identifierType="rules")
+            if not rule_response:
+                return {"error": f"No rule found that matches the specified requirements."}
+            return rule_response
+        except Exception as e:
+            return {
+                "error": f"An error occurred while retrieving the rule with the specified details: {e}"
+            }
+            
 
 @mcp.tool()
 def get_rules_summary() -> Dict[str, Any]:
@@ -4478,6 +4686,128 @@ def create_initial_rule_from_planning(rule_name: str, purpose: str, description:
     
     # Create rule - status will be auto-detected as DRAFT
     return create_rule(initial_rule_structure)
+
+@mcp.tool()
+def configure_rule_output_schema() -> Dict[str, Any]:
+    """
+    PREREQUISITE — MUST RUN FIRST (NON-SKIPPABLE)
+    This tool is a hard prerequisite and MUST be executed successfully before the
+    `prepare_input_collection_overview()` tool (and before any downstream rule-creation
+    or evaluation steps). If this tool has not run or did not complete, the workflow
+    MUST fail fast with an explicit error.
+
+    PURPOSE
+    Establish the rule's output schema policy for ComplianceCow and apply any required transformations. In ComplianceCow, we maintain a standard format for storing evidence records. The user MUST choose one of the following rule output options:
+
+    1) Standard schema only (ComplianceCow structured response fields)
+    2) Extended schema only (all fields from the source response)
+    3) Both standard + extended
+
+    USER PROMPT (MANDATORY — NEVER SKIPPABLE)
+    The workflow MUST always pause and explicitly prompt the user before proceeding.  
+    This step CANNOT be bypassed, defaulted, auto-selected, or inferred.  
+    If the user has not actively selected one of (a), (b), or (c), this tool MUST fail fast with a clear error message and stop execution.  
+
+    Inform the user:
+    '''
+    In ComplianceCow, evidence is stored in a structured format.  
+    Please select one of the following options:  
+    (a) Standard schema — Stores evidence in the ComplianceCow standard format (mandatory information only)
+    (b) Extended schema — Stores the raw or modified response (all information, not in standard structure)  
+    (c) Standard + Extended — Stores evidence in both standard and extended formats
+    '''
+
+    VALIDATION & ENFORCEMENT
+    - This tool is NON-SKIPPABLE. If not executed, or if the user does not provide an explicit choice (a/b/c), the workflow MUST stop immediately with an error.  
+    - No implicit defaults, assumptions, or auto-selections are allowed.  
+    - Mandatory Key mapping rules still apply if Standard schema is chosen.
+
+    BEHAVIOR BY SELECTION
+
+    A) If user selects STANDARD ONLY:
+    - Append a Transformation task at the END of the selected task pipeline.
+    - In that Transformation task, map ALL Mandatory Keys (listed below).
+    - Values for these keys MUST be taken from the pipeline's input file(s) and/or upstream task outputs, following the Deeper Analysis Rules.
+    - Continue collecting inputs for the Transformation task using:
+        `collect_template_input()` or `collect_parameter_input()`.
+    - For each input that requires user guidance, call:
+        `get_template_guidance('{task.name}', '<input_name>')`
+    to display the expected input format to the user.
+    - Ask the user to review and confirm OR edit the configuration before proceeding.
+    - Do not proceed unless all Mandatory Keys are mapped and the configuration is confirmed (fail fast with guidance).
+
+    B) If user selects EXTENDED ONLY:
+    - The Extended schema is a NON-STANDARD structure. It preserves the raw fields from the source response without enforcing ComplianceCow's standard schema format or mandatory key order.
+    - Use the LAST task's output directly as the Extended schema output.
+    - No mandatory field ordering or schema enforcement is applied — the structure is kept as-is for completeness and traceability.
+
+    C) If user selects BOTH:
+    - Perform all steps from (A) to create the Standard schema:
+    * Append a Transformation task at the END of the selected task pipeline.
+    * Map ALL Mandatory Keys in the exact required order.
+    * Include <AdditionalKeysBasedOnUseCase> as needed for compliance.
+    - Also add the Extended schema as a NON-STANDARD structure:
+    * Create exactly ONE output field named: ExtendedData_<filename>.
+        <filename> MUST be determinable from the use case (e.g., source, resource, or input artifact name).
+    * Map the SAME LAST task output that is used as the input to the Transformation task into ExtendedData_<filename>.
+    * Do NOT create duplicate extended outputs (for example, do not add both
+        ExtendedData_JSONToCSV and ConvertedCSVFile if they contain the same data).
+        Only ExtendedData_<filename> must exist.
+    - Continue collecting inputs for the Transformation task using:
+        collect_template_input() or collect_parameter_input().
+    - For each input that requires user guidance, call:
+        get_template_guidance('{task.name}', '<input_name>')
+    to display the expected input format to the user.
+    - Ask the user to review and confirm OR edit the configuration before proceeding.
+    - Do not proceed unless:
+    * All Mandatory Keys are mapped and validated in order
+    * Configuration is confirmed by the user
+
+    DEEPER ANALYSIS RULES
+    - Always extract and map the core Mandatory Keys required for compliance.
+    - For <AdditionalKeysBasedOnUseCase>, determine the minimal required fields based on the user's specific use case and map them under the Standard schema.
+    - If additional fields are critical for the use case, map them explicitly into the Standard schema.
+    - If fields are non-critical but useful, preserve them under `ExtendedData_<filename>`.
+    - If MCP cannot store certain fields, the tool MUST explain the omission clearly to the user before proceeding and request confirmation if needed.
+
+    MANDATORY KEYS (MUST ALWAYS BE MAPPED — IN THIS EXACT ORDER)
+    - System
+    - Source
+    - ResourceID
+    - ResourceName
+    - ResourceType
+    - ResourceLocation
+    - ResourceTags
+    - <Important Keys Based On User's Use Case>
+        (for example: fields from the response file such as user_id, username, email,
+        license_type, assigned_date, last_login_date, last_activity_date)
+    - ValidationStatusCode
+    - ValidationStatusNotes
+    - ComplianceStatus
+    - ComplianceStatusReason
+    - EvaluatedTime
+    - UserAction
+    - ActionStatus
+    - ActionResponseURL
+
+    VALIDATION & ENFORCEMENT
+    - This tool is NON-SKIPPABLE. If not executed, or if any Mandatory Key mapping is missing for the chosen Standard schema path, the workflow MUST stop with an error.
+    - Key names are case-sensitive and MUST NOT be renamed.
+    - The tool MUST persist the chosen option and mappings so that downstream tools consume a consistent schema contract.
+    - The workflow MUST NOT proceed to `prepare_input_collection_overview()` until:
+        * Inputs are collected via `collect_template_input()` or `collect_parameter_input()`
+        * `get_template_guidance()` has been used for each input needing guidance
+        * The user has confirmed or edited the configuration
+        * All Mandatory Keys are mapped and validated in order
+
+    EXECUTION ORDER GUARANTEE
+    On success, and ONLY after input collection and configuration confirmation,
+    the next tool to run MUST be `prepare_input_collection_overview()`.
+    """
+    return {
+        "nextStep": "USER PROMPT (MANDATORY)",
+        "message": "Proceeding to user selection: Standard schema, Extended schema, or Standard + Extended."
+    }
 
 
 def finalize_rule_with_io_mapping(rule_name: str, task_input_mapping: Dict = None) -> Dict[str, Any]:

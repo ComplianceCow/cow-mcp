@@ -684,6 +684,28 @@ def fetch_rules_api(params: Dict[str, Any] = None ) -> List[vo.SimplifiedRuleVO]
 
     return combined_rules
 
+def fetch_rules_and_tasks_suggestions(query: str = None, identifierType: str = None) -> List[vo.SimplifiedRuleVO]:
+    req_data = {
+        "query": query,
+        "identifierType": identifierType
+    }
+    headers = wsutils.create_header()
+    suggestions = []
+    try:
+        rules_items = wsutils.post(
+            path=wsutils.build_api_url(endpoint=constants.URL_FETCH_RULES_AND_TASKS_SUGGESTIONS),
+            data=json.dumps(req_data),
+            header=headers
+        )
+        if is_valid_array(rules_items,"items"):
+            for data in rules_items["items"]:
+                suggestions.append(vo.SimplifiedRulesAndTasksSuggestionVO.model_validate(data))
+            return suggestions
+        else:
+            return {"error": f"unable to find the  {identifierType} suggestions for the query: {query}"}
+    except Exception as e:
+        return {"error": f"Failed to fetch {identifierType} suggestions : {str(e)}"}
+
 def create_support_ticket_api(body: Dict[str, Any] = None ) -> Dict[str, Any]:
     headers = wsutils.create_header()
     try:
