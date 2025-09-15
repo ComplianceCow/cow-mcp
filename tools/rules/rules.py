@@ -399,14 +399,10 @@ def collect_template_input(task_name: str, input_name: str, user_content: str) -
     - XML: Must be well-formed XML with proper tags
     - Required fields: All template fields must be present in user content
 
-    FINAL CONFIRMATION WORKFLOW (MANDATORY - Preserved):
-    1. After user provides template content
-    2. Validate content format and structure
-    3. Show preview of content to user
-    4. Ask: "You provided this [format] content: [preview]. Is this correct? (yes/no)"
-    5. If 'yes': Upload file (if FILE type) or store in memory
-    6. If 'no': Allow user to re-enter content
-    7. NEVER proceed without final confirmation
+    STREAMLINED WORKFLOW:
+    1. User provides template content
+    2. Validate and process immediately
+    3. Auto-proceed if validation passes
 
     FILE NAMING CONVENTION (Preserved):
     - Format: {task_name}_{input_name}.{extension}
@@ -428,6 +424,8 @@ def collect_template_input(task_name: str, input_name: str, user_content: str) -
     - ALWAYS get final confirmation before proceeding
     - Handle JSON arrays properly: validate each element
     - Never use template defaults - always use user-provided content
+
+    MANDATORY: Task-sequential collection only. Sanitize input names (alphanumeric + underscore).
 
     Args:
         task_name: Name of the task this input belongs to
@@ -1035,6 +1033,12 @@ def prepare_input_collection_overview(selected_tasks: List[Dict[str, str]]) -> D
     4. Verify rule creation success before proceeding
     5. Only then allow input collection to begin
 
+    **SELECTIVE INPUT INCLUSION:**
+    - DO NOT automatically include ALL task inputs in initial rule creation
+    - Only include inputs that are REQUIRED or explicitly needed for the user's use case
+    - Skip optional inputs unless user specifically requests them
+    - Additional inputs can be added later if needed during execution or refinement
+
     **FAILURE HANDLING:**
     - If user confirms but create_rule() fails → STOP and fix issue
     - If user declines → End workflow, no rule creation needed
@@ -1090,6 +1094,11 @@ def prepare_input_collection_overview(selected_tasks: List[Dict[str, str]]) -> D
     - Create unique task_alias.input identifiers to avoid conflicts
     - Show clear task-alias-input relationships to user
     - NEW: Create initial rule structure after user confirmation
+
+    CRITICAL REQUIREMENTS:
+    - Input names: alphanumeric + underscore only (auto-sanitize with re.sub(r'[^a-zA-Z0-9_]', '_', name))
+    - Collection order: Complete ALL inputs for Task 1, then Task 2, then Task 3
+    - Within each task: templates first, parameters second
 
     Args:
         selected_tasks: List of dicts with 'task_name' and 'task_alias'
@@ -1168,8 +1177,9 @@ def prepare_input_collection_overview(selected_tasks: List[Dict[str, str]]) -> D
 
             # Process each input with unique identifier using task alias
             for inp in task.inputs:
+                cleaned_input_name = validate_input_name(inp.name)
                 # Create unique identifier: TaskAlias.InputName
-                unique_input_id = f"{task_alias}.{inp.name}"
+                unique_input_id = f"{task_alias}.{cleaned_input_name}"
 
                 input_info = {
                     "task_name": task_name,
@@ -1285,7 +1295,6 @@ def prepare_input_collection_overview(selected_tasks: List[Dict[str, str]]) -> D
             "success": True,
             "input_analysis": input_analysis,
             "overview_presentation": overview_text,
-            "unique_input_map": input_analysis["unique_input_map"],
             "task_alias_map": input_analysis["task_alias_map"],
             "collection_plan": {
                 "step1": "Template inputs (files) - collected first with task aliases",
@@ -1617,11 +1626,11 @@ def create_rule(rule_structure: Dict[str, Any]) -> Dict[str, Any]:
             purpose: Clear statement based on user breakdown
             description: Detailed description combining all steps
             labels:
-                appType: [PRIMARY_APP_TYPE_FROM_STEP_1] # Single value array
+                appType: [PRIMARY_APP_TYPE_FROM_STEP_1] # Single value array CRITICAL: Must be extracted from spec.tasks[].appTags.appType - NEVER use random values or user requirements
                 environment: [logical] # Array
                 execlevel: [app] # Array
             annotations:
-                annotateType: [PRIMARY_APP_TYPE_FROM_STEP_1] # Same as appType    
+                annotateType: [PRIMARY_APP_TYPE_FROM_STEP_1] # Same as appType - MUST match a task's appType
         spec:
             inputs:
               InputName: [ACTUAL_USER_VALUE_OR_FILE_URL]  # Use original or unique names based on conflicts
@@ -1629,7 +1638,7 @@ def create_rule(rule_structure: Dict[str, Any]) -> Dict[str, Any]:
             - name: InputName  # Use original or unique names based on conflicts
               dataType: FILE|HTTP_CONFIG|STRING|INT|FLOAT|BOOLEAN|DATE|DATETIME
               required: true   # Taken from task details
-              defaultValue: [ACTUAL_USER_VALUE] #Values are collected from users, except when the dataType is FILE or HTTP_CONFIG.
+              defaultValue: [ACTUAL_USER_VALUE] #Values are collected from users, If the dataType is FILE or HTTP_CONFIG then the value should be filepath URL.
               format: [ACTUAL_FILE_FORMAT] # Only include for FILE types (json, yaml, toml, xml, etc.)
             outputsMeta__:
             - name: FinalOutput
@@ -4912,3 +4921,12 @@ def estimate_completion_time(completion_analysis: Dict) -> str:
         return "Complete"
     elif completion_analysis.get("has_inputs"):
         return "~5 minutes"
+
+def validate_input_name(input_name: str) -> str:
+    """Ensure input names contain only alphanumeric characters and underscores"""
+    import re
+    if not re.match(r'^[a-zA-Z0-9_]+$', input_name):
+        # Replace invalid characters with underscores
+        cleaned_name = re.sub(r'[^a-zA-Z0-9_]', '_', input_name)
+        return cleaned_name
+    return input_name
