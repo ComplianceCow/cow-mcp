@@ -483,7 +483,7 @@ def collect_template_input(task_name: str, input_name: str, user_content: str) -
 
 
 @mcp.tool()
-def confirm_template_input(rule_name: str, task_name: str, input_name: str, confirmed_content: str) -> Dict[str, Any]:
+def confirm_template_input(rule_name: str, task_name: str, rule_input_name: str, input_name: str, confirmed_content: str) -> Dict[str, Any]:
     """Confirm and process template input after user validation.
 
     CONFIRMATION PROCESSING (Enhanced with Automatic Rule Updates):
@@ -492,6 +492,7 @@ def confirm_template_input(rule_name: str, task_name: str, input_name: str, conf
     - Stores content in memory for non-FILE inputs
     - MANDATORY step before proceeding to next input
     - NEW: Automatically updates the rule with new input after processing
+    - Skips confirmation if the user accepts the suggested template
 
     PROCESSING RULES (Enhanced):
     - FILE dataType: Upload content as file, return file URL
@@ -514,6 +515,7 @@ def confirm_template_input(rule_name: str, task_name: str, input_name: str, conf
                    Example: rule_name = "MeaningfulRuleName"
         task_name: Name of the task this input belongs to
         input_name: Name of the input parameter
+        rule_input_name: Must be one of the values defined in the rule structure's inputs
         confirmed_content: The content user confirmed
 
     Returns:
@@ -574,11 +576,11 @@ def confirm_template_input(rule_name: str, task_name: str, input_name: str, conf
                     rule_structure["spec"]["inputs"] = {}
                 
                 # Add new input to rule structure
-                rule_structure["spec"]["inputs"][input_name] = input_value
+                rule_structure["spec"]["inputs"][rule_input_name] = input_value
                 
                 # Add/update input metadata
                 input_meta = {
-                    "name": input_name,
+                    "name": rule_input_name,
                     "dataType": task_input.dataType,
                     "required": task_input.required,
                     "defaultValue": input_value
@@ -593,7 +595,7 @@ def confirm_template_input(rule_name: str, task_name: str, input_name: str, conf
                 
                 # Remove existing metadata for this input and add new one
                 existing_meta = rule_structure["spec"]["inputsMeta__"]
-                rule_structure["spec"]["inputsMeta__"] = [m for m in existing_meta if m["name"] != input_name]
+                rule_structure["spec"]["inputsMeta__"] = [m for m in existing_meta if m["name"] != rule_input_name]
                 rule_structure["spec"]["inputsMeta__"].append(input_meta)
 
 
@@ -880,7 +882,7 @@ def collect_parameter_input(task_name: str, input_name: str, user_value: str = N
 
 
 @mcp.tool()
-def confirm_parameter_input(task_name: str, input_name: str, confirmed_value: str, confirmation_type: str = "final", rule_name: str = None) -> Dict[str, Any]:
+def confirm_parameter_input(task_name: str, input_name: str, rule_input_name:str, confirmed_value: str, confirmation_type: str = "final", rule_name: str = None) -> Dict[str, Any]:
     """Confirm and store parameter input after user validation.
 
     CONFIRMATION PROCESSING (Enhanced with Automatic Rule Updates):
@@ -912,6 +914,7 @@ def confirm_parameter_input(task_name: str, input_name: str, confirmed_value: st
     Args:
         task_name: Name of the task this input belongs to
         input_name: Name of the input parameter
+        rule_input_name: Must be one of the values defined in the rule structure's inputs
         confirmed_value: The value user confirmed
         confirmation_type: Type of confirmation ("default" or "final")
         rule_name: Optional rule name for automatic rule updates
@@ -955,11 +958,11 @@ def confirm_parameter_input(task_name: str, input_name: str, confirmed_value: st
                     rule_structure = current_rule["rule_structure"]
                     
                     # Add parameter to rule structure
-                    rule_structure["spec"]["inputs"][input_name] = validation_result["converted_value"]
+                    rule_structure["spec"]["inputs"][rule_input_name] = validation_result["converted_value"]
                     
                     # Add/update parameter metadata
                     input_meta = {
-                        "name": input_name,
+                        "name": rule_input_name,
                         "dataType": task_input.dataType,
                         "required": task_input.required,
                         "defaultValue": validation_result["converted_value"]
@@ -967,7 +970,7 @@ def confirm_parameter_input(task_name: str, input_name: str, confirmed_value: st
                     
                     # Update metadata list
                     existing_meta = rule_structure["spec"]["inputsMeta__"]
-                    rule_structure["spec"]["inputsMeta__"] = [m for m in existing_meta if m["name"] != input_name]
+                    rule_structure["spec"]["inputsMeta__"] = [m for m in existing_meta if m["name"] != rule_input_name]
                     rule_structure["spec"]["inputsMeta__"].append(input_meta)
                     
                     # Update rule - status auto-detected
@@ -1633,13 +1636,17 @@ def create_rule(rule_structure: Dict[str, Any]) -> Dict[str, Any]:
                 annotateType: [PRIMARY_APP_TYPE_FROM_STEP_1] # Same as appType - MUST match a task's appType
         spec:
             inputs:
-              InputName: [ACTUAL_USER_VALUE_OR_FILE_URL]  # Use original or unique names based on conflicts
+              InputName: [ACTUAL_USER_VALUE_OR_FILE_URL]  # Use original or unique names based on conflicts, omit duplicates
             inputsMeta__:
-            - name: InputName  # Use original or unique names based on conflicts
+            - name: InputName             # unique name for the input
+              description:                # purpose of the input
               dataType: FILE|HTTP_CONFIG|STRING|INT|FLOAT|BOOLEAN|DATE|DATETIME
-              required: true   # Taken from task details
-              defaultValue: [ACTUAL_USER_VALUE] #Values are collected from users, If the dataType is FILE or HTTP_CONFIG then the value should be filepath URL.
-              format: [ACTUAL_FILE_FORMAT] # Only include for FILE types (json, yaml, toml, xml, etc.)
+              repeated:                   # true = multiple values allowed, false = single value
+              allowedValues:              # if repeated=true: comma-separated input is split into array
+              required:                   # value must be taken from task details.
+              defaultValue: [ACTUAL_USER_VALUE] #values are collected from users, If the dataType is FILE or HTTP_CONFIG then the value should be filepath URL.
+              format: [ACTUAL_FILE_FORMAT]      # only include for FILE types (json, yaml, toml, xml, etc.)
+              showField: true                   # true = most important field, false = optional/less important
             outputsMeta__:
             - name: FinalOutput
               dataType: FILE|STRING|INT|FLOAT|BOOLEAN|DATE|DATETIME
