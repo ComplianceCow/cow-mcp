@@ -968,6 +968,11 @@ def confirm_parameter_input(task_name: str, input_name: str, rule_input_name:str
                         "defaultValue": validation_result["converted_value"]
                     }
                     
+                    if hasattr(task_input, 'format') and task_input.format:
+                        input_meta["format"] = task_input.format
+                    elif task_input.dataType.upper() == "FILE" and "." in input_meta["defaultValue"]:
+                        input_meta["format"] = input_meta["defaultValue"].split(".")[-1]
+
                     # Update metadata list
                     existing_meta = rule_structure["spec"]["inputsMeta__"]
                     rule_structure["spec"]["inputsMeta__"] = [m for m in existing_meta if m["name"] != rule_input_name]
