@@ -3,8 +3,12 @@ from __future__ import annotations
 import asyncio
 import base64
 import json
+import mimetypes
+import os
 from datetime import datetime
+from pathlib import Path
 from typing import Any, Dict, List, Optional, Tuple, get_type_hints
+from urllib.parse import urlparse
 
 import mcptypes.rule_type as vo
 from constants import constants
@@ -96,6 +100,7 @@ if constants.ENABLE_CONTEXTUAL_VECTOR_SEARCH:
             return {
                 "error": f"An error occurred while retrieving the task with the specified details: {e}"
             }
+
 
 @mcp.tool()
 def get_tasks_summary() -> str:
@@ -394,14 +399,10 @@ def collect_template_input(task_name: str, input_name: str, user_content: str) -
     - XML: Must be well-formed XML with proper tags
     - Required fields: All template fields must be present in user content
 
-    FINAL CONFIRMATION WORKFLOW (MANDATORY - Preserved):
-    1. After user provides template content
-    2. Validate content format and structure
-    3. Show preview of content to user
-    4. Ask: "You provided this [format] content: [preview]. Is this correct? (yes/no)"
-    5. If 'yes': Upload file (if FILE type) or store in memory
-    6. If 'no': Allow user to re-enter content
-    7. NEVER proceed without final confirmation
+    STREAMLINED WORKFLOW:
+    1. User provides template content
+    2. Validate and process immediately
+    3. Auto-proceed if validation passes
 
     FILE NAMING CONVENTION (Preserved):
     - Format: {task_name}_{input_name}.{extension}
@@ -423,6 +424,8 @@ def collect_template_input(task_name: str, input_name: str, user_content: str) -
     - ALWAYS get final confirmation before proceeding
     - Handle JSON arrays properly: validate each element
     - Never use template defaults - always use user-provided content
+
+    MANDATORY: Task-sequential collection only. Sanitize input names (alphanumeric + underscore).
 
     Args:
         task_name: Name of the task this input belongs to
@@ -480,7 +483,7 @@ def collect_template_input(task_name: str, input_name: str, user_content: str) -
 
 
 @mcp.tool()
-def confirm_template_input(rule_name: str, task_name: str, input_name: str, confirmed_content: str) -> Dict[str, Any]:
+def confirm_template_input(rule_name: str, task_name: str, rule_input_name: str, input_name: str, confirmed_content: str) -> Dict[str, Any]:
     """Confirm and process template input after user validation.
 
     CONFIRMATION PROCESSING (Enhanced with Automatic Rule Updates):
@@ -489,6 +492,7 @@ def confirm_template_input(rule_name: str, task_name: str, input_name: str, conf
     - Stores content in memory for non-FILE inputs
     - MANDATORY step before proceeding to next input
     - NEW: Automatically updates the rule with new input after processing
+    - Skips confirmation if the user accepts the suggested template
 
     PROCESSING RULES (Enhanced):
     - FILE dataType: Upload content as file, return file URL
@@ -511,6 +515,7 @@ def confirm_template_input(rule_name: str, task_name: str, input_name: str, conf
                    Example: rule_name = "MeaningfulRuleName"
         task_name: Name of the task this input belongs to
         input_name: Name of the input parameter
+        rule_input_name: Must be one of the values defined in the rule structure's inputs
         confirmed_content: The content user confirmed
 
     Returns:
@@ -571,11 +576,11 @@ def confirm_template_input(rule_name: str, task_name: str, input_name: str, conf
                     rule_structure["spec"]["inputs"] = {}
                 
                 # Add new input to rule structure
-                rule_structure["spec"]["inputs"][input_name] = input_value
+                rule_structure["spec"]["inputs"][rule_input_name] = input_value
                 
                 # Add/update input metadata
                 input_meta = {
-                    "name": input_name,
+                    "name": rule_input_name,
                     "dataType": task_input.dataType,
                     "required": task_input.required,
                     "defaultValue": input_value
@@ -590,7 +595,7 @@ def confirm_template_input(rule_name: str, task_name: str, input_name: str, conf
                 
                 # Remove existing metadata for this input and add new one
                 existing_meta = rule_structure["spec"]["inputsMeta__"]
-                rule_structure["spec"]["inputsMeta__"] = [m for m in existing_meta if m["name"] != input_name]
+                rule_structure["spec"]["inputsMeta__"] = [m for m in existing_meta if m["name"] != rule_input_name]
                 rule_structure["spec"]["inputsMeta__"].append(input_meta)
 
 
@@ -877,7 +882,7 @@ def collect_parameter_input(task_name: str, input_name: str, user_value: str = N
 
 
 @mcp.tool()
-def confirm_parameter_input(task_name: str, input_name: str, confirmed_value: str, confirmation_type: str = "final", rule_name: str = None) -> Dict[str, Any]:
+def confirm_parameter_input(task_name: str, input_name: str, rule_input_name:str, confirmed_value: str, confirmation_type: str = "final", rule_name: str = None) -> Dict[str, Any]:
     """Confirm and store parameter input after user validation.
 
     CONFIRMATION PROCESSING (Enhanced with Automatic Rule Updates):
@@ -909,6 +914,7 @@ def confirm_parameter_input(task_name: str, input_name: str, confirmed_value: st
     Args:
         task_name: Name of the task this input belongs to
         input_name: Name of the input parameter
+        rule_input_name: Must be one of the values defined in the rule structure's inputs
         confirmed_value: The value user confirmed
         confirmation_type: Type of confirmation ("default" or "final")
         rule_name: Optional rule name for automatic rule updates
@@ -952,19 +958,24 @@ def confirm_parameter_input(task_name: str, input_name: str, confirmed_value: st
                     rule_structure = current_rule["rule_structure"]
                     
                     # Add parameter to rule structure
-                    rule_structure["spec"]["inputs"][input_name] = validation_result["converted_value"]
+                    rule_structure["spec"]["inputs"][rule_input_name] = validation_result["converted_value"]
                     
                     # Add/update parameter metadata
                     input_meta = {
-                        "name": input_name,
+                        "name": rule_input_name,
                         "dataType": task_input.dataType,
                         "required": task_input.required,
                         "defaultValue": validation_result["converted_value"]
                     }
                     
+                    if hasattr(task_input, 'format') and task_input.format:
+                        input_meta["format"] = task_input.format
+                    elif task_input.dataType.upper() == "FILE" and "." in input_meta["defaultValue"]:
+                        input_meta["format"] = input_meta["defaultValue"].split(".")[-1]
+
                     # Update metadata list
                     existing_meta = rule_structure["spec"]["inputsMeta__"]
-                    rule_structure["spec"]["inputsMeta__"] = [m for m in existing_meta if m["name"] != input_name]
+                    rule_structure["spec"]["inputsMeta__"] = [m for m in existing_meta if m["name"] != rule_input_name]
                     rule_structure["spec"]["inputsMeta__"].append(input_meta)
                     
                     # Update rule - status auto-detected
@@ -1030,6 +1041,12 @@ def prepare_input_collection_overview(selected_tasks: List[Dict[str, str]]) -> D
     4. Verify rule creation success before proceeding
     5. Only then allow input collection to begin
 
+    **SELECTIVE INPUT INCLUSION:**
+    - DO NOT automatically include ALL task inputs in initial rule creation
+    - Only include inputs that are REQUIRED or explicitly needed for the user's use case
+    - Skip optional inputs unless user specifically requests them
+    - Additional inputs can be added later if needed during execution or refinement
+
     **FAILURE HANDLING:**
     - If user confirms but create_rule() fails → STOP and fix issue
     - If user declines → End workflow, no rule creation needed
@@ -1085,6 +1102,11 @@ def prepare_input_collection_overview(selected_tasks: List[Dict[str, str]]) -> D
     - Create unique task_alias.input identifiers to avoid conflicts
     - Show clear task-alias-input relationships to user
     - NEW: Create initial rule structure after user confirmation
+
+    CRITICAL REQUIREMENTS:
+    - Input names: alphanumeric + underscore only (auto-sanitize with re.sub(r'[^a-zA-Z0-9_]', '_', name))
+    - Collection order: Complete ALL inputs for Task 1, then Task 2, then Task 3
+    - Within each task: templates first, parameters second
 
     Args:
         selected_tasks: List of dicts with 'task_name' and 'task_alias'
@@ -1163,8 +1185,9 @@ def prepare_input_collection_overview(selected_tasks: List[Dict[str, str]]) -> D
 
             # Process each input with unique identifier using task alias
             for inp in task.inputs:
+                cleaned_input_name = validate_input_name(inp.name)
                 # Create unique identifier: TaskAlias.InputName
-                unique_input_id = f"{task_alias}.{inp.name}"
+                unique_input_id = f"{task_alias}.{cleaned_input_name}"
 
                 input_info = {
                     "task_name": task_name,
@@ -1280,7 +1303,6 @@ def prepare_input_collection_overview(selected_tasks: List[Dict[str, str]]) -> D
             "success": True,
             "input_analysis": input_analysis,
             "overview_presentation": overview_text,
-            "unique_input_map": input_analysis["unique_input_map"],
             "task_alias_map": input_analysis["task_alias_map"],
             "collection_plan": {
                 "step1": "Template inputs (files) - collected first with task aliases",
@@ -1612,20 +1634,24 @@ def create_rule(rule_structure: Dict[str, Any]) -> Dict[str, Any]:
             purpose: Clear statement based on user breakdown
             description: Detailed description combining all steps
             labels:
-                appType: [PRIMARY_APP_TYPE_FROM_STEP_1] # Single value array
+                appType: [PRIMARY_APP_TYPE_FROM_STEP_1] # Single value array CRITICAL: Must be extracted from spec.tasks[].appTags.appType - NEVER use random values or user requirements
                 environment: [logical] # Array
                 execlevel: [app] # Array
             annotations:
-                annotateType: [PRIMARY_APP_TYPE_FROM_STEP_1] # Same as appType    
+                annotateType: [PRIMARY_APP_TYPE_FROM_STEP_1] # Same as appType - MUST match a task's appType
         spec:
             inputs:
-              InputName: [ACTUAL_USER_VALUE_OR_FILE_URL]  # Use original or unique names based on conflicts
+              InputName: [ACTUAL_USER_VALUE_OR_FILE_URL]  # Use original or unique names based on conflicts, omit duplicates
             inputsMeta__:
-            - name: InputName  # Use original or unique names based on conflicts
+            - name: InputName             # unique name for the input
+              description:                # purpose of the input
               dataType: FILE|HTTP_CONFIG|STRING|INT|FLOAT|BOOLEAN|DATE|DATETIME
-              required: true   # Taken from task details
-              defaultValue: [ACTUAL_USER_VALUE] #Values are collected from users, except when the dataType is FILE or HTTP_CONFIG.
-              format: [ACTUAL_FILE_FORMAT] # Only include for FILE types (json, yaml, toml, xml, etc.)
+              repeated:                   # true = multiple values allowed, false = single value
+              allowedValues:              # if repeated=true: comma-separated input is split into array
+              required:                   # value must be taken from task details.
+              defaultValue: [ACTUAL_USER_VALUE] #values are collected from users, If the dataType is FILE or HTTP_CONFIG then the value should be filepath URL.
+              format: [ACTUAL_FILE_FORMAT]      # only include for FILE types (json, yaml, toml, xml, etc.)
+              showField: true                   # true = most important field, false = optional/less important
             outputsMeta__:
             - name: FinalOutput
               dataType: FILE|STRING|INT|FLOAT|BOOLEAN|DATE|DATETIME
@@ -4907,3 +4933,12 @@ def estimate_completion_time(completion_analysis: Dict) -> str:
         return "Complete"
     elif completion_analysis.get("has_inputs"):
         return "~5 minutes"
+
+def validate_input_name(input_name: str) -> str:
+    """Ensure input names contain only alphanumeric characters and underscores"""
+    import re
+    if not re.match(r'^[a-zA-Z0-9_]+$', input_name):
+        # Replace invalid characters with underscores
+        cleaned_name = re.sub(r'[^a-zA-Z0-9_]', '_', input_name)
+        return cleaned_name
+    return input_name
