@@ -32,12 +32,14 @@ def ccow_workflow_knowledge() -> str:
             A State node is a passive node where the workflow waits until a specific event occurs.
 
             Purpose:
-            - Marks the start and end of the workflow
+            - Marks the Start and End of the workflow
             - Can be used mid-flow to pause execution
 
             Triggers:
             - User actions (e.g., submit, approve)
             - Time-based events (e.g., wait 2 days)
+
+            Workflow always starts with 'Start' state and ends in 'End' state. Any flow in workflow should end in 'End' state
 
 
             2. ACTIVITY NODE
@@ -89,6 +91,9 @@ def ccow_workflow_knowledge() -> str:
             ---------------------------------------------------------
             Activity:
               groupName: Ungrouped
+              position: 
+                x: 100
+                y: 50
               action:
                 type: Function
                 reference:
@@ -266,6 +271,9 @@ def ccow_workflow_knowledge() -> str:
             ----------
             Activity 3:
                 groupName: Ungrouped
+                position: 
+                  x: 100
+                  y: 50
                 action:
                     type: Function
                     reference:
@@ -295,6 +303,9 @@ def ccow_workflow_knowledge() -> str:
             conditions:
               <<condition_customlabel>>:
                 groupName: Ungrouped
+                position: 
+                  x: 100
+                  y: 50
                 action:
                     type: Expression
                     expr: {{Event.<<event_customlabel>>.formName}} == "[[form_name]]"
@@ -319,6 +330,9 @@ def ccow_workflow_knowledge() -> str:
 
                   <<condition_customlabel>>:
                     groupName: Ungrouped
+                    position: 
+                      x: 100
+                      y: 50
                     action:
                       type: Function
                       reference:
@@ -364,6 +378,9 @@ def ccow_workflow_knowledge() -> str:
             ----------------------------------------------------
             <<activity_customlabel>>:
                 groupName: Ungrouped
+                position: 
+                  x: 100
+                  y: 50
                 action:
                   type: Rule
                   reference:
@@ -401,6 +418,9 @@ def ccow_workflow_knowledge() -> str:
             ----------------------------------------------------
             <<activity_customlabel>>:
                 groupName: Ungrouped
+                position: 
+                  x: 100
+                  y: 50
                 action:
                   type: Rule
                   reference:
@@ -431,6 +451,30 @@ def ccow_workflow_knowledge() -> str:
                       - name: <<output_name>>
                         type: <<output_type>>
                         desc: <<output_desc>>
+
+            12) Position
+            use position to place nodes such as state, activity and condition.
+            **Format**: Each node should have X (horizontal) and Y (vertical) coordinates
+            - X: Distance from left edge (0 = leftmost)
+            - Y: Distance from top edge (0 = topmost)
+            
+            **For each node in your workflow, please specify:**
+              position: 
+                x: <<x-axis>>
+                y: <<y-axis>>
+
+            **Example:**
+              position: 
+                x: 100
+                y: 50
+
+            **Position Guidelines:**
+              - Use positive integer values
+              - Ensure nodes don't overlap
+              - Consider the flow direction as top-to-bottom
+              - If a node already contains x,y (position) value, do not change
+                
+
                                 
             INPUT GUIDANCE:
             ------------------------
@@ -438,6 +482,12 @@ def ccow_workflow_knowledge() -> str:
                 - Send all options if available
                 - ALL STRINGS IN PROPERTY VALUE MUST BE ENCLOSED IN DOUBLE QUOTES. This applies to all string values in the workflow YAML, including names, descriptions, labels, and any text fields, exclude expr.
                 - BOOLEAN VALUES MUST BE STRING FOR ACTIVITY IN YAML.
+
+            Workflow update Guidelines:
+              When ever there is change in workflow plan or after getting/confirming all inputs from users, do
+              1. Update the workflow summary using update_workflow_summary
+              2. Update the mermaid diagram using update_workflow_mermaid_diagram 
+              3. Ensure all documentation reflects the current workflow state. Never skip these steps - they are mandatory for workflow integrity
 
             EXAMPLE
             --------------------
@@ -452,6 +502,8 @@ def ccow_workflow_knowledge() -> str:
             metadata:
                 name: workflowName
                 description: workflowDescription
+                summary: workflowsummary (preferably ReadMe)
+                mermaidDiagram: workflowMermaidDiagram
             spec:
                 states:
                     End:
@@ -461,6 +513,9 @@ def ccow_workflow_knowledge() -> str:
                 activities:
                     Activity 1:
                     groupName: Ungrouped
+                    position: 
+                      x: 100
+                      y: 50
                     action:
                         type: Function
                         reference:
