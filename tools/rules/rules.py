@@ -373,7 +373,7 @@ def get_template_guidance(task_name: str, input_name: str) -> Dict[str, Any]:
 
 
 @mcp.tool()
-def collect_template_input(task_name: str, input_name: str, user_content: str) -> Dict[str, Any]:
+def collect_template_input(task_name: str, input_name: str, user_content: Any) -> Dict[str, Any]:
     """Collect user input for template-based task inputs.
 
     TEMPLATE INPUT PROCESSING (Enhanced with Progressive Saving):
@@ -453,6 +453,13 @@ def collect_template_input(task_name: str, input_name: str, user_content: str) -
 
         if not task_input:
             return {"success": False, "error": f"Input {input_name} not found in task {task_name}"}
+        
+        # Check type and convert to string
+        if isinstance(user_content, (dict, list)):
+            user_content = json.dumps(user_content)
+        else:
+            user_content = str(user_content)
+
 
         # Validate the content including JSON arrays (preserved validation)
         validation_result = rule.validate_template_content_enhanced(task_input, user_content)
@@ -636,20 +643,28 @@ def confirm_template_input(rule_name: str, task_name: str, rule_input_name: str,
 
 
 @mcp.tool()
-def upload_file(rule_name: str, file_name: str, content: str, content_encoding: str = "utf-8") -> Dict[str, Any]:
-    """Upload file content and return file URL for use in rules.
+def upload_file(rule_name: str, file_name: str, content: Any, content_encoding: str = "utf-8") -> Dict[str, Any]:
+    """
+    Upload file content and return file URL for use in rules.
 
     ENHANCED FILE UPLOAD PROCESS:
     - Automatically detects file format from filename and content
     - Validates and fixes common formatting issues for JSON, YAML, TOML, CSV, XML
-    - Handles escaped quotes in JSON (e.g., {"\\"key\\"":"\\"value\\""} → {"key":"value"})
+    - Accepts JSON arrays in various formats: raw, single-line, multi-line, or escaped (auto-formatted).
     - Normalizes CSV delimiters and whitespace
     - Reformats content with proper indentation/structure
     - No user preview required - validation happens automatically
     - Returns detailed validation results and file URL
 
-    AUTOMATIC FORMAT FIXES:
-    - JSON: Removes escaped quotes, fixes single→double quotes, validates syntax, reformats with indentation
+    SUPPORTED INPUT FORMATS:
+    - Raw JSON: {"key": "value"} or [{"key": "value"}]
+    - Escaped JSON: "{\"key\": \"value\"}" 
+    - Complex escaped: "[\{\\\"repository\\\":\\\"name\\\",\\\"owner\\\":\\\"org\\\"}]"
+    - Standard strings for other formats (YAML, TOML, CSV, XML)
+
+    AUTOMATIC FORMAT PROCESSING:
+    - JSON: Detects escaped strings, unescapes, validates syntax, reformats with indentation
+    - Raw JSON objects/arrays: Automatically converts to proper JSON string format
     - YAML: Validates structure, reformats with proper indentation  
     - TOML: Validates sections and key-value pairs, reformats
     - CSV: Detects delimiter, strips cell whitespace, normalizes format
@@ -670,7 +685,20 @@ def upload_file(rule_name: str, file_name: str, content: str, content_encoding: 
         content_encoding: Encoding of the content (utf-8, base64)
 
     Returns:
-        Dict containing upload results: {success, file_url, filename, file_format, validation_status, was_formatted, error}
+        Dict containing upload results: 
+        {
+            success: bool,
+            file_url: str,
+            filename: str,
+            unique_filename: str,
+            file_id: str,
+            file_format: str,
+            content_size: int,
+            validation_status: str,
+            was_formatted: bool,
+            message: str,
+            error: Optional[str]
+        }
     """
     try:
         # Validate content encoding
@@ -681,6 +709,12 @@ def upload_file(rule_name: str, file_name: str, content: str, content_encoding: 
                 "filename": file_name,
                 "supported_encodings": ["utf-8", "base64"]
             }
+
+        # Check type and convert to string
+        if isinstance(content, (dict, list)):
+            content = json.dumps(content)
+        else:
+            content = str(content)
 
         # Decode content if base64
         if content_encoding == "base64":
