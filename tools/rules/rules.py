@@ -350,13 +350,15 @@ def get_template_guidance(task_name: str, input_name: str) -> Dict[str, Any]:
 
         # Find the specific input
         task_input = None
+        available_task_inputs=[]
         for inp in task.inputs:
+            available_task_inputs.append(inp.name)
             if inp.name == input_name:
                 task_input = inp
                 break
 
         if not task_input:
-            return {"success": False, "error": f"Input {input_name} not found in task {task_name}"}
+            return {"success": False, "error": f"Input '{input_name}' not found in task '{task_name}'. Available inputs are: {available_task_inputs}"}
 
         if not task_input.templateFile:
             return {"success": False, "error": f"Input {input_name} does not have a template file"}
@@ -446,13 +448,15 @@ def collect_template_input(task_name: str, input_name: str, user_content: str) -
 
         # Find the specific input
         task_input = None
+        available_task_inputs=[]
         for inp in task.inputs:
             if inp.name == input_name:
+                available_task_inputs.append(inp.name)
                 task_input = inp
                 break
 
         if not task_input:
-            return {"success": False, "error": f"Input {input_name} not found in task {task_name}"}
+            return {"success": False, "error": f"Input '{input_name}' not found in task '{task_name}'. Available inputs are: {available_task_inputs}"}
 
         # Validate the content including JSON arrays (preserved validation)
         validation_result = rule.validate_template_content_enhanced(task_input, user_content)
@@ -531,13 +535,15 @@ def confirm_template_input(rule_name: str, task_name: str, rule_input_name: str,
 
         # Find the specific input
         task_input = None
+        available_task_inputs=[]
         for inp in task.inputs:
+            available_task_inputs.append(inp.name)
             if inp.name == input_name:
                 task_input = inp
                 break
 
         if not task_input:
-            return {"success": False, "error": f"Input {input_name} not found in task {task_name}"}
+            return {"success": False, "error": f"Input '{input_name}' not found in task '{task_name}'. Available inputs are: {available_task_inputs}"}
 
         # Check if this is a FILE or HTTP_CONFIG type input that needs upload (preserved logic)
         if task_input.dataType.upper() in ["FILE", "HTTP_CONFIG"]:
@@ -844,13 +850,15 @@ def collect_parameter_input(task_name: str, input_name: str, user_value: str = N
 
         # Find the specific input
         task_input = None
+        available_task_inputs=[]
         for inp in task.inputs:
+            available_task_inputs.append(inp.name)
             if inp.name == input_name:
                 task_input = inp
                 break
 
         if not task_input:
-            return {"success": False, "error": f"Input {input_name} not found in task {task_name}"}
+            return {"success": False, "error": f"Input '{input_name}' not found in task '{task_name}'. Available inputs are: {available_task_inputs}"}
 
         # Check if this input is required
         is_required = task_input.required
@@ -932,13 +940,15 @@ def confirm_parameter_input(task_name: str, input_name: str, rule_input_name:str
 
         # Find the specific input
         task_input = None
+        available_task_inputs=[]
         for inp in task.inputs:
+            available_task_inputs.append(inp.name)
             if inp.name == input_name:
                 task_input = inp
                 break
 
         if not task_input:
-            return {"success": False, "error": f"Input {input_name} not found in task {task_name}"}
+            return {"success": False, "error": f"Input '{input_name}' not found in task '{task_name}'. Available inputs are: {available_task_inputs}"}
 
         # Validate the confirmed value (preserved validation)
         validation_result = rule.validate_parameter_value(confirmed_value, task_input.dataType)
@@ -1019,6 +1029,7 @@ def prepare_input_collection_overview(selected_tasks: List[Dict[str, str]]) -> D
 
     This tool MUST be called before collecting any inputs. It analyzes all selected tasks
     and presents a complete overview of what inputs will be needed.
+
 
     ENHANCED WITH AUTOMATIC RULE CREATION:
     After user confirms the input overview, this tool automatically creates the initial 
@@ -1209,7 +1220,13 @@ def prepare_input_collection_overview(selected_tasks: List[Dict[str, str]]) -> D
                     "task_name": task_name,
                     "task_alias": task_alias,
                     "input_name": inp.name,
-                    "task_input_obj": inp
+                    "task_input_obj": {
+                        "name": inp.name,
+                        "description": inp.description,
+                        "dataType": inp.dataType,
+                        "required": inp.required,
+                        "format": inp.format if inp.templateFile else None,
+                    }
                 }
 
                 if inp.templateFile or inp.dataType.upper() in ["FILE", "HTTP_CONFIG"]:
@@ -2288,13 +2305,12 @@ def create_design_notes(rule_name: str, design_notes_structure: Dict[str, Any]) 
 
 
 @mcp.tool()
-def fetch_rule(rule_name: str,include_read_me: bool = False) -> Dict[str, Any]:
+def fetch_rule(rule_name: str) -> Dict[str, Any]:
     """
     Fetch rule details by rule name.
 
     Args:
         rule_name: Name of the rule to retrieve
-        include_read_me: Whether to include the README data in the response.
         
     Returns:
         Dict containing complete rule structure and metadata
@@ -4598,8 +4614,12 @@ def check_rule_status(rule_name: str) -> Dict[str, Any]:
             "inferred_status": inferred_status,  # Auto-detected, not from stored field
             "inferred_phase": inferred_phase,    # Auto-detected, not from stored field
             "progress_percentage": progress_percentage,  # Calculated from actual content
-            "completion_analysis": completion_analysis,  # Real-time analysis
             "missing_components": missing_components,
+            "has_tasks": completion_analysis["has_tasks"],
+            "has_inputs": completion_analysis["has_inputs"],
+            "has_inputs_meta": completion_analysis["has_inputs_meta"],
+            "inputs_match_metadata": completion_analysis["inputs_match_metadata"],
+            "outputs_count": completion_analysis["outputs_count"],
             "tasks_defined": completion_analysis["tasks_count"],
             "inputs_collected": completion_analysis["inputs_collected"],
             "inputs_metadata_count": completion_analysis["inputs_meta_count"],
@@ -4712,11 +4732,9 @@ def create_initial_rule_from_planning(rule_name: str, purpose: str, description:
 def configure_rule_output_schema() -> Dict[str, Any]:
     """
     PREREQUISITE — MUST RUN FIRST (NON-SKIPPABLE)
-    This tool is a hard prerequisite and MUST be executed successfully before the
-    `prepare_input_collection_overview()` tool (and before any downstream rule-creation
-    or evaluation steps). If this tool has not run or did not complete, the workflow
-    MUST fail fast with an explicit error.
-
+    This tool is a hard prerequisite and MUST be executed successfully before the `prepare_input_collection_overview()` tool (and any downstream rule-creation or evaluation steps). 
+    If this tool has not run or did not complete, the workflow MUST fail fast with an explicit error.
+    
     PURPOSE
     Establish the rule's output schema policy for ComplianceCow and apply any required transformations. In ComplianceCow, we maintain a standard format for storing evidence records. The user MUST choose one of the following rule output options:
 
@@ -4729,15 +4747,6 @@ def configure_rule_output_schema() -> Dict[str, Any]:
     This step CANNOT be bypassed, defaulted, auto-selected, or inferred.  
     If the user has not actively selected one of (a), (b), or (c), this tool MUST fail fast with a clear error message and stop execution.  
 
-    Inform the user:
-    '''
-    In ComplianceCow, evidence is stored in a structured format.  
-    Please select one of the following options:  
-    (a) Standard schema — Stores evidence in the ComplianceCow standard format (mandatory information only)
-    (b) Extended schema — Stores the raw or modified response (all information, not in standard structure)  
-    (c) Standard + Extended — Stores evidence in both standard and extended formats
-    '''
-
     VALIDATION & ENFORCEMENT
     - This tool is NON-SKIPPABLE. If not executed, or if the user does not provide an explicit choice (a/b/c), the workflow MUST stop immediately with an error.  
     - No implicit defaults, assumptions, or auto-selections are allowed.  
@@ -4746,8 +4755,9 @@ def configure_rule_output_schema() -> Dict[str, Any]:
     BEHAVIOR BY SELECTION
 
     A) If user selects STANDARD ONLY:
-    - Append a Transformation task at the END of the selected task pipeline.
-    - In that Transformation task, map ALL Mandatory Keys (listed below).
+    - If the pipeline already ends with a Transformation task, reuse the existing Transformation task instead of appending a new one.
+    - Otherwise, append a Transformation task at the END of the selected task pipeline.
+    - In the Transformation task, map ALL Mandatory Keys (listed below).
     - Values for these keys MUST be taken from the pipeline's input file(s) and/or upstream task outputs, following the Deeper Analysis Rules.
     - Continue collecting inputs for the Transformation task using:
         `collect_template_input()` or `collect_parameter_input()`.
@@ -4820,14 +4830,24 @@ def configure_rule_output_schema() -> Dict[str, Any]:
         * `get_template_guidance()` has been used for each input needing guidance
         * The user has confirmed or edited the configuration
         * All Mandatory Keys are mapped and validated in order
+    - Mandatory, a JS chart (Mermaid/D3) MUST be generated to visualize the rule's I/O field structure. The chart must be displayed in this chat immediately after user input, and no further processing is allowed until this step is completed.
 
     EXECUTION ORDER GUARANTEE
     On success, and ONLY after input collection and configuration confirmation,
     the next tool to run MUST be `prepare_input_collection_overview()`.
     """
+    user_message = (
+        "In ComplianceCow, evidence is stored in a structured format.\n"
+        "Please select one of the following options:\n"
+        "(a) Standard schema — Stores evidence in the ComplianceCow standard format (mandatory information only)\n"
+        "(b) Extended schema — Stores the raw or modified response (all information, not in standard structure)\n"
+        "(c) Standard + Extended — Stores evidence in both standard and extended formats"
+    )
+
     return {
-        "nextStep": "USER PROMPT (MANDATORY)",
-        "message": "Proceeding to user selection: Standard schema, Extended schema, or Standard + Extended."
+        "user_prompt": user_message,
+        "message": "Proceeding to user selection: Standard schema, Extended schema, or Standard + Extended.",
+        "next_step":"Generates a JS chart (Mermaid/D3) to visualize the rule's I/O fields and task structure. The chart must be shown in this chat immediately after user input. NOTE: No further processing should occur before this step."
     }
 
 
