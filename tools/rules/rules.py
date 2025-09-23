@@ -4614,8 +4614,12 @@ def check_rule_status(rule_name: str) -> Dict[str, Any]:
             "inferred_status": inferred_status,  # Auto-detected, not from stored field
             "inferred_phase": inferred_phase,    # Auto-detected, not from stored field
             "progress_percentage": progress_percentage,  # Calculated from actual content
-            "completion_analysis": completion_analysis,  # Real-time analysis
             "missing_components": missing_components,
+            "has_tasks": completion_analysis["has_tasks"],
+            "has_inputs": completion_analysis["has_inputs"],
+            "has_inputs_meta": completion_analysis["has_inputs_meta"],
+            "inputs_match_metadata": completion_analysis["inputs_match_metadata"],
+            "outputs_count": completion_analysis["outputs_count"],
             "tasks_defined": completion_analysis["tasks_count"],
             "inputs_collected": completion_analysis["inputs_collected"],
             "inputs_metadata_count": completion_analysis["inputs_meta_count"],
