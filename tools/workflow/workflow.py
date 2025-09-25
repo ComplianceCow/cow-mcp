@@ -504,6 +504,8 @@ async def create_workflow(workflow_yaml: str) -> str:
     metadata:
         name:
         description:
+        summary:
+        mermaidDiagram:
 
     This function creates a workflow from a YAML specification.
 
@@ -511,11 +513,6 @@ async def create_workflow(workflow_yaml: str) -> str:
     Update summary (document what we're building)
     Update mermaid diagram (visualize the flow)
     Then modify workflow (implement the actual logic)
-
-    After any workflow modification or plan change:
-    1. ALWAYS update the workflow summary using update_workflow_summary
-    2. ALWAYS update the mermaid diagram using update_workflow_mermaid_diagram 
-    3. Ensure all documentation reflects the current workflow state
     
     Args:
         workflow_yaml: YAML string defining the workflow structure
@@ -775,12 +772,6 @@ async def modify_workflow(workflow_yaml: str, workflow_id: str) -> str:
     Please provide the workflow YAML specification, state definitions, and 
     integration patterns before I proceed with modify_workflow."
 
-    **CRITICAL REMINDER**: After any workflow modification or plan change:
-    1. ALWAYS update the workflow summary using update_workflow_summary
-    2. ALWAYS update the mermaid diagram using update_workflow_mermaid_diagram 
-    3. Ensure all documentation reflects the current workflow state. Never skip these steps - they are mandatory for workflow integrity
-
-    If you modify a workflow and don't update both summary and diagram, explicitly acknowledge the oversight and correct it immediately.
     
     Args:
         workflow_yaml: YAML string defining the updated workflow structure
