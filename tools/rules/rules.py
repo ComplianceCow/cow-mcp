@@ -1593,6 +1593,7 @@ def create_rule(rule_structure: Dict[str, Any]) -> Dict[str, Any]:
 
     This tool now handles both initial rule creation and progressive updates during the rule creation workflow.
     It intelligently detects the completion status and sets appropriate metadata automatically.
+    It returns the URL to view the rule in the UI once it is created display the URL in chat.
 
     ENHANCED FOR PROGRESSIVE SAVING:
     - Automatically detects rule completion status based on rule structure content
@@ -1976,6 +1977,10 @@ def create_rule(rule_structure: Dict[str, Any]) -> Dict[str, Any]:
         
         rule_name = rule_structure["meta"]["name"]
 
+        # Build UI URL
+        base_host = constants.host.rstrip("/api") if hasattr(constants, "host") and isinstance(constants.host, str) else getattr(constants, "host", "")
+        ui_url = f"{base_host}/ui/create-pc-rule?name={rule_name}&catalog=localcatalog" if base_host else ""
+            
         #Add MCP tag to the rule with proper error handling
         try:
             tag_result = add_rule_tag(rule_name)
@@ -2013,6 +2018,7 @@ def create_rule(rule_structure: Dict[str, Any]) -> Dict[str, Any]:
             "design_notes_info": design_notes_result,
             "readme_info": readme_info,
             "tag_status": tag_status,
+            "ui_url" : ui_url,
             "next_step": determine_next_action(creation_phase, completion_analysis)
         }
         
