@@ -464,7 +464,6 @@ def collect_template_input(task_name: str, input_name: str, user_content: Any) -
         else:
             user_content = str(user_content)
 
-
         # Validate the content including JSON arrays (preserved validation)
         validation_result = rule.validate_template_content_enhanced(task_input, user_content)
         if not validation_result["valid"]:
