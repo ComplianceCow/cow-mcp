@@ -373,7 +373,7 @@ def get_template_guidance(task_name: str, input_name: str) -> Dict[str, Any]:
 
 
 @mcp.tool()
-def collect_template_input(task_name: str, input_name: str, user_content: str) -> Dict[str, Any]:
+def collect_template_input(task_name: str, input_name: str, user_content: Any) -> Dict[str, Any]:
     """Collect user input for template-based task inputs.
 
     TEMPLATE INPUT PROCESSING (Enhanced with Progressive Saving):
@@ -399,14 +399,10 @@ def collect_template_input(task_name: str, input_name: str, user_content: str) -
     - XML: Must be well-formed XML with proper tags
     - Required fields: All template fields must be present in user content
 
-    FINAL CONFIRMATION WORKFLOW (MANDATORY - Preserved):
-    1. After user provides template content
-    2. Validate content format and structure
-    3. Show preview of content to user
-    4. Ask: "You provided this [format] content: [preview]. Is this correct? (yes/no)"
-    5. If 'yes': Upload file (if FILE type) or store in memory
-    6. If 'no': Allow user to re-enter content
-    7. NEVER proceed without final confirmation
+    STREAMLINED WORKFLOW:
+    1. User provides template content
+    2. Validate and process immediately
+    3. Auto-proceed if validation passes
 
     FILE NAMING CONVENTION (Preserved):
     - Format: {task_name}_{input_name}.{extension}
@@ -428,6 +424,8 @@ def collect_template_input(task_name: str, input_name: str, user_content: str) -
     - ALWAYS get final confirmation before proceeding
     - Handle JSON arrays properly: validate each element
     - Never use template defaults - always use user-provided content
+
+    MANDATORY: Task-sequential collection only. Sanitize input names (alphanumeric + underscore).
 
     Args:
         task_name: Name of the task this input belongs to
@@ -455,6 +453,13 @@ def collect_template_input(task_name: str, input_name: str, user_content: str) -
 
         if not task_input:
             return {"success": False, "error": f"Input {input_name} not found in task {task_name}"}
+        
+        # Check type and convert to string
+        if isinstance(user_content, (dict, list)):
+            user_content = json.dumps(user_content)
+        else:
+            user_content = str(user_content)
+
 
         # Validate the content including JSON arrays (preserved validation)
         validation_result = rule.validate_template_content_enhanced(task_input, user_content)
@@ -485,7 +490,7 @@ def collect_template_input(task_name: str, input_name: str, user_content: str) -
 
 
 @mcp.tool()
-def confirm_template_input(rule_name: str, task_name: str, input_name: str, confirmed_content: str) -> Dict[str, Any]:
+def confirm_template_input(rule_name: str, task_name: str, rule_input_name: str, input_name: str, confirmed_content: str) -> Dict[str, Any]:
     """Confirm and process template input after user validation.
 
     CONFIRMATION PROCESSING (Enhanced with Automatic Rule Updates):
@@ -494,6 +499,7 @@ def confirm_template_input(rule_name: str, task_name: str, input_name: str, conf
     - Stores content in memory for non-FILE inputs
     - MANDATORY step before proceeding to next input
     - NEW: Automatically updates the rule with new input after processing
+    - Skips confirmation if the user accepts the suggested template
 
     PROCESSING RULES (Enhanced):
     - FILE dataType: Upload content as file, return file URL
@@ -516,6 +522,7 @@ def confirm_template_input(rule_name: str, task_name: str, input_name: str, conf
                    Example: rule_name = "MeaningfulRuleName"
         task_name: Name of the task this input belongs to
         input_name: Name of the input parameter
+        rule_input_name: Must be one of the values defined in the rule structure's inputs
         confirmed_content: The content user confirmed
 
     Returns:
@@ -576,11 +583,11 @@ def confirm_template_input(rule_name: str, task_name: str, input_name: str, conf
                     rule_structure["spec"]["inputs"] = {}
                 
                 # Add new input to rule structure
-                rule_structure["spec"]["inputs"][input_name] = input_value
+                rule_structure["spec"]["inputs"][rule_input_name] = input_value
                 
                 # Add/update input metadata
                 input_meta = {
-                    "name": input_name,
+                    "name": rule_input_name,
                     "dataType": task_input.dataType,
                     "required": task_input.required,
                     "defaultValue": input_value
@@ -595,7 +602,7 @@ def confirm_template_input(rule_name: str, task_name: str, input_name: str, conf
                 
                 # Remove existing metadata for this input and add new one
                 existing_meta = rule_structure["spec"]["inputsMeta__"]
-                rule_structure["spec"]["inputsMeta__"] = [m for m in existing_meta if m["name"] != input_name]
+                rule_structure["spec"]["inputsMeta__"] = [m for m in existing_meta if m["name"] != rule_input_name]
                 rule_structure["spec"]["inputsMeta__"].append(input_meta)
 
 
@@ -636,20 +643,28 @@ def confirm_template_input(rule_name: str, task_name: str, input_name: str, conf
 
 
 @mcp.tool()
-def upload_file(rule_name: str, file_name: str, content: str, content_encoding: str = "utf-8") -> Dict[str, Any]:
-    """Upload file content and return file URL for use in rules.
+def upload_file(rule_name: str, file_name: str, content: Any, content_encoding: str = "utf-8") -> Dict[str, Any]:
+    """
+    Upload file content and return file URL for use in rules.
 
     ENHANCED FILE UPLOAD PROCESS:
     - Automatically detects file format from filename and content
     - Validates and fixes common formatting issues for JSON, YAML, TOML, CSV, XML
-    - Handles escaped quotes in JSON (e.g., {"\\"key\\"":"\\"value\\""} → {"key":"value"})
+    - Accepts JSON arrays in various formats: raw, single-line, multi-line, or escaped (auto-formatted).
     - Normalizes CSV delimiters and whitespace
     - Reformats content with proper indentation/structure
     - No user preview required - validation happens automatically
     - Returns detailed validation results and file URL
 
-    AUTOMATIC FORMAT FIXES:
-    - JSON: Removes escaped quotes, fixes single→double quotes, validates syntax, reformats with indentation
+    SUPPORTED INPUT FORMATS:
+    - Raw JSON: {"key": "value"} or [{"key": "value"}]
+    - Escaped JSON: "{\"key\": \"value\"}" 
+    - Complex escaped: "[\{\\\"repository\\\":\\\"name\\\",\\\"owner\\\":\\\"org\\\"}]"
+    - Standard strings for other formats (YAML, TOML, CSV, XML)
+
+    AUTOMATIC FORMAT PROCESSING:
+    - JSON: Detects escaped strings, unescapes, validates syntax, reformats with indentation
+    - Raw JSON objects/arrays: Automatically converts to proper JSON string format
     - YAML: Validates structure, reformats with proper indentation  
     - TOML: Validates sections and key-value pairs, reformats
     - CSV: Detects delimiter, strips cell whitespace, normalizes format
@@ -670,7 +685,20 @@ def upload_file(rule_name: str, file_name: str, content: str, content_encoding: 
         content_encoding: Encoding of the content (utf-8, base64)
 
     Returns:
-        Dict containing upload results: {success, file_url, filename, file_format, validation_status, was_formatted, error}
+        Dict containing upload results: 
+        {
+            success: bool,
+            file_url: str,
+            filename: str,
+            unique_filename: str,
+            file_id: str,
+            file_format: str,
+            content_size: int,
+            validation_status: str,
+            was_formatted: bool,
+            message: str,
+            error: Optional[str]
+        }
     """
     try:
         # Validate content encoding
@@ -681,6 +709,12 @@ def upload_file(rule_name: str, file_name: str, content: str, content_encoding: 
                 "filename": file_name,
                 "supported_encodings": ["utf-8", "base64"]
             }
+
+        # Check type and convert to string
+        if isinstance(content, (dict, list)):
+            content = json.dumps(content)
+        else:
+            content = str(content)
 
         # Decode content if base64
         if content_encoding == "base64":
@@ -882,7 +916,7 @@ def collect_parameter_input(task_name: str, input_name: str, user_value: str = N
 
 
 @mcp.tool()
-def confirm_parameter_input(task_name: str, input_name: str, confirmed_value: str, confirmation_type: str = "final", rule_name: str = None) -> Dict[str, Any]:
+def confirm_parameter_input(task_name: str, input_name: str, rule_input_name:str, confirmed_value: str, confirmation_type: str = "final", rule_name: str = None) -> Dict[str, Any]:
     """Confirm and store parameter input after user validation.
 
     CONFIRMATION PROCESSING (Enhanced with Automatic Rule Updates):
@@ -914,6 +948,7 @@ def confirm_parameter_input(task_name: str, input_name: str, confirmed_value: st
     Args:
         task_name: Name of the task this input belongs to
         input_name: Name of the input parameter
+        rule_input_name: Must be one of the values defined in the rule structure's inputs
         confirmed_value: The value user confirmed
         confirmation_type: Type of confirmation ("default" or "final")
         rule_name: Optional rule name for automatic rule updates
@@ -957,19 +992,24 @@ def confirm_parameter_input(task_name: str, input_name: str, confirmed_value: st
                     rule_structure = current_rule["rule_structure"]
                     
                     # Add parameter to rule structure
-                    rule_structure["spec"]["inputs"][input_name] = validation_result["converted_value"]
+                    rule_structure["spec"]["inputs"][rule_input_name] = validation_result["converted_value"]
                     
                     # Add/update parameter metadata
                     input_meta = {
-                        "name": input_name,
+                        "name": rule_input_name,
                         "dataType": task_input.dataType,
                         "required": task_input.required,
                         "defaultValue": validation_result["converted_value"]
                     }
                     
+                    if hasattr(task_input, 'format') and task_input.format:
+                        input_meta["format"] = task_input.format
+                    elif task_input.dataType.upper() == "FILE" and "." in input_meta["defaultValue"]:
+                        input_meta["format"] = input_meta["defaultValue"].split(".")[-1]
+
                     # Update metadata list
                     existing_meta = rule_structure["spec"]["inputsMeta__"]
-                    rule_structure["spec"]["inputsMeta__"] = [m for m in existing_meta if m["name"] != input_name]
+                    rule_structure["spec"]["inputsMeta__"] = [m for m in existing_meta if m["name"] != rule_input_name]
                     rule_structure["spec"]["inputsMeta__"].append(input_meta)
                     
                     # Update rule - status auto-detected
@@ -1035,6 +1075,12 @@ def prepare_input_collection_overview(selected_tasks: List[Dict[str, str]]) -> D
     4. Verify rule creation success before proceeding
     5. Only then allow input collection to begin
 
+    **SELECTIVE INPUT INCLUSION:**
+    - DO NOT automatically include ALL task inputs in initial rule creation
+    - Only include inputs that are REQUIRED or explicitly needed for the user's use case
+    - Skip optional inputs unless user specifically requests them
+    - Additional inputs can be added later if needed during execution or refinement
+
     **FAILURE HANDLING:**
     - If user confirms but create_rule() fails → STOP and fix issue
     - If user declines → End workflow, no rule creation needed
@@ -1090,6 +1136,11 @@ def prepare_input_collection_overview(selected_tasks: List[Dict[str, str]]) -> D
     - Create unique task_alias.input identifiers to avoid conflicts
     - Show clear task-alias-input relationships to user
     - NEW: Create initial rule structure after user confirmation
+
+    CRITICAL REQUIREMENTS:
+    - Input names: alphanumeric + underscore only (auto-sanitize with re.sub(r'[^a-zA-Z0-9_]', '_', name))
+    - Collection order: Complete ALL inputs for Task 1, then Task 2, then Task 3
+    - Within each task: templates first, parameters second
 
     Args:
         selected_tasks: List of dicts with 'task_name' and 'task_alias'
@@ -1168,8 +1219,9 @@ def prepare_input_collection_overview(selected_tasks: List[Dict[str, str]]) -> D
 
             # Process each input with unique identifier using task alias
             for inp in task.inputs:
+                cleaned_input_name = validate_input_name(inp.name)
                 # Create unique identifier: TaskAlias.InputName
-                unique_input_id = f"{task_alias}.{inp.name}"
+                unique_input_id = f"{task_alias}.{cleaned_input_name}"
 
                 input_info = {
                     "task_name": task_name,
@@ -1285,7 +1337,6 @@ def prepare_input_collection_overview(selected_tasks: List[Dict[str, str]]) -> D
             "success": True,
             "input_analysis": input_analysis,
             "overview_presentation": overview_text,
-            "unique_input_map": input_analysis["unique_input_map"],
             "task_alias_map": input_analysis["task_alias_map"],
             "collection_plan": {
                 "step1": "Template inputs (files) - collected first with task aliases",
@@ -1542,6 +1593,7 @@ def create_rule(rule_structure: Dict[str, Any]) -> Dict[str, Any]:
 
     This tool now handles both initial rule creation and progressive updates during the rule creation workflow.
     It intelligently detects the completion status and sets appropriate metadata automatically.
+    It returns the URL to view the rule in the UI once it is created display the URL in chat.
 
     ENHANCED FOR PROGRESSIVE SAVING:
     - Automatically detects rule completion status based on rule structure content
@@ -1617,20 +1669,24 @@ def create_rule(rule_structure: Dict[str, Any]) -> Dict[str, Any]:
             purpose: Clear statement based on user breakdown
             description: Detailed description combining all steps
             labels:
-                appType: [PRIMARY_APP_TYPE_FROM_STEP_1] # Single value array
+                appType: [PRIMARY_APP_TYPE_FROM_STEP_1] # Single value array CRITICAL: Must be extracted from spec.tasks[].appTags.appType - NEVER use random values or user requirements
                 environment: [logical] # Array
                 execlevel: [app] # Array
             annotations:
-                annotateType: [PRIMARY_APP_TYPE_FROM_STEP_1] # Same as appType    
+                annotateType: [PRIMARY_APP_TYPE_FROM_STEP_1] # Same as appType - MUST match a task's appType
         spec:
             inputs:
-              InputName: [ACTUAL_USER_VALUE_OR_FILE_URL]  # Use original or unique names based on conflicts
+              InputName: [ACTUAL_USER_VALUE_OR_FILE_URL]  # Use original or unique names based on conflicts, omit duplicates
             inputsMeta__:
-            - name: InputName  # Use original or unique names based on conflicts
+            - name: InputName             # unique name for the input
+              description:                # purpose of the input
               dataType: FILE|HTTP_CONFIG|STRING|INT|FLOAT|BOOLEAN|DATE|DATETIME
-              required: true   # Taken from task details
-              defaultValue: [ACTUAL_USER_VALUE] #Values are collected from users, except when the dataType is FILE or HTTP_CONFIG.
-              format: [ACTUAL_FILE_FORMAT] # Only include for FILE types (json, yaml, toml, xml, etc.)
+              repeated:                   # true = multiple values allowed, false = single value
+              allowedValues:              # if repeated=true: comma-separated input is split into array
+              required:                   # value must be taken from task details.
+              defaultValue: [ACTUAL_USER_VALUE] #values are collected from users, If the dataType is FILE or HTTP_CONFIG then the value should be filepath URL.
+              format: [ACTUAL_FILE_FORMAT]      # only include for FILE types (json, yaml, toml, xml, etc.)
+              showField: true                   # true = most important field, false = optional/less important
             outputsMeta__:
             - name: FinalOutput
               dataType: FILE|STRING|INT|FLOAT|BOOLEAN|DATE|DATETIME
@@ -1921,6 +1977,10 @@ def create_rule(rule_structure: Dict[str, Any]) -> Dict[str, Any]:
         
         rule_name = rule_structure["meta"]["name"]
 
+        # Build UI URL
+        base_host = constants.host.rstrip("/api") if hasattr(constants, "host") and isinstance(constants.host, str) else getattr(constants, "host", "")
+        ui_url = f"{base_host}/ui/create-pc-rule?name={rule_name}&catalog=localcatalog" if base_host else ""
+            
         #Add MCP tag to the rule with proper error handling
         try:
             tag_result = add_rule_tag(rule_name)
@@ -1958,6 +2018,7 @@ def create_rule(rule_structure: Dict[str, Any]) -> Dict[str, Any]:
             "design_notes_info": design_notes_result,
             "readme_info": readme_info,
             "tag_status": tag_status,
+            "ui_url" : ui_url,
             "next_step": determine_next_action(creation_phase, completion_analysis)
         }
         
@@ -4912,3 +4973,12 @@ def estimate_completion_time(completion_analysis: Dict) -> str:
         return "Complete"
     elif completion_analysis.get("has_inputs"):
         return "~5 minutes"
+
+def validate_input_name(input_name: str) -> str:
+    """Ensure input names contain only alphanumeric characters and underscores"""
+    import re
+    if not re.match(r'^[a-zA-Z0-9_]+$', input_name):
+        # Replace invalid characters with underscores
+        cleaned_name = re.sub(r'[^a-zA-Z0-9_]', '_', input_name)
+        return cleaned_name
+    return input_name
