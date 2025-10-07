@@ -923,7 +923,7 @@ def collect_parameter_input(task_name: str, input_name: str, user_value: str = N
 
 
 @mcp.tool()
-def confirm_parameter_input(task_name: str, input_name: str, rule_input_name:str, confirmed_value: str, confirmation_type: str = "final", rule_name: str = None) -> Dict[str, Any]:
+def confirm_parameter_input(task_name: str, input_name: str, rule_input_name:str, confirmed_value: str, explaination: str, confirmation_type: str = "final", rule_name: str = None) -> Dict[str, Any]:
     """Confirm and store parameter input after user validation.
 
     CONFIRMATION PROCESSING (Enhanced with Automatic Rule Updates):
@@ -957,6 +957,7 @@ def confirm_parameter_input(task_name: str, input_name: str, rule_input_name:str
         input_name: Name of the input parameter
         rule_input_name: Must be one of the values defined in the rule structure's inputs
         confirmed_value: The value user confirmed
+        explanation: Add explanation only if dataType is JQ_EXPRESSION or SQL_EXPRESSION. This field provides details about the confirmed_value.
         confirmation_type: Type of confirmation ("default" or "final")
         rule_name: Optional rule name for automatic rule updates
 
@@ -1010,6 +1011,10 @@ def confirm_parameter_input(task_name: str, input_name: str, rule_input_name:str
                         "required": task_input.required,
                         "defaultValue": validation_result["converted_value"]
                     }
+
+                    # Add explanation if dataType is JQ_EXPRESSION or SQL_EXPRESSION
+                    if task_input.dataType in ["JQ_EXPRESSION", "SQL_EXPRESSION"]:
+                        input_meta["explanation"] = explaination
                     
                     if hasattr(task_input, 'format') and task_input.format:
                         input_meta["format"] = task_input.format
