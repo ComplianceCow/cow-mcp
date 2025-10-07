@@ -673,6 +673,36 @@ async def list_workflows() -> dict | str:
         logger.error("create_workflow: {}\n".format(e))
         return "Facing internal error"
 
+
+@mcp.tool()
+async def get_workflow_by_name(name: str) -> dict | str:
+    """
+        Get a workflow configuration by its name (exact, case-sensitive match).
+
+        Args:
+            - name (str): workflow name to search
+    """
+    try:
+        logger.info(f"get_workflow_by_name: {name}\n")
+
+        output = await utils.make_GET_API_call_to_CCow(f"/v3/workflow-configs?name={name}")
+        logger.debug("get_workflow_by_name output: {}\n".format(output))
+
+        if isinstance(output, str) or  "error" in output:
+            logger.error("get_workflow_by_name error: {}\n".format(output))
+            return "Facing internal error"
+        if "items" in output and isinstance(output["items"], list):
+            for item in output["items"]:
+                utils.trimWorkflowDetails(item, True)
+            if len(output["items"]) > 0:
+                return output["items"][0]
+            return "No workflow found with the given name"
+        return "Facing internal error"
+    except Exception as e:
+        logger.error(traceback.format_exc())
+        logger.error("get_workflow_by_name: {}\n".format(e))
+        return "Facing internal error"
+
 @mcp.tool()
 async def fetch_workflow_details(id:str) -> dict | str:
     """

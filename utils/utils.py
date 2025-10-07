@@ -161,11 +161,12 @@ def formatResources (data: dict, includeChecks: bool) -> dict:
             data["items"][index]=newItem
     return data
 
-def trimWorkflowDetails (item: dict):
+def trimWorkflowDetails (item: dict, includeSpec: bool=False):
     deleteKey(item,"domainId")
     deleteKey(item,"orgId")
     deleteKey(item,"groupId")
-    deleteKey(item,"spec")
+    if not includeSpec:
+        deleteKey(item,"spec")
     if "status" in item:
         deleteKey(item["status"],"filePathHash")
 
