@@ -3344,15 +3344,19 @@ def execute_rule(rule_name: str, from_date: str, to_date:str, rule_inputs: List[
     0. **MANDATORY: Check rule status to ensure rule is fully developed before execution**
     1. User chooses to execute rule after creation
     2. Extract unique appTags from selected tasks → get user confirmation
-    3. For each tag:
-        - Get available applications via get_applications_for_tag()
-        - Present choice: existing app or new credentials → get user confirmation
-        - If existing: use application ID → confirm → move to next tag
+    3. MANDATORY STEP (CANNOT BE SKIPPED):
+        For each tag:
+        - Fetch available applications via get_applications_for_tag().
+        - Present them to the user for manual selection.
+        - **Tool must not auto-select.** User decides to:
+            a. Use an existing application, or  
+            b. Run with new credentials (not persisted or saved as an application).
+        - Proceed only after user confirmation for each tag.
         ```json
         [
             {
                 "applicationType": "[application_class_name from fetch_applications(appType)]",
-                "applicationId": "[Actual ID]",
+                "applicationId": "[Actual application ID chosen by user]",
                 "appTags": "[Complete object from rule spec.tasks[].appTags]"
             }
         ]
