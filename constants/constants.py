@@ -78,6 +78,10 @@ URL_WORKFLOW_SPECS = "/v2/workflow-specs"
 URL_WORKFLOW_BINDINGS = "/v2/workflow-bindings"
 URL_WORKFLOW_BINDINGS_EXECUTE = "/v2/workflow-bindings/execute"
 
+URL_FETCH_TASK_README = "/pc-api/v1/tasks"
+URL_FETCH_RULE_README = "/v1/rules"
+URL_FETCH_FILE_BY_HASH = "/url-hash/download"
+
 
 # RULES
 MCP_GET_RULES_TAG = "MCP"

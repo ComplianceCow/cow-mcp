@@ -340,6 +340,137 @@ async def fetch_workflow_rule(name: str) -> vo.WorkflowRuleListVO:
         return vo.WorkflowRuleListVO(error="Facing internal error")
 
 @mcp.tool()
+async def fetch_task_readme(name: str) -> vo.TaskReadmeResponseVO:
+    """
+    Retrieve README documentation for a specific task by name.
+    
+    Fetches the complete README documentation for a task, providing 
+    detailed information about the task's purpose, usage instructions, prerequisites, 
+    and implementation steps. This is useful for understanding how to properly use 
+    a task in workflows.
+    
+    Args:
+        name (str): The exact name of the task to retrieve README for
+        
+    Returns:
+        - readmeText (str): Complete README documentation as readable text
+        - taskName (str): Name of the task for reference
+        - error (str): Error message if retrieval fails or README not available
+    """
+    try:
+        logger.info(f"fetch_task_readme: searching for task '{name}'\n")
+
+        output = await utils.make_GET_API_call_to_CCow(f"{constants.URL_FETCH_TASK_README}?name={name}")
+        logger.debug("task readme output: {}\n".format(output))
+        
+        if isinstance(output, str) or "error" in output:
+            logger.error("task readme error: {}\n".format(output))
+            return vo.TaskReadmeResponseVO(error="Facing internal error")
+        
+        if not output.get("items") or len(output["items"]) == 0:
+            logger.warning(f"No task found with name: {name}")
+            return vo.TaskReadmeResponseVO(taskName=name, error=f"Task '{name}' not available")
+        
+        task_item = output["items"][0]
+        task_name = task_item.get("name", name)
+        readme_data = task_item.get("readmeData", "")
+        
+        if not readme_data:
+            logger.warning(f"No README data found for task: {name}")
+            return vo.TaskReadmeResponseVO(taskName=task_name, error=f"README not available for task: {name}")
+        
+        try:
+            readme_text = base64.b64decode(readme_data).decode('utf-8')
+            logger.debug(f"Successfully decoded README for task: {task_name}")
+            return vo.TaskReadmeResponseVO(readmeText=readme_text, taskName=task_name)
+        except Exception as decode_error:
+            logger.error(f"Failed to decode README data for task {name}: {decode_error}")
+            return vo.TaskReadmeResponseVO(taskName=task_name, error=f"Failed to decode README data for task: {name}")
+
+    except Exception as e:
+        logger.error(traceback.format_exc())
+        logger.error("fetch_task_readme error: {}\n".format(e))
+        return vo.TaskReadmeResponseVO(error="Facing internal error")
+
+@mcp.tool()
+async def fetch_rule_readme(name: str) -> vo.RuleReadmeResponseVO:
+    """
+    Retrieve README documentation for a specific rule by name.
+    
+    Fetches the complete README documentation for a rule, providing 
+    detailed information about the rule's purpose, usage instructions, prerequisites, 
+    and implementation steps. This is useful for understanding how to properly use 
+    a rule in workflows.
+    
+    Args:
+        name (str): The exact name of the rule to retrieve README for
+        
+    Returns:
+        - readmeText (str): Complete README documentation as readable text
+        - ruleName (str): Name of the rule for reference
+        - error (str): Error message if retrieval fails or README not available
+    """
+    try:
+        logger.info(f"fetch_rule_readme: searching for rule '{name}'\n")
+
+        output = await utils.make_GET_API_call_to_CCow(f"{constants.URL_FETCH_RULE_README}?name={name}")
+        logger.debug("rule readme output: {}\n".format(output))
+        
+        if isinstance(output, str) or "error" in output:
+            logger.error("rule readme error: {}\n".format(output))
+            return vo.RuleReadmeResponseVO(error="Facing internal error")
+        
+        if not output.get("items") or len(output["items"]) == 0:
+            logger.warning(f"No rule found with name: {name}")
+            return vo.RuleReadmeResponseVO(ruleName=name, error=f"Rule '{name}' not available")
+        
+        rule_item = output["items"][0]
+        rule_name = rule_item.get("name", name)
+        readme_hash = rule_item.get("readme", "")
+        
+        if not readme_hash:
+            logger.warning(f"No README hash found for rule: {name}")
+            return vo.RuleReadmeResponseVO(ruleName=rule_name, error=f"README not available for rule: {name}")
+        
+        try:
+            readme_response = await utils.make_GET_API_call_to_CCow(f"{constants.URL_FETCH_FILE_BY_HASH}/{readme_hash}")
+            logger.debug(f"README fetch response for rule {rule_name}: {readme_response}")
+            
+            if isinstance(readme_response, str) or "error" in readme_response:
+                logger.error(f"Failed to fetch README content for rule {name}: {readme_response}")
+                return vo.RuleReadmeResponseVO(ruleName=rule_name, error=f"Failed to fetch README content for rule: {name}")
+            
+            readme_text = ""
+            if isinstance(readme_response, dict):
+                file_content = readme_response.get("FileContent", "")
+                if file_content:
+                    try:
+                        readme_text = base64.b64decode(file_content).decode('utf-8')
+                    except Exception:
+                        readme_text = file_content
+                else:
+                    logger.warning(f"No FileContent found in response for rule: {name}")
+                    return vo.RuleReadmeResponseVO(ruleName=rule_name, error=f"README not available for rule: {name}")
+            elif isinstance(readme_response, str):
+                readme_text = readme_response
+            
+            if not readme_text:
+                logger.warning(f"No README content found for rule: {name}")
+                return vo.RuleReadmeResponseVO(ruleName=rule_name, error=f"README not available for rule: {name}")
+            
+            logger.debug(f"Successfully fetched README for rule: {rule_name}")
+            return vo.RuleReadmeResponseVO(readmeText=readme_text, ruleName=rule_name)
+            
+        except Exception as fetch_error:
+            logger.error(f"Failed to fetch README content for rule {name}: {fetch_error}")
+            return vo.RuleReadmeResponseVO(ruleName=rule_name, error=f"Failed to fetch README content for rule: {name}")
+
+    except Exception as e:
+        logger.error(traceback.format_exc())
+        logger.error("fetch_rule_readme error: {}\n".format(e))
+        return vo.RuleReadmeResponseVO(error="Facing internal error")
+
+@mcp.tool()
 async def list_workflow_tasks() -> vo.WorkflowTaskListVO:
     """
     Retrieve available workflow tasks.
@@ -362,7 +493,7 @@ async def list_workflow_tasks() -> vo.WorkflowTaskListVO:
     try:
         logger.info("list_workflow_prebuild_tasks: \n")
 
-        output=await utils.make_GET_API_call_to_CCow(constants.URL_WORKFLOW_PREBUILD_TASKS)
+        output = await utils.make_GET_API_call_to_CCow(f"{constants.URL_WORKFLOW_PREBUILD_TASKS}?tags=MCP-WORKFLOW")
         logger.debug("workflow prebuild tasks output: {}\n".format(output))
         
         if isinstance(output, str) or  "error" in output:
