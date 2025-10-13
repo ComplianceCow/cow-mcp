@@ -1,6 +1,8 @@
 import json
+import os
 import traceback
 import base64
+from pathlib import Path
 from typing import List
 from typing import Tuple
 
@@ -951,3 +953,70 @@ async def execute_action(assessmentId: str, assessmentRunId: str, actionBindingI
     except Exception as e:
         logger.error("execute_action error: {}\n".format(e))
         return vo.TriggerActionVO(error="Facing internal error")
+
+
+
+@mcp.tool()
+async def upload_evidence(runId: str, runControlId: str, filePath: str) -> str:
+    """
+     Upload evidence file to ComplianceCow assessment run control
+
+    Purpose: Create evidence in an executed assessment run by attaching a file
+    
+    Args:
+    - runId (str): Assessment run ID from the executed assessment run
+    - runControlId (str): Control ID within the assessment run where evidence will be attached
+    - filePath (str): Full file system path to the evidence file to upload
+    
+    Returns:
+    - str: Success message with evidence ID, or error message
+    
+    """
+    try:
+        # Validate file exists
+        if not os.path.exists(filePath):
+            return f"Error: File not found at path: {filePath}"
+        
+        # Extract file info from path
+        file_path = Path(filePath)
+        fileName = file_path.name
+        fileExtension = file_path.suffix.lstrip('.') if file_path.suffix else 'bin'
+        
+        # Read file and convert to base64
+        with open(filePath, 'rb') as f:
+            file_bytes = f.read()
+        
+        fileContent = base64.b64encode(file_bytes).decode('utf-8')
+        
+        req_body = {
+            "name": fileName,
+            "description": "test",
+            "userSelectedComplianceWeight__": 5,
+            "userDefinedSynthesizerName": "",
+            "graphResourceInfo": {"context": ""},
+            "fileContent": "",
+            "graphConfigYamlFileContent": "",
+            "sqlRuleYamlFileContent": "",
+            "fileName": fileName,  # Use actual filename instead of hardcoded
+            "nonCSVFile": {
+                "fileName": fileName,
+                "fileType": fileExtension,
+                "fileContent": fileContent
+            },
+            "data": "",
+            "reCalculateCompliancePCT": True,
+            "planInstanceControlID": runControlId,
+        }
+        
+        output = await utils.make_API_call_to_CCow(req_body, '/v1/evidences/link')
+        logger.debug("output: {}\n".format(output))
+        
+        if isinstance(output, str) or "error" in output:
+            logger.error("upload_evidence error: {}\n".format(output))
+            return "Facing internal server error"
+            
+        return f"Evidence '{fileName}' uploaded successfully, id = {output.get('id')}"
+        
+    except Exception as e:
+        logger.error("upload_evidence error: {}\n".format(e))
+        return f"Error uploading evidence: {str(e)}"
