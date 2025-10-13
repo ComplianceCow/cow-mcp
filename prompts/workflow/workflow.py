@@ -155,6 +155,8 @@ def ccow_workflow_knowledge() -> str:
                 
             ## Always get the required events, functions, tasks, rules, conditions and everything required to build workflow, Then use them to build the workflow
 
+            ## If confused about any rule or task purpose/functionality, use fetch_rule_readme() or fetch_task_readme() to get documentation
+            
             ## Once workflow is created, use workflow id to modify that workflow or create new based on user choice 
 
             ## Validate the workflow before creating it, mainly validating input & output mappings including formats & types and YAML structure
@@ -167,6 +169,8 @@ def ccow_workflow_knowledge() -> str:
             ## If a resource field is available in the input, use that resource to retrieve the resource data, and then use the data for the input.
 
             ## Generate workflow YAML ensuring that inside `spec` the keys `states`, `activities`, `transitions`, and `conditions` are always present, even if empty.
+
+            ## Once a workflow is generated, if the user requests any modifications, always fetch the latest configuration using its ID and make the changes on it.
 
             1) The output edge of a State node always represents an event. This means that some event (e.g., user action or time-based trigger) will occur before moving to the next node.
 
