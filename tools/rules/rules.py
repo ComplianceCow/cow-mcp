@@ -3249,7 +3249,14 @@ def get_applications_for_tag(tag_name: str) -> Dict[str, Any]:
 
         if rule.is_valid_array(applications_resp, "items"):
             for item in applications_resp["items"]:
-                applications.append({"id": item.get("id"), "name": item.get("credentialName"), "appType": item.get("appType")})
+                app_type = item.get("appType", "")
+                if isinstance(app_type, str) and app_type.endswith("::"):
+                    app_type = app_type[:-2]
+                applications.append({
+                    "id": item.get("id"),
+                    "name": item.get("credentialName"),
+                    "appType": app_type
+                })
             return {
                 "success": True, 
                 "tag_name": tag_name, 
