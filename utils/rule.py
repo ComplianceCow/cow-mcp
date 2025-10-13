@@ -1041,3 +1041,33 @@ def fix_json_string(content: str) -> str:
     content = re.sub(r":\s*'([^']*)'", r': "\1"', content)  # Fix string values
 
     return content.strip()    
+
+def execute_task_api(body: Dict[str, Any] = None ) -> Dict[str, Any]:
+    headers = wsutils.create_header()
+    try:
+        execute_response = wsutils.post(
+            path=wsutils.build_api_url(endpoint=constants.URL_EXECUTE_TASK),
+            data=json.dumps(body),
+            header=headers
+        )
+
+        task_outputs = execute_response.get("taskOutputs")
+        log_file = execute_response.get("LogFile")
+        outputs = log_file.get("Outputs") if isinstance(log_file, dict) else None
+        log_file_url = outputs.get("LogFile") if isinstance(outputs, dict) else None
+
+        if task_outputs and log_file and outputs and log_file_url:
+            payload = {"fileURL": log_file_url}
+            log_response = wsutils.post(
+                path=wsutils.build_api_url(endpoint=constants.URL_FETCH_FILE),
+                data=json.dumps(payload),
+                header=headers
+            )
+            file_content = log_response.get("fileContent", "")
+            actual_content = base64.b64decode(file_content).decode('utf-8')
+            # Update execute_response to include Errors in the correct nested structure
+            execute_response["taskOutputs"] = {"Outputs": {"Errors": json.loads(actual_content)}}
+
+        return {**execute_response, "timestamp": datetime.now().isoformat()}
+    except Exception as e:
+        return {"error": f"Failed to execute task: {e}"}

@@ -1099,7 +1099,7 @@ def prepare_input_collection_overview(selected_tasks: List[Dict[str, str]]) -> D
     **FAILURE HANDLING:**
     - If user confirms but create_rule() fails → STOP and fix issue
     - If user declines → End workflow, no rule creation needed
-    - If create_rule() succeeds → Proceed to input collection
+    - If create_rule() succeeds → Proceed to task-wise input collection
     - NEVER skip the create_rule() call after user confirmation
 
     HANDLES DUPLICATE INPUT NAMES WITH TASK ALIASES (Preserved):
@@ -1141,8 +1141,9 @@ def prepare_input_collection_overview(selected_tasks: List[Dict[str, str]]) -> D
     - Parameter values: Z
     - Estimated time: ~[X] minutes
 
-    This will be collected step-by-step with progress indicators.
-    Ready to start systematic input collection?"
+    Inputs will now be collected task by task. After collecting each task's inputs,
+    they will be verified using the 'validate_task_inputs()' tool before proceeding 
+    to the next task. Ready to start systematic task-wise input collection?"
 
     CRITICAL WORKFLOW RULES (Preserved):
     - ALWAYS call this tool first before any input collection
@@ -1154,8 +1155,8 @@ def prepare_input_collection_overview(selected_tasks: List[Dict[str, str]]) -> D
 
     CRITICAL REQUIREMENTS:
     - Input names: alphanumeric + underscore only (auto-sanitize with re.sub(r'[^a-zA-Z0-9_]', '_', name))
-    - Collection order: Complete ALL inputs for Task 1, then Task 2, then Task 3
-    - Within each task: templates first, parameters second
+    - Collection order: Complete ALL inputs for each task one by one (Task 1 → verify Task 1 inputs → Task 2 → verify Task 2 inputs → Task 3 → verify Task 3 inputs)
+    - Within each task: collect all inputs, then verify using 'validate_task_inputs()' before proceeding
 
     Args:
         selected_tasks: List of dicts with 'task_name' and 'task_alias'
@@ -1237,6 +1238,10 @@ def prepare_input_collection_overview(selected_tasks: List[Dict[str, str]]) -> D
                 cleaned_input_name = validate_input_name(inp.name)
                 # Create unique identifier: TaskAlias.InputName
                 unique_input_id = f"{task_alias}.{cleaned_input_name}"
+                
+                data_type=""
+                if inp.dataType:
+                    data_type = inp.dataType
 
                 input_info = {
                     "task_name": task_name,
@@ -1245,7 +1250,7 @@ def prepare_input_collection_overview(selected_tasks: List[Dict[str, str]]) -> D
                     "input_name": inp.name,
                     "unique_input_id": unique_input_id,
                     "description": inp.description,
-                    "data_type": inp.dataType,
+                    "data_type": data_type,
                     "required": inp.required,
                     "has_template": bool(inp.templateFile),
                     "format": inp.format if inp.templateFile else None,
@@ -1287,7 +1292,6 @@ def prepare_input_collection_overview(selected_tasks: List[Dict[str, str]]) -> D
         # Track duplicate input names to handle conflicts
         input_name_counts = {}
 
-        task_to_inputs_map = {}  # Maps task_alias to list of input names
 
         # Process only required inputs from template_inputs and parameter_inputs
         all_required_inputs = input_analysis["template_inputs"] + input_analysis["parameter_inputs"]
@@ -1315,18 +1319,22 @@ def prepare_input_collection_overview(selected_tasks: List[Dict[str, str]]) -> D
                     unique_name = input_name
             
             # Set initial value based on dataType
-            data_type = task_input_obj.dataType.upper()
-            if data_type in ["FILE", "HTTP_CONFIG"]:
+            data_type = getattr(task_input_obj, "dataType", None)
+            if data_type:
+                data_type_upper = data_type.upper()
+            else:
+                data_type_upper = ""
+            if data_type_upper in ["FILE", "HTTP_CONFIG"]:
                 initial_value = ""  # Empty string for file inputs
-            elif data_type == "BOOLEAN":
+            elif data_type_upper == "BOOLEAN":
                 initial_value = False  # Default boolean value
-            elif data_type in ["INT", "INTEGER"]:
+            elif data_type_upper in ["INT", "INTEGER"]:
                 initial_value = 0  # Default integer value
-            elif data_type == "FLOAT":
+            elif data_type_upper == "FLOAT":
                 initial_value = 0.0  # Default float value
-            elif data_type in ["STRING", "TEXT"]:
+            elif data_type_upper in ["STRING", "TEXT"]:
                 initial_value = ""  # Empty string for text inputs
-            elif data_type in ["DATE", "DATETIME"]:
+            elif data_type_upper in ["DATE", "DATETIME"]:
                 initial_value = ""  # Empty string for date inputs
             else:
                 initial_value = ""  # Default to empty string for unknown types
@@ -1337,17 +1345,17 @@ def prepare_input_collection_overview(selected_tasks: List[Dict[str, str]]) -> D
             # Add to inputsMeta__ with complete metadata
             input_meta = {
                 "name": unique_name,
-                "dataType": task_input_obj.dataType,
+                "dataType": data_type if data_type else "",
                 "defaultValue": initial_value,  # Same as inputs value
                 "showField": True,
-                "required": task_input_obj.required,
+                "required": getattr(task_input_obj, "required", False),
                 "allowedValues": [],
                 "repeated": False
             }
             
             # Add format if it's available
-            if hasattr(task_input_obj, 'format') and task_input_obj.format:
-                input_meta["format"] = task_input_obj.format
+            if hasattr(task_input_obj, 'format') and getattr(task_input_obj, 'format', None):
+                input_meta["format"] = getattr(task_input_obj, 'format')
             
             initial_inputs_meta.append(input_meta)
 
@@ -1359,18 +1367,19 @@ def prepare_input_collection_overview(selected_tasks: List[Dict[str, str]]) -> D
             "input_analysis": input_analysis,
             "overview_presentation": overview_text,
             "task_alias_map": input_analysis["task_alias_map"],
-            "collection_plan": {
-                "step1": "Template inputs (files) - collected first with task aliases",
-                "step2": "Parameter inputs (values) - collected second with task aliases",
-                "step3": "Final verification of all collected inputs with aliases",
-                "step4": "Rule structure creation with proper task alias mapping"
+            "mandatary_collection_plan": {
+                "step1": "Collect inputs task-wise for all defined tasks. For each task, gather all required inputs (e.g., if a task has three inputs, collect all three before proceeding).",
+                "step2": "After collecting all inputs for a specific task, **always** verify and validate them using the 'validate_task_inputs()' tool before proceeding—this step is mandatory and must never be skipped.",
+                "step3": "Once a task's inputs are successfully validated, proceed to collect inputs for the next task and repeat the same validation process.",
+                "step4": "After completing and validating inputs for all tasks, perform a final cross-task consistency check to confirm overall readiness for execution.",
+                "step5": "Finally, execute the tasks sequentially, maintaining verified task alias mappings for accurate dependency tracking and rule formation."
             },
             "rule_creation_ready": True,  # NEW: Indicates ready for initial rule creation
             "selected_tasks": selected_tasks,  # NEW: Store for rule creation
             "initial_inputs": initial_inputs,  # NEW: Store for rule creation
             "initial_inputs_meta": initial_inputs_meta,  # NEW: Store for rule creation
             "message": "Input overview prepared with task aliases. Present to user and get confirmation before proceeding.",
-            "next_action": "Show overview_presentation to user and wait for confirmation, then create initial rule"
+            "next_action": "Show overview_presentation to user and wait for confirmation, then create initial rule and follow 'mandatary_collection_plan'"
         }
 
     except Exception as e:
@@ -5010,3 +5019,50 @@ def validate_input_name(input_name: str) -> str:
         cleaned_name = re.sub(r'[^a-zA-Z0-9_]', '_', input_name)
         return cleaned_name
     return input_name
+
+
+@mcp.tool()
+def validate_task_inputs(task_name: str, task_inputs: dict) -> Dict[str, Any]:
+    """
+    Validate the inputs of a specific task after gathering all required data during rule input collection.
+
+    ADVANCED INPUT VALIDATION LOGIC:
+    - Dynamically validates and maps collected inputs for the given task
+    - Ensures that all mandatory parameters are provided and correctly formatted
+
+    VALIDATION FLOW OVERVIEW:
+    1. Validate the collected inputs against the user-provided values
+    2. Resolve any dependencies from previous executions or linked tasks
+    3. Provide detailed feedback on missing or incorrect inputs for correction
+
+    Args:
+        task_name: Name of the task to be executed
+        task_inputs: Dictionary containing key-value pairs of collected task inputs
+
+    Returns:
+        Dict containing:
+            taskOutputs:
+                Outputs:
+                    - ValidationStatus: Successful execution results (if any)
+                    - Errors: List of structured error objects when validation or execution fails
+
+    """
+
+    try:
+        task_inputs["ValidateFlow"] = True
+        request_body = {
+            "taskname": task_name,
+            "taskInputs": {
+                "inputs": task_inputs
+            }
+        }
+        response = rule.execute_task_api(request_body)
+        if not response:
+            return {"error": "Failed to validate task inputs"}
+
+        return response
+
+    except Exception as e:
+        return {
+            "error": f"An error occurred while validating task inputs: {e}"
+        }

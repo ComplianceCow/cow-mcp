@@ -96,6 +96,9 @@ URL_FETCH_CC_RULES = "/pc-api/v1/rules/fetch-cc-rules"
 URL_UPDATE_RULE_TAGS ="/pc-api/v2/rules/update-tags"
 URL_FETCH_RULES_AND_TASKS_SUGGESTIONS = "/v1/llm/rule-and-task/suggestions/fetch"
 
+#TASK
+URL_EXECUTE_TASK="/pc-api/v1/tasks/execute-task"
+
 #CC RULES
 URL_GET_CC_RULE = "/v1/rules"
 URL_GET_CC_RULE_BY_ID = "/v1/rules/{id}"
