@@ -1064,27 +1064,26 @@ def confirm_parameter_input(task_name: str, input_name: str, rule_input_name:str
 # INPUT VERIFICATION TOOLS - MANDATORY WORKFLOW STEPS
 @mcp.tool()
 def prepare_input_collection_overview(selected_tasks: List[Dict[str, str]]) -> Dict[str, Any]:
-    """Prepare and present input collection overview before starting any input collection.
+    """
+    INPUT COLLECTION OVERVIEW & RULE CREATION
+
+    Prepare and present input collection overview before starting any input collection.
 
     MANDATORY FIRST STEP - INPUT OVERVIEW PROCESS (Enhanced):
-
-    This tool MUST be called before collecting any inputs. It analyzes all selected tasks
-    and presents a complete overview of what inputs will be needed.
-
+    This tool MUST be called before collecting any inputs. It analyzes all selected tasks and presents a complete overview of what inputs will be needed.
 
     ENHANCED WITH AUTOMATIC RULE CREATION:
-    After user confirms the input overview, this tool automatically creates the initial 
-    rule structure with selected tasks. The rule will be saved with DRAFT status and 
-    can be progressively updated as inputs are collected.
+    After user confirms the input overview, this tool automatically creates the initial rule structure with selected tasks. The rule will be saved with DRAFT status and can be progressively updated as inputs are collected.
 
     **MANDATORY WORKFLOW ENFORCEMENT - CRITICAL INSTRUCTION:**
-    - AFTER user confirms the input overview, IMMEDIATELY call create_rule() with initial structure
-    - This call is MANDATORY and CANNOT be skipped or deferred
-    - The initial rule structure MUST be created before any input collection begins
-    - BLOCK all subsequent input collection if initial rule creation fails
-    - NEVER proceed to input collection without successful initial rule creation
-    - If create_rule() fails, STOP workflow and resolve the issue before continuing
-    - The rule creation establishes the foundation for progressive updates during input collection
+    - AFTER user confirms the input overview, IMMEDIATELY call create_rule() with initial structure.
+    - This call is MANDATORY and CANNOT be skipped or deferred.
+    - The initial rule structure MUST be created before any input collection begins.
+    - BLOCK all subsequent input collection if initial rule creation fails.
+    - NEVER proceed to input collection without successful initial rule creation.
+    - If create_rule() fails, STOP workflow and resolve the issue before continuing.
+    - The rule creation establishes the foundation for progressive updates during input collection.
+
 
     **ENFORCEMENT STEPS:**
     1. Present overview to user
@@ -1093,37 +1092,45 @@ def prepare_input_collection_overview(selected_tasks: List[Dict[str, str]]) -> D
     4. Verify rule creation success before proceeding
     5. Only then allow input collection to begin
 
+    TASK-BY-TASK INPUT COLLECTION & VALIDATION (NEW ENFORCEMENT):
+    - Inputs must be collected task by task.
+    - After collecting all inputs for a given task, immediately call validate_task_inputs() before proceeding to the next task.
+    - If validation fails, stop and resolve issues before moving to the next task.
+    - This ensures correctness and prevents cascading errors.
+
     **SELECTIVE INPUT INCLUSION:**
-    - DO NOT automatically include ALL task inputs in initial rule creation
-    - Only include inputs that are REQUIRED or explicitly needed for the user's use case
-    - Skip optional inputs unless user specifically requests them
-    - Additional inputs can be added later if needed during execution or refinement
+    - DO NOT automatically include ALL task inputs in initial rule creation.
+    - Only include inputs that are REQUIRED or explicitly needed for the user’s use case.
+    - Skip optional inputs unless user specifically requests them.
+    - Additional inputs can be added later if needed during execution or refinement.
 
     **FAILURE HANDLING:**
-    - If user confirms but create_rule() fails → STOP and fix issue
-    - If user declines → End workflow, no rule creation needed
-    - If create_rule() succeeds → Proceed to task-wise input collection
-    - NEVER skip the create_rule() call after user confirmation
+    - If user confirms but create_rule() fails → STOP and fix issue.
+    - If user declines → End workflow, no rule creation needed.
+    - If create_rule() succeeds → Proceed to task-wise input collection and validation.
+    - NEVER skip the create_rule() call after user confirmation.
+
 
     HANDLES DUPLICATE INPUT NAMES WITH TASK ALIASES (Preserved):
-    - Creates unique identifiers for each task-alias-input combination
-    - Format: "{task_alias}.{input_name}" for uniqueness
-    - Prevents conflicts when multiple tasks have same input names or same task used multiple times
-    - Maintains clear mapping between task aliases and their specific inputs
-    - Task aliases should be simple, meaningful step indicators (e.g., "step1", "validation", "processing")
+    - Creates unique identifiers for each task-alias-input combination.
+    - Format: "{task_alias}.{input_name}" for uniqueness.
+    - Prevents conflicts when multiple tasks have same input names or same task used multiple times.
+    - Maintains clear mapping between task aliases and their specific inputs.
+    - Task aliases should be simple, meaningful step indicators (e.g., "step1", "validation", "processing").
 
     OVERVIEW REQUIREMENTS (Preserved):
-    1. Analyze ALL selected tasks with their aliases for input requirements
-    2. Categorize inputs: templates vs parameters
-    3. Create unique identifiers for each task-alias-input combination
-    4. Count total inputs needed
-    5. Present clear overview to user
-    6. Get user confirmation before proceeding
-    7. Return structured overview for systematic collection
-    8. NEW: Automatically create initial rule after user confirmation
+    1. Analyze ALL selected tasks with their aliases for input requirements.
+    2. Categorize inputs: templates vs parameters.
+    3. Create unique identifiers for each task-alias-input combination.
+    4. Count total inputs needed.
+    5. Present clear overview to user.
+    6. Get user confirmation before proceeding.
+    7. Return structured overview for systematic collection.
+    8. NEW: Automatically create initial rule after user confirmation.
 
     OVERVIEW PRESENTATION FORMAT (Preserved):
-    "INPUT COLLECTION OVERVIEW:
+    
+    INPUT COLLECTION OVERVIEW:
 
     I've analyzed your selected tasks. Here's what we need to configure:
 
@@ -1145,16 +1152,20 @@ def prepare_input_collection_overview(selected_tasks: List[Dict[str, str]]) -> D
     - Estimated time: ~[X] minutes
 
     Inputs will now be collected task by task. After collecting each task's inputs,
-    they will be verified using the 'validate_task_inputs()' tool before proceeding 
-    to the next task. Ready to start systematic task-wise input collection?"
+    they will be verified using the 'validate_task_inputs()' tool before proceeding
+    to the next task. 
+    
+    Inputs will be collected **task by task**, with progress indicators showing completion status.
+    Ready to start systematic task-wise input collection?
 
-    CRITICAL WORKFLOW RULES (Preserved):
-    - ALWAYS call this tool first before any input collection
-    - NEVER start collecting inputs without user seeing overview
-    - NEVER proceed without user confirmation
-    - Create unique task_alias.input identifiers to avoid conflicts
-    - Show clear task-alias-input relationships to user
-    - NEW: Create initial rule structure after user confirmation
+    CRITICAL WORKFLOW RULES:
+    - ALWAYS call this tool first before any input collection.
+    - NEVER start collecting inputs without user seeing overview.
+    - NEVER proceed without user confirmation.
+    - Create unique task_alias.input identifiers to avoid conflicts.
+    - Show clear task-alias-input relationships to user.
+    - NEW: Collect inputs task-by-task and validate each task's inputs immediately after collection.
+    - NEW: Create initial rule structure after user confirmation.
 
     CRITICAL REQUIREMENTS:
     - Input names: alphanumeric + underscore only (auto-sanitize with re.sub(r'[^a-zA-Z0-9_]', '_', name))
@@ -1162,13 +1173,14 @@ def prepare_input_collection_overview(selected_tasks: List[Dict[str, str]]) -> D
     - Within each task: collect all inputs, then verify using 'validate_task_inputs()' before proceeding
     - If a task (e.g., Task 2) has input files or other inputs that are skipped or mapped from a previous task, generate a sample input file based on the previous task response, upload its content using `upload_file()`, and use the returned file URL as the input for file-type parameters during validation.
 
-    Args:
-        selected_tasks: List of dicts with 'task_name' and 'task_alias'
-                       Example: [
-                           {"task_name": "data_validation", "task_alias": "step1"},
-                           {"task_name": "data_processing", "task_alias": "step2"},
-                           {"task_name": "data_validation", "task_alias": "final_check"}
-                       ]
+    ARGS:
+    - selected_tasks: List of dicts with 'task_name' and 'task_alias'
+    Example:
+    [
+        {"task_name": "data_validation", "task_alias": "step1"},
+        {"task_name": "data_processing", "task_alias": "step2"},
+        {"task_name": "data_validation", "task_alias": "final_check"}
+    ]
 
     Returns:
         Dict containing structured input overview and collection plan with unique identifiers,
