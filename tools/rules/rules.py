@@ -519,6 +519,9 @@ def confirm_template_input(rule_name: str, task_name: str, rule_input_name: str,
     4. Calls create_rule() to save the updated rule
     5. Rule status will be auto-detected (DRAFT → collecting_inputs → READY_FOR_CREATION)
 
+    UI DISPLAY REQUIREMENT:
+    - The file URL must ALWAYS be displayed to the user in the UI, allowing the user to view or download the file directly.
+    
     Args:
         rule_name: Descriptive name for the rule based on the user's use case. 
                    Note: Use the same rule name for all inputs that belong to this rule.
@@ -3420,6 +3423,9 @@ def execute_rule(rule_name: str, from_date: str, to_date:str, rule_inputs: List[
     - If yes: Call publish_rule() to publish the rule
     - If no: End workflow    
 
+    UI DISPLAY REQUIREMENT:
+    - The file URL must ALWAYS be displayed to the user in the UI, allowing the user to view or download the file directly.
+
     Args:
         rule_name: Rule to execute
         from_date: Optional start date from user (format: YYYY-MM-DD)
@@ -3513,6 +3519,9 @@ def fetch_execution_progress(rule_name: str, execution_id: str) -> Dict[str, Any
     - continue_polling: false = execution complete, show final summary
     - display_mode: "replace" = replace previous display
     
+    UI DISPLAY REQUIREMENT:
+    - The file URL must ALWAYS be displayed to the user in the UI, allowing the user to view or download the file directly.
+
     Args:
         rule_name: Rule being executed
         execution_id: ID from execute_rule()
@@ -3752,13 +3761,14 @@ def fetch_output_file(file_url: str) -> Dict[str, Any]:
     - Always return file format extracted from filename
     - Provide clear user messaging about content truncation
     - CRITICAL: If content is truncated or full content, include truncation message with the display_content
-
+    - The file URL (file_url) must ALWAYS be displayed to the user in the UI, allowing the user to view or download the file directly.
+    
     MANDATORY CONTENT DISPLAY FORMAT:
     - FileName: [extracted from file_url]
     - Format: [file format from file_format]
     - Message: [truncation status or completion message if applicable user_message]  
     - Content: [display_content based on file format show the entire display_content]
-
+    - File URL: [always show the file_url in the UI so the user can view or download the file]
     Args:
         file_url: URL of the file to fetch and display
 
@@ -3816,7 +3826,7 @@ def fetch_output_file(file_url: str) -> Dict[str, Any]:
                 display_content = '\n'.join(lines[:3])
                 if len(lines) > 3:
                     display_content += "\n... (truncated)"
-                user_message = f"📄 File ({file_size_kb:.2f}KB). Showing first 3 of {len(lines)} lines"
+                user_message = f"📄 File ({file_size_kb:.2f}KB). Showing first 3 of {len(lines)} lines, You can download it using the link below."
 
         return {
             "success": True,
