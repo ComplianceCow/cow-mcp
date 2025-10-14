@@ -3539,8 +3539,8 @@ def fetch_execution_progress(rule_name: str, execution_id: str) -> Dict[str, Any
                 "id": task_id,
                 "name": entry.get("name", "Unknown Task"),
                 "type": entry.get("type", "Unknown"),
-                # "status": entry.get("status", "PENDING"),
-                # "progressPercentage": entry.get("progressPercentage", 0),
+                "status": entry.get("status", "PENDING"),
+                "progressPercentage": entry.get("progressPercentage", 0),
                 "error": entry.get("error"),
                 "outputs": entry.get("outputs")
             }
@@ -3604,7 +3604,10 @@ def fetch_execution_progress(rule_name: str, execution_id: str) -> Dict[str, Any
                 "progress_bar": progress_bar,
                 "percentage": percentage,
                 "status": status,
-                "outputs": task.get("outputs")
+                "outputs": {
+                    key : value for key, value in (task.get("outputs") or {}).items()
+                    if key not in ["CompliancePCT_", "ComplianceStatus_"]
+                } if task.get("outputs") else None
             }
             
             if status == "ERROR" and task.get("error"):
