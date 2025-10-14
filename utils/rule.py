@@ -646,7 +646,7 @@ def fetch_rules_api(params: Dict[str, Any] = None ) -> List[vo.SimplifiedRuleVO]
         params = {}
 
     if not is_valid_key(params,"page_size"):
-        params["page_size"] = 10
+        params["page_size"] = 50
 
     headers = wsutils.create_header()
     cur_page = 1
