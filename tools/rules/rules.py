@@ -1092,15 +1092,40 @@ def prepare_input_collection_overview(selected_tasks: List[Dict[str, str]]) -> D
     4. Verify rule creation success before proceeding
     5. Only then allow input collection to begin
 
-    TASK-BY-TASK INPUT COLLECTION & VALIDATION (NEW ENFORCEMENT):
-    - Inputs must be collected task by task.
-    - After collecting all inputs for a given task, immediately call validate_task_inputs() before proceeding to the next task.
-    - If validation fails, stop and resolve issues before moving to the next task.
-    - This ensures correctness and prevents cascading errors.
+    TASK-BY-TASK INPUT COLLECTION & VALIDATION (CRITICAL ENFORCEMENT):
+    ═══════════════════════════════════════════════════════════════════
+    MANDATORY WORKFLOW FOR EACH TASK:
+    
+    FOR EACH TASK in selected_tasks:
+        STEP 1: Collect ALL inputs for current task
+                - Use collect_template_input() for file/template inputs
+                - Use collect_parameter_input() for parameter inputs
+                - Wait for ALL task inputs to be collected
+        
+        STEP 2: **MANDATORY VALIDATION** (CANNOT BE SKIPPED)
+                - Call validate_task_inputs(task_name, collected_inputs_for_this_task)
+                - This MUST happen IMMEDIATELY after all task inputs are collected
+                - BLOCK progression if validation fails
+                - If validation fails:
+                  * Show validation errors to user
+                  * Allow input correction
+                  * Re-validate with corrected inputs
+                  * Only proceed when validation passes
+        
+        STEP 3: Move to next task ONLY after validation passes
+                - Validation success = prerequisite for next task
+                - No task can start input collection without previous task validation passing
+    
+    VALIDATION CHECKPOINT ENFORCEMENT:
+    - After collecting Task 1 inputs → MUST call validate_task_inputs(Task1, inputs)
+    - After collecting Task 2 inputs → MUST call validate_task_inputs(Task2, inputs)
+    - After collecting Task 3 inputs → MUST call validate_task_inputs(Task3, inputs)
+    - This creates validation checkpoints between each task
+    - NEVER skip validation, even if inputs seem correct
 
     **SELECTIVE INPUT INCLUSION:**
     - DO NOT automatically include ALL task inputs in initial rule creation.
-    - Only include inputs that are REQUIRED or explicitly needed for the user’s use case.
+    - Only include inputs that are REQUIRED or explicitly needed for the user's use case.
     - Skip optional inputs unless user specifically requests them.
     - Additional inputs can be added later if needed during execution or refinement.
 
@@ -1128,35 +1153,47 @@ def prepare_input_collection_overview(selected_tasks: List[Dict[str, str]]) -> D
     7. Return structured overview for systematic collection.
     8. NEW: Automatically create initial rule after user confirmation.
 
-    OVERVIEW PRESENTATION FORMAT (Preserved):
+    OVERVIEW PRESENTATION FORMAT (Enhanced with Validation):
     
     INPUT COLLECTION OVERVIEW:
 
     I've analyzed your selected tasks. Here's what we need to configure:
 
-    TEMPLATE INPUTS (Files):
-    • Task: [TaskAlias] ([TaskName]) → Input: [InputName] ([Format] file)
-        Unique ID: [TaskAlias.InputName]
-        Description: [InputDescription]
+    TASK 1: [TaskAlias] ([TaskName])
+    ───────────────────────────────────
+    Template Inputs:
+    • [InputName] ([Format] file) - [Description]
+      Unique ID: [TaskAlias.InputName]
+    
+    Parameter Inputs:
+    • [InputName] ([DataType]) - [Description]
+      Unique ID: [TaskAlias.InputName]
+      Required: [Yes/No]
+    
+    ⚠️  VALIDATION CHECKPOINT: After collecting all Task 1 inputs, 
+        validate_task_inputs() will be called before proceeding to Task 2.
 
-    PARAMETER INPUTS (Values):
-    • Task: [TaskAlias] ([TaskName]) → Input: [InputName] ([DataType])
-        Unique ID: [TaskAlias.InputName]
-        Description: [InputDescription]
-        Required: [Yes/No]
+    TASK 2: [TaskAlias] ([TaskName])
+    ───────────────────────────────────
+    [... similar structure ...]
+    
+    ⚠️  VALIDATION CHECKPOINT: After collecting all Task 2 inputs,
+        validate_task_inputs() will be called before proceeding to Task 3.
 
     SUMMARY:
     - Total inputs needed: X
     - Template files: Y ([formats])
     - Parameter values: Z
     - Estimated time: ~[X] minutes
+    - Validation checkpoints: [number of tasks]
 
-    Inputs will now be collected task by task. After collecting each task's inputs,
-    they will be verified using the 'validate_task_inputs()' tool before proceeding
-    to the next task. 
+    WORKFLOW:
+    1. Collect all inputs for Task 1 → Validate Task 1 → ✓
+    2. Collect all inputs for Task 2 → Validate Task 2 → ✓
+    3. Collect all inputs for Task 3 → Validate Task 3 → ✓
+    4. Final rule completion
     
-    Inputs will be collected **task by task**, with progress indicators showing completion status.
-    Ready to start systematic task-wise input collection?
+    Ready to start task-by-task input collection with validation checkpoints?
 
     CRITICAL WORKFLOW RULES:
     - ALWAYS call this tool first before any input collection.
@@ -1184,7 +1221,8 @@ def prepare_input_collection_overview(selected_tasks: List[Dict[str, str]]) -> D
 
     Returns:
         Dict containing structured input overview and collection plan with unique identifiers,
-        plus automatic rule creation capability after user confirmation
+        plus automatic rule creation capability after user confirmation, with explicit
+        validation checkpoints for each task
     """
 
     if not selected_tasks:
@@ -1198,11 +1236,12 @@ def prepare_input_collection_overview(selected_tasks: List[Dict[str, str]]) -> D
             "template_count": 0,
             "parameter_count": 0, 
             "estimated_minutes": 0, 
-            "unique_input_map": {},  # Maps unique_id to task alias and input info
-            "task_alias_map": {}     # Maps task_alias to task_name for reference
+            "unique_input_map": {},
+            "task_alias_map": {},
+            "task_input_groups": {}  # NEW: Group inputs by task for validation tracking
         }
 
-        # Validate input format and task aliases (preserved validation)
+        # Validate input format and task aliases
         for task_info in selected_tasks:
             if not isinstance(task_info, dict) or "task_name" not in task_info or "task_alias" not in task_info:
                 return {"success": False, "error": "Each task must be a dict with 'task_name' and 'task_alias' keys"}
@@ -1223,8 +1262,17 @@ def prepare_input_collection_overview(selected_tasks: List[Dict[str, str]]) -> D
                 "task_name": task_info["task_name"],
                 "purpose": task_info.get("purpose", "")
             }
+            
+            # Initialize task input group for validation tracking
+            input_analysis["task_input_groups"][task_alias] = {
+                "task_name": task_info["task_name"],
+                "task_alias": task_alias,
+                "inputs": [],
+                "input_count": 0,
+                "validation_required": True
+            }
 
-        # Get available tasks (preserved logic)
+        # Get available tasks
         available_tasks = []
         tasks_resp = rule.fetch_task_api(params={"tags": "primitive"})
         if rule.is_valid_key(tasks_resp, "items", array_check=True):
@@ -1233,7 +1281,7 @@ def prepare_input_collection_overview(selected_tasks: List[Dict[str, str]]) -> D
         if not available_tasks:
             return {"success": False, "error": "No tasks loaded"}
 
-        # Analyze each selected task with its alias (preserved analysis)
+        # Analyze each selected task with its alias
         for task_info in selected_tasks:
             task_name = task_info["task_name"]
             task_alias = task_info["task_alias"]
@@ -1252,10 +1300,9 @@ def prepare_input_collection_overview(selected_tasks: List[Dict[str, str]]) -> D
             # Process each input with unique identifier using task alias
             for inp in task.inputs:
                 cleaned_input_name = validate_input_name(inp.name)
-                # Create unique identifier: TaskAlias.InputName
                 unique_input_id = f"{task_alias}.{cleaned_input_name}"
                 
-                data_type=""
+                data_type = ""
                 if inp.dataType:
                     data_type = inp.dataType
 
@@ -1287,16 +1334,18 @@ def prepare_input_collection_overview(selected_tasks: List[Dict[str, str]]) -> D
                         "format": inp.format if inp.templateFile else None,
                     }
                 }
+                
+                # Add to task input group for validation tracking
+                input_analysis["task_input_groups"][task_alias]["inputs"].append(unique_input_id)
+                input_analysis["task_input_groups"][task_alias]["input_count"] += 1
 
                 if inp.templateFile or inp.dataType.upper() in ["FILE", "HTTP_CONFIG"]:
                     input_analysis["template_inputs"].append(input_info)
                     input_analysis["template_count"] += 1
-                    # File inputs take longer (2-3 minutes each)
                     input_analysis["estimated_minutes"] += 3
                 else:
                     input_analysis["parameter_inputs"].append(input_info)
                     input_analysis["parameter_count"] += 1
-                    # Parameter inputs are quicker (30 seconds each)
                     input_analysis["estimated_minutes"] += 0.5
 
         input_analysis["total_count"] = input_analysis["template_count"] + input_analysis["parameter_count"]
@@ -1307,7 +1356,6 @@ def prepare_input_collection_overview(selected_tasks: List[Dict[str, str]]) -> D
         
         # Track duplicate input names to handle conflicts
         input_name_counts = {}
-
 
         # Process only required inputs from template_inputs and parameter_inputs
         all_required_inputs = input_analysis["template_inputs"] + input_analysis["parameter_inputs"]
@@ -1326,7 +1374,6 @@ def prepare_input_collection_overview(selected_tasks: List[Dict[str, str]]) -> D
                 unique_name = f"{task_alias}_{input_name}"
             else:
                 input_name_counts[input_name] = 1
-                # Check if this input name appears in other required inputs
                 duplicate_count = sum(1 for other_input in all_required_inputs 
                                     if other_input["input_name"] == input_name and other_input["required"])
                 if duplicate_count > 1:
@@ -1341,67 +1388,69 @@ def prepare_input_collection_overview(selected_tasks: List[Dict[str, str]]) -> D
             else:
                 data_type_upper = ""
             if data_type_upper in ["FILE", "HTTP_CONFIG"]:
-                initial_value = ""  # Empty string for file inputs
+                initial_value = ""
             elif data_type_upper == "BOOLEAN":
-                initial_value = False  # Default boolean value
+                initial_value = False
             elif data_type_upper in ["INT", "INTEGER"]:
-                initial_value = 0  # Default integer value
+                initial_value = 0
             elif data_type_upper == "FLOAT":
-                initial_value = 0.0  # Default float value
+                initial_value = 0.0
             elif data_type_upper in ["STRING", "TEXT"]:
-                initial_value = ""  # Empty string for text inputs
+                initial_value = ""
             elif data_type_upper in ["DATE", "DATETIME"]:
-                initial_value = ""  # Empty string for date inputs
+                initial_value = ""
             else:
-                initial_value = ""  # Default to empty string for unknown types
+                initial_value = ""
             
-            # Add to inputs with dataType-appropriate initial value
             initial_inputs[unique_name] = initial_value
             
-            # Add to inputsMeta__ with complete metadata
             input_meta = {
                 "name": unique_name,
                 "dataType": data_type if data_type else "",
-                "defaultValue": initial_value,  # Same as inputs value
+                "defaultValue": initial_value,
                 "showField": True,
                 "required": getattr(task_input_obj, "required", False),
                 "allowedValues": [],
                 "repeated": False
             }
             
-            # Add format if it's available
             if hasattr(task_input_obj, 'format') and getattr(task_input_obj, 'format', None):
                 input_meta["format"] = getattr(task_input_obj, 'format')
             
             initial_inputs_meta.append(input_meta)
 
-        # Generate overview presentation (preserved)
-        overview_text = rule.generate_input_overview_presentation_with_unique_ids(input_analysis)
+        # Generate overview presentation with validation checkpoints
+        overview_text = rule.generate_input_overview_presentation_with_validation_checkpoints(
+            input_analysis
+        )
         
         return {
             "success": True,
             "input_analysis": input_analysis,
             "overview_presentation": overview_text,
             "task_alias_map": input_analysis["task_alias_map"],
-            "mandatary_collection_plan": {
+            "task_input_groups": input_analysis["task_input_groups"],  # NEW: For validation tracking
+            "mandatory_collection_plan": {
                 "step1": "Collect inputs task-wise for all defined tasks. For each task, gather all required inputs (e.g., if a task has three inputs, collect all three before proceeding).",
-                "step2": "After collecting all inputs for a specific task, **always** verify and validate them using the 'validate_task_inputs()' tool before proceeding—this step is mandatory and must never be skipped.",
-                "step3": "Once a task's inputs are successfully validated, proceed to collect inputs for the next task and repeat the same validation process.",
-                "step4": "After completing and validating inputs for all tasks, perform a final cross-task consistency check to confirm overall readiness for execution.",
-                "step5": "Finally, execute the tasks sequentially, maintaining verified task alias mappings for accurate dependency tracking and rule formation."
+                "step2": "After collecting all inputs for a specific task, **MANDATORY VALIDATION CHECKPOINT** - call validate_task_inputs(task_name, collected_inputs_dict) to verify all inputs are correct.",
+                "step3": "If validation fails, allow user to correct inputs and re-validate. Only proceed to next task when validation passes.",
+                "step4": "Once a task's inputs are successfully validated (validation passes), proceed to collect inputs for the next task and repeat the same validation process.",
+                "step5": "After completing and validating inputs for all tasks, perform a final cross-task consistency check to confirm overall readiness for execution.",
+                "step6": "Finally, execute the tasks sequentially, maintaining verified task alias mappings for accurate dependency tracking and rule formation.",
+                "critical_note": "**VALIDATION IS MANDATORY AND CANNOT BE SKIPPED** - Each task MUST have its inputs validated before moving to the next task. This creates checkpoints ensuring data integrity throughout the workflow."
             },
-            "rule_creation_ready": True,  # NEW: Indicates ready for initial rule creation
-            "selected_tasks": selected_tasks,  # NEW: Store for rule creation
-            "initial_inputs": initial_inputs,  # NEW: Store for rule creation
-            "initial_inputs_meta": initial_inputs_meta,  # NEW: Store for rule creation
-            "message": "Input overview prepared with task aliases. Present to user and get confirmation before proceeding.",
-            "next_action": "Show overview_presentation to user and wait for confirmation, then create initial rule and follow 'mandatary_collection_plan'"
+            "rule_creation_ready": True,
+            "selected_tasks": selected_tasks,
+            "initial_inputs": initial_inputs,
+            "initial_inputs_meta": initial_inputs_meta,
+            "validation_checkpoint_count": len(selected_tasks),  # NEW: Number of validation checkpoints
+            "message": "Input overview prepared with task aliases and validation checkpoints. Present to user and get confirmation before proceeding.",
+            "next_action": "Show overview_presentation to user and wait for confirmation, then create initial rule and follow 'mandatory_collection_plan' with STRICT validation enforcement"
         }
 
     except Exception as e:
         return {"success": False, "error": f"Failed to prepare input overview: {e}"}
-
-
+    
 @mcp.tool()
 def verify_collected_inputs(collected_inputs: Dict[str, Any]) -> Dict[str, Any]:
     """Verify all collected inputs with user before rule creation.
@@ -5060,51 +5109,342 @@ def validate_task_inputs(task_name: str, task_inputs: dict) -> Dict[str, Any]:
     Validate the inputs of a specific task after gathering all required data during rule input collection.
 
     EXECUTION CONTEXT:
-    - This tool must be executed immediately after completing input collection for each task 
+    - This tool MUST be executed immediately after completing input collection for each task 
       (e.g., after Task 1 input collection, validate Task 1 inputs; after Task 2 input collection, validate Task 2 inputs).
     - Ensures that validation occurs in sequence for every task before proceeding to the next.
     - If validation errors are found, the tool should provide detailed feedback and allow retrying input collection with corrections before re-validating the task inputs.
+    - THIS IS A MANDATORY CHECKPOINT - NO TASK CAN PROCEED WITHOUT VALIDATION PASSING
 
     ADVANCED INPUT VALIDATION LOGIC:
     - Dynamically validates and maps collected inputs for the given task
     - Ensures that all mandatory parameters are provided and correctly formatted
     - Supports validation with mapped or skipped inputs using sample input based on the previous task response
 
+    INTER-TASK DEPENDENCY HANDLING:
+    - If a task expects input from a previous task (file or data mapping):
+      1. Check if the input is marked as "from_previous_task" or has dependency metadata
+      2. Generate sample data based on expected format from previous task's output
+      3. Upload sample file using upload_file() and get file URL
+      4. Use the file URL as input value for validation purposes only
+      5. Mark this input as "sample_for_validation" in response
+    
+    SAMPLE FILE GENERATION LOGIC:
+    - For CSV files: Generate 3-5 sample rows with realistic column names
+    - For JSON files: Generate sample object/array with expected structure
+    - For text files: Generate representative sample content
+    - Sample should be minimal but structurally valid
+
     VALIDATION FLOW OVERVIEW:
-    1. Validate the collected inputs against the user-provided values
-    2. If a task (e.g., Task 2) has input files or other inputs that are skipped or mapped from a previous task,
-       generate a sample input file based on the previous task response, upload its content using `upload_file()`,
-       and use the returned file URL as the input for file-type parameters during validation
-    3. Resolve any dependencies from previous executions or linked tasks
-    4. Provide detailed feedback on missing or incorrect inputs for correction
+    1. Receive collected inputs for a specific task
+    2. Identify inputs that depend on previous tasks
+    3. For dependency inputs:
+       a. Generate appropriate sample data based on expected format
+       b. Upload sample file and get URL
+       c. Replace dependency marker with sample file URL
+    4. Call task validation API with all inputs (actual + sample URLs)
+    5. Parse validation response
+    6. Return validation results with clear success/failure indicators
+
+    VALIDATION RESPONSE HANDLING:
+    - On Success: Return validation_status="PASSED" with any output details
+    - On Failure: Return validation_status="FAILED" with detailed error messages
+    - Include list of which inputs failed validation and why
+    - Provide actionable guidance for fixing validation errors
+
+    ERROR HANDLING:
+    - Missing required inputs: List which inputs are missing
+    - Invalid format: Specify format expected vs received
+    - Type mismatches: Indicate correct data type needed
+    - File access errors: Report if files can't be read/processed
 
     Args:
-        task_name: Name of the task to be executed
+        task_name: Name of the task to validate
         task_inputs: Dictionary containing key-value pairs of collected task inputs
+                    Format: {"input_name": "value" or "<<FROM_PREVIOUS_TASK>>" or file_url}
 
     Returns:
         Dict containing:
-            taskOutputs:
-                Outputs:
-                    - ValidationStatus: Successful execution results (if any)
-                    - Errors: List of structured error objects when validation or execution fails
+        {
+            "success": bool,
+            "validation_status": "PASSED" | "FAILED",
+            "task_name": str,
+            "validated_inputs": dict,  # Actual inputs used for validation (with sample URLs)
+            "validation_output": dict,  # Output from validation API
+            "errors": list,  # List of validation errors if failed
+            "inputs_with_samples": list,  # List of inputs where samples were generated
+            "message": str,
+            "next_action": str  # What to do next based on validation result
+        }
     """
 
     try:
-        task_inputs["ValidateFlow"] = True
+        # Step 1: Prepare inputs for validation
+        validated_input_dict = {}
+        inputs_with_samples = []
+        generated_files = []
+        
+        # Get task details to understand expected input structure
+        task_details = get_task_details(task_name)
+        if task_details.get("error"):
+            return {
+                "success": False,
+                "validation_status": "FAILED",
+                "task_name": task_name,
+                "error": f"Could not fetch task details: {task_details['error']}",
+                "next_action": "verify_task_name"
+            }
+        
+        task_inputs_spec = task_details.get("inputs", [])
+        
+        # Step 2: Process each input
+        for input_spec in task_inputs_spec:
+            input_name = input_spec["name"]
+            input_data_type = input_spec.get("dataType", "STRING")
+            input_format = input_spec.get("format")
+            
+            # Check if this input was collected
+            if input_name in task_inputs:
+                input_value = task_inputs[input_name]
+                
+                # Check if this input depends on previous task
+                if isinstance(input_value, str) and (
+                    input_value == "<<FROM_PREVIOUS_TASK>>" or
+                    input_value.startswith("<<") or
+                    "previous_task" in input_value.lower() or
+                    input_value.strip() == ""
+                ):
+                    # This input needs sample data for validation
+                    logger.info(f"Generating sample data for input '{input_name}' (depends on previous task)")
+                    
+                    # Generate sample file based on expected format
+                    sample_content = generate_sample_input_content(
+                        input_name=input_name,
+                        data_type=input_data_type,
+                        file_format=input_format,
+                        task_context=task_details
+                    )
+                    
+                    # Upload sample file
+                    sample_filename = f"sample_{task_name}_{input_name}.{input_format or 'txt'}"
+                    upload_result = upload_file(
+                        rule_name=f"validation_{task_name}",
+                        file_name=sample_filename,
+                        content=sample_content,
+                        content_encoding="utf-8"
+                    )
+                    
+                    if upload_result.get("success"):
+                        validated_input_dict[input_name] = upload_result["file_url"]
+                        inputs_with_samples.append({
+                            "input_name": input_name,
+                            "sample_file_url": upload_result["file_url"],
+                            "sample_filename": sample_filename,
+                            "note": "Sample data generated for validation - will use actual previous task output during execution"
+                        })
+                        generated_files.append(upload_result["file_url"])
+                    else:
+                        return {
+                            "success": False,
+                            "validation_status": "FAILED",
+                            "task_name": task_name,
+                            "error": f"Failed to upload sample file for input '{input_name}': {upload_result.get('error')}",
+                            "next_action": "retry_sample_generation"
+                        }
+                else:
+                    # Use the actual collected value
+                    validated_input_dict[input_name] = input_value
+            else:
+                # Input not collected - check if it's required
+                if input_spec.get("required", False):
+                    return {
+                        "success": False,
+                        "validation_status": "FAILED",
+                        "task_name": task_name,
+                        "error": f"Required input '{input_name}' is missing",
+                        "missing_inputs": [input_name],
+                        "next_action": "collect_missing_inputs"
+                    }
+        
+        # Step 3: Add validation flag
+        validated_input_dict["ValidateFlow"] = True
+        
+        # Step 4: Call validation API
         request_body = {
             "taskname": task_name,
             "taskInputs": {
-                "inputs": task_inputs
+                "inputs": validated_input_dict
             }
         }
+        
+        logger.info(f"Validating task '{task_name}' with inputs: {list(validated_input_dict.keys())}")
+        
         response = rule.execute_task_api(request_body)
+        
         if not response:
-            return {"error": "Failed to validate task inputs"}
-
-        return response
+            return {
+                "success": False,
+                "validation_status": "FAILED",
+                "task_name": task_name,
+                "validated_inputs": validated_input_dict,
+                "inputs_with_samples": inputs_with_samples,
+                "error": "Validation API returned no response",
+                "next_action": "retry_validation"
+            }
+        
+        # Step 5: Parse validation response
+        task_outputs = response.get("taskOutputs", {})
+        outputs = task_outputs.get("Outputs", {})
+        validation_status_output = outputs.get("ValidationStatus")
+        errors = outputs.get("Errors", [])
+        
+        # Determine if validation passed
+        validation_passed = False
+        if validation_status_output:
+            # Check if validation explicitly passed
+            if isinstance(validation_status_output, dict):
+                validation_passed = validation_status_output.get("status") == "success"
+            elif isinstance(validation_status_output, str):
+                validation_passed = "success" in validation_status_output.lower()
+        
+        # Also check if there are no errors
+        if not errors or len(errors) == 0:
+            validation_passed = True
+        
+        # Step 6: Build response
+        if validation_passed:
+            return {
+                "success": True,
+                "validation_status": "PASSED",
+                "task_name": task_name,
+                "validated_inputs": validated_input_dict,
+                "validation_output": outputs,
+                "inputs_with_samples": inputs_with_samples,
+                "generated_sample_files": generated_files,
+                "message": f"✅ Task '{task_name}' inputs validated successfully. Ready to proceed to next task.",
+                "next_action": "proceed_to_next_task"
+            }
+        else:
+            # Validation failed
+            error_details = []
+            if errors:
+                for error in errors:
+                    if isinstance(error, dict):
+                        error_details.append({
+                            "field": error.get("field", "unknown"),
+                            "message": error.get("message", "Validation failed"),
+                            "type": error.get("type", "validation_error")
+                        })
+                    else:
+                        error_details.append({"message": str(error)})
+            
+            return {
+                "success": False,
+                "validation_status": "FAILED",
+                "task_name": task_name,
+                "validated_inputs": validated_input_dict,
+                "validation_output": outputs,
+                "errors": error_details if error_details else ["Validation failed without specific error details"],
+                "inputs_with_samples": inputs_with_samples,
+                "message": f"❌ Task '{task_name}' validation failed. Please review errors and correct inputs.",
+                "next_action": "fix_validation_errors"
+            }
 
     except Exception as e:
+        logger.error(f"Exception during task validation: {e}")
         return {
-            "error": f"An error occurred while validating task inputs: {e}"
+            "success": False,
+            "validation_status": "FAILED",
+            "task_name": task_name,
+            "error": f"Exception during validation: {str(e)}",
+            "exception_type": type(e).__name__,
+            "next_action": "review_exception"
         }
+
+
+def generate_sample_input_content(input_name: str, data_type: str, file_format: str, task_context: dict) -> str:
+    """
+    Generate sample input content for validation purposes.
+    
+    Args:
+        input_name: Name of the input
+        data_type: Data type of the input (FILE, STRING, etc.)
+        file_format: Format of the file (csv, json, txt, etc.)
+        task_context: Task details for context
+    
+    Returns:
+        String content for sample file
+    """
+    
+    # Default sample content
+    if not file_format:
+        return "Sample data for validation purposes"
+    
+    file_format = file_format.lower()
+    
+    # Generate format-specific samples
+    if file_format == "csv":
+        # Generate sample CSV
+        return """id,name,value,status
+1,Sample Item 1,100,active
+2,Sample Item 2,200,active
+3,Sample Item 3,150,inactive"""
+    
+    elif file_format == "json":
+        # Generate sample JSON
+        sample_data = [
+            {
+                "id": "1",
+                "name": "Sample Item 1",
+                "value": 100,
+                "status": "active",
+                "timestamp": "2025-01-15T10:00:00Z"
+            },
+            {
+                "id": "2",
+                "name": "Sample Item 2",
+                "value": 200,
+                "status": "active",
+                "timestamp": "2025-01-15T11:00:00Z"
+            }
+        ]
+        return json.dumps(sample_data, indent=2)
+    
+    elif file_format in ["yaml", "yml"]:
+        # Generate sample YAML
+        return """items:
+  - id: 1
+    name: Sample Item 1
+    value: 100
+    status: active
+  - id: 2
+    name: Sample Item 2
+    value: 200
+    status: active"""
+    
+    elif file_format == "xml":
+        # Generate sample XML
+        return """<?xml version="1.0" encoding="UTF-8"?>
+<items>
+    <item>
+        <id>1</id>
+        <name>Sample Item 1</name>
+        <value>100</value>
+        <status>active</status>
+    </item>
+    <item>
+        <id>2</id>
+        <name>Sample Item 2</name>
+        <value>200</value>
+        <status>active</status>
+    </item>
+</items>"""
+    
+    elif file_format == "txt":
+        # Generate sample text
+        return """Sample Data Line 1
+Sample Data Line 2
+Sample Data Line 3"""
+    
+    else:
+        # Generic sample
+        return f"Sample data for {input_name} - validation purposes only"
