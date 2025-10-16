@@ -6,10 +6,9 @@ cid = os.environ.get('CCOW_CLIENT_ID', "")
 cs = os.environ.get('CCOW_CLIENT_SECRET', "")
 t = os.environ.get('CCOW_TOKEN', "710ffde6-43ac-4ac0-b5ce-d4f606e5e45f")
 if cid == "" or cs == "":
-    headers = {"Authorization": t}
+    headers["Authorization"]= t
 else:
-    headers = {"Authorization": "Basic " +
-               base64.b64encode((cid+":"+cs).encode("ascii")).decode("ascii")}
+    headers["Authorization"]= "Basic " + base64.b64encode((cid+":"+cs).encode("ascii")).decode("ascii")
 
 host = os.environ.get('CCOW_HOST', "https://dev.compliancecow.live")
 if not host.endswith("/api"):
