@@ -192,9 +192,9 @@ def ccow_workflow_knowledge() -> str:
             
             5) Node Inputs:
             → Mandatory:
-            For each node, inputs must be mapped from the outputs of previous nodes.
+            For each node, inputs must be mapped from the outputs of previous nodes. During this mapping output's type should match input's type.
             If a particular input is not available from any previous node's output, prompt the user to provide that input manually.
-            Event inputs can be given in specinput
+            Event inputs can be given in specinput.
             Include all the inputs & outputs nodes in yaml don't miss any & don't change displayable, description & type
 
             → Example of Event Input
