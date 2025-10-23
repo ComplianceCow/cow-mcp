@@ -12,7 +12,7 @@ if cid == "" or cs == "":
     headers["Authorization"] = t
 else:
     basic_auth_flow = True
-    headers = {"Authorization": "Basic " + base64.b64encode((cid + ":" + cs).encode("ascii")).decode("ascii")}
+    headers["Authorization"]= "Basic " + base64.b64encode((cid + ":" + cs).encode("ascii")).decode("ascii")
 
 host = os.environ.get("CCOW_HOST", "https://dev.compliancecow.live")
 if not host.endswith("/api"):
