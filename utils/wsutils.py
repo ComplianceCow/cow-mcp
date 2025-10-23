@@ -236,7 +236,9 @@ def create_header():
     if constants.basic_auth_flow:
         auth_token = get_auth_token()
         if auth_token:
-            return {"Authorization": auth_token}
+            newHeader=constants.headers.copy()
+            newHeader["Authorization"]= auth_token
+            return newHeader
 
     request_headers = constants.headers.copy()
     access_token = get_access_token()
