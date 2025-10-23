@@ -1071,3 +1071,99 @@ def execute_task_api(body: Dict[str, Any] = None ) -> Dict[str, Any]:
         return {**execute_response, "timestamp": datetime.now().isoformat()}
     except Exception as e:
         return {"error": f"Failed to execute task: {e}"}
+
+  
+def generate_input_overview_presentation_with_validation_checkpoints(input_analysis: Dict) -> str:
+    """
+    Generate input overview presentation with explicit validation checkpoints for each task.
+    
+    Args:
+        input_analysis: Dictionary containing input analysis data with task groupings
+    
+    Returns:
+        Formatted string presentation with validation checkpoint indicators
+    """
+    
+    presentation = []
+    presentation.append("=" * 80)
+    presentation.append("INPUT COLLECTION OVERVIEW WITH VALIDATION CHECKPOINTS")
+    presentation.append("=" * 80)
+    presentation.append("")
+    presentation.append("I've analyzed your selected tasks. Here's the complete workflow:")
+    presentation.append("")
+    
+    # Group inputs by task
+    task_groups = input_analysis.get("task_input_groups", {})
+    template_inputs = input_analysis.get("template_inputs", [])
+    parameter_inputs = input_analysis.get("parameter_inputs", [])
+    
+    # Organize inputs by task
+    task_number = 1
+    for task_alias, task_info in task_groups.items():
+        task_name = task_info["task_name"]
+        task_inputs_list = task_info["inputs"]
+        
+        presentation.append(f"TASK {task_number}: {task_alias} ({task_name})")
+        presentation.append("─" * 80)
+        
+        # Filter template inputs for this task
+        task_template_inputs = [inp for inp in template_inputs if inp["task_alias"] == task_alias]
+        if task_template_inputs:
+            presentation.append("📁 Template/File Inputs:")
+            for inp in task_template_inputs:
+                presentation.append(f"   • {inp['input_name']} ({inp['format']} file)")
+                presentation.append(f"     ID: {inp['unique_input_id']}")
+                presentation.append(f"     Description: {inp['description']}")
+                presentation.append(f"     Required: {'Yes' if inp['required'] else 'No'}")
+                presentation.append("")
+        
+        # Filter parameter inputs for this task
+        task_parameter_inputs = [inp for inp in parameter_inputs if inp["task_alias"] == task_alias]
+        if task_parameter_inputs:
+            presentation.append("⚙️  Parameter Inputs:")
+            for inp in task_parameter_inputs:
+                presentation.append(f"   • {inp['input_name']} ({inp['data_type']})")
+                presentation.append(f"     ID: {inp['unique_input_id']}")
+                presentation.append(f"     Description: {inp['description']}")
+                presentation.append(f"     Required: {'Yes' if inp['required'] else 'No'}")
+                if inp.get('has_default'):
+                    presentation.append(f"     Default: {inp['default_value']}")
+                presentation.append("")
+        
+        # Add validation checkpoint notice
+        presentation.append("⚠️  VALIDATION CHECKPOINT:")
+        presentation.append(f"    After collecting all {len(task_inputs_list)} inputs for Task {task_number},")
+        presentation.append(f"    validate_task_inputs('{task_name}', collected_inputs) will be called.")
+        presentation.append("    ✓ Validation must pass before proceeding to next task")
+        presentation.append("    ✗ If validation fails, inputs must be corrected and re-validated")
+        presentation.append("")
+        
+        task_number += 1
+    
+    # Add summary
+    presentation.append("=" * 80)
+    presentation.append("SUMMARY")
+    presentation.append("=" * 80)
+    presentation.append(f"Total inputs needed: {input_analysis['total_count']}")
+    presentation.append(f"Template/File inputs: {input_analysis['template_count']}")
+    presentation.append(f"Parameter inputs: {input_analysis['parameter_count']}")
+    presentation.append(f"Validation checkpoints: {len(task_groups)}")
+    presentation.append(f"Estimated time: ~{int(input_analysis['estimated_minutes'])} minutes")
+    presentation.append("")
+    
+    # Add workflow explanation
+    presentation.append("WORKFLOW:")
+    presentation.append("─" * 80)
+    for i, (task_alias, task_info) in enumerate(task_groups.items(), 1):
+        presentation.append(f"{i}. Collect all inputs for {task_alias} → Validate → ✓ Pass → Continue")
+    presentation.append(f"{len(task_groups) + 1}. Final rule completion and finalization")
+    presentation.append("")
+    
+    presentation.append("⚠️  CRITICAL: Validation is MANDATORY after each task's input collection.")
+    presentation.append("   No task can proceed without passing validation.")
+    presentation.append("")
+    presentation.append("Ready to start task-by-task input collection with validation checkpoints?")
+    presentation.append("=" * 80)
+    
+    return "\n".join(presentation)
+ 
