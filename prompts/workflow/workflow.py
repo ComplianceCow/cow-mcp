@@ -294,6 +294,10 @@ def ccow_workflow_knowledge() -> str:
                           options: <<input_available_options_if_available>>
                           resource: <<input_resource_if_available>>
                           value: [[input_value]]
+                    outputs:
+                      - name: <<output_name>>
+                        type: <<output_type>>
+                        desc: <<output_desc>>
 
 
             8) Condition Mapping
@@ -432,6 +436,7 @@ def ccow_workflow_knowledge() -> str:
                     displayable: <<workflow_name>>
                     name: <<workflow_name>>
                     desc: <<workflow_desc>>
+                    appScopeName: <<app_scope>>
                     eventName: <<workflow_start_event>>
                     inputs:
                       - name: <<input_name>>
@@ -533,6 +538,10 @@ def ccow_workflow_knowledge() -> str:
                             type: <<input_type>>
                             desc: <<input_desc>>
                             optional: true
+                        outputs:
+                          - name: <<output_name>>
+                            type: <<output_type>>
+                            desc: <<output_desc>>
                 conditions: {}
                 transitions:
                 - from: Start
