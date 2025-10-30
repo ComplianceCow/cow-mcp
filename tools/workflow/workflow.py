@@ -339,7 +339,7 @@ async def fetch_workflow_rule(name: str) -> vo.WorkflowRuleListVO:
         logger.error("fetch_workflow_rule error: {}\n".format(e))
         return vo.WorkflowRuleListVO(error="Facing internal error")
 
-@mcp.tool()
+# @mcp.tool()
 async def fetch_task_readme(name: str) -> vo.TaskReadmeResponseVO:
     """
     Retrieve README documentation for a specific task by name.
@@ -392,7 +392,7 @@ async def fetch_task_readme(name: str) -> vo.TaskReadmeResponseVO:
         logger.error("fetch_task_readme error: {}\n".format(e))
         return vo.TaskReadmeResponseVO(error="Facing internal error")
 
-@mcp.tool()
+# @mcp.tool()
 async def fetch_rule_readme(name: str) -> vo.RuleReadmeResponseVO:
     """
     Retrieve README documentation for a specific rule by name.
@@ -493,7 +493,7 @@ async def list_workflow_tasks() -> vo.WorkflowTaskListVO:
     try:
         logger.info("list_workflow_prebuild_tasks: \n")
 
-        output = await utils.make_GET_API_call_to_CCow(f"{constants.URL_WORKFLOW_PREBUILD_TASKS}?tags=MCP-WORKFLOW")
+        output = await utils.make_GET_API_call_to_CCow(f"{constants.URL_WORKFLOW_PREBUILD_TASKS}")
         logger.debug("workflow prebuild tasks output: {}\n".format(output))
         
         if isinstance(output, str) or  "error" in output:
