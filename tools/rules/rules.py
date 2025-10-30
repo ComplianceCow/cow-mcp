@@ -3820,8 +3820,8 @@ def fetch_output_file(file_url: str) -> Dict[str, Any]:
     - Files contain reports, logs, compliance data, or analysis results
 
     CONTENT DISPLAY LOGIC:
-    - If file size < 1KB: Show entire file content
-    - If file size >= 1KB: Show only first 3 records/lines with user-friendly message
+    - If file size < 10KB: Show entire file content
+    - If file size >= 10KB: Show only first 3 records/lines with user-friendly message
     - Supported formats: JSON, CSV, Parquet, and other text files
     - Always return file format extracted from filename
     - Provide clear user messaging about content truncation
@@ -3884,7 +3884,9 @@ def fetch_output_file(file_url: str) -> Dict[str, Any]:
         else:
             # For other text files
             lines = actual_content.split('\n')
-            if file_size_kb < 1.0:
+            # Determine preview size limit (in KB) from environment, defaulting to 10KB
+            size_limit_kb = rule.get_file_preview_limit()
+            if file_size_kb < size_limit_kb:
                 display_content = actual_content
                 user_message = f"✅ Complete file ({file_size_kb:.3f}KB)"
             else:
