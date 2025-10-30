@@ -23,6 +23,7 @@ if "insights" in MCP_TOOLS:
     from tools.assets import assets
     from tools.help import help
     from resources.graphdb import graphdb
+    from prompts.insights import insights
 
 if "rules" in MCP_TOOLS:
     from tools.rules import rules
@@ -40,21 +41,6 @@ def signal_handler(sig, frame):
 
 signal.signal(signal.SIGINT, signal_handler)
 
-
-@mcp.prompt()
-async def generate_chart_prompt() -> list[str]:
-    logger.info("generate_chart_prompt: \n")
-    return [
-        {
-            "role": "user",
-            "content": f"Generate a chart with "
-            f"Compliance Overview section containing Total controls; Controls Status: each status"
-            f"Progress bar chart for 'controlAssignmentStatus'"
-            f"Fetch dashboard data for latest quarterly"
-            # f"show 'Completed' status in orange color"
-            f"for these user data."
-        }
-    ]
 
 
 if __name__ == "__main__":

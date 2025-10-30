@@ -1,21 +1,24 @@
 import base64
 import os
 
-headers = {"X-CALLER": "mcp_server-user_intent"}
-cid = os.environ.get('CCOW_CLIENT_ID', "")
-cs = os.environ.get('CCOW_CLIENT_SECRET', "")
-t = os.environ.get('CCOW_TOKEN', "710ffde6-43ac-4ac0-b5ce-d4f606e5e45f")
-if cid == "" or cs == "":
-    headers = {"Authorization": t}
-else:
-    headers = {"Authorization": "Basic " +
-               base64.b64encode((cid+":"+cs).encode("ascii")).decode("ascii")}
+from cachetools import TTLCache
 
-host = os.environ.get('CCOW_HOST', "https://dev.compliancecow.live")
+headers = {"X-CALLER": "mcp_server-user_intent"}
+cid = os.environ.get("CCOW_CLIENT_ID", "")
+cs = os.environ.get("CCOW_CLIENT_SECRET", "")
+t = os.environ.get("CCOW_TOKEN", "")
+basic_auth_flow = False
+if cid == "" or cs == "":
+    headers["Authorization"] = t
+else:
+    basic_auth_flow = True
+    headers["Authorization"]= "Basic " + base64.b64encode((cid + ":" + cs).encode("ascii")).decode("ascii")
+
+host = os.environ.get("CCOW_HOST", "https://dev.compliancecow.live")
 if not host.endswith("/api"):
     host += "/api"
 
-ENABLE_CONTEXTUAL_VECTOR_SEARCH=os.environ.get("ENABLE_CONTEXTUAL_VECTOR_SEARCH", "false").lower() == "true"
+ENABLE_CONTEXTUAL_VECTOR_SEARCH = os.environ.get("ENABLE_CONTEXTUAL_VECTOR_SEARCH", "false").lower() == "true"
 
 # DASHBOARD
 URL_CCF_DASHBOARD_CONTROL_DETAILS = "/v2/aggregator/ccf-dashboard-control-details"
@@ -78,6 +81,10 @@ URL_WORKFLOW_SPECS = "/v2/workflow-specs"
 URL_WORKFLOW_BINDINGS = "/v2/workflow-bindings"
 URL_WORKFLOW_BINDINGS_EXECUTE = "/v2/workflow-bindings/execute"
 
+URL_FETCH_TASK_README = "/pc-api/v1/tasks"
+URL_FETCH_RULE_README = "/v1/rules"
+URL_FETCH_FILE_BY_HASH = "/url-hash/download"
+
 
 # RULES
 MCP_GET_RULES_TAG = "MCP"
@@ -89,10 +96,13 @@ URL_FETCH_EXECUTION_PROGRESS = "/pc-api/v2/rules/fetch-execution-progress"
 URL_FETCH_FILE = "/pc-api/v1/storage/fetch-file"
 URL_PUBLISH_RULE = "/pc-api/v1/rules/publish-rule"
 URL_FETCH_CC_RULES = "/pc-api/v1/rules/fetch-cc-rules"
-URL_UPDATE_RULE_TAGS ="/pc-api/v2/rules/update-tags"
+URL_UPDATE_RULE_TAGS = "/pc-api/v2/rules/update-tags"
 URL_FETCH_RULES_AND_TASKS_SUGGESTIONS = "/v1/llm/rule-and-task/suggestions/fetch"
 
-#CC RULES
+# TASK
+URL_EXECUTE_TASK = "/pc-api/v1/tasks/execute-task"
+
+# CC RULES
 URL_GET_CC_RULE = "/v1/rules"
 URL_GET_CC_RULE_BY_ID = "/v1/rules/{id}"
 URL_LINK_CC_RULE_TO_CONTROL = "/v1/plan-controls/{control_id}/link-rule"
@@ -114,5 +124,12 @@ URL_FETCH_APPLICATIONS = "/pc-api/v1/applications"
 URL_PUBLISH_APPLICATIONS = "/pc-api/v1/applications/publish-application"
 URL_FETCH_CC_APPLICATIONS = "/pc-api/v1/applications/fetch-cc-applications"
 
-#SUPPORT TICKET
+# SUPPORT TICKET
 URL_CREATE_TICKET = "/v5/partner/support/ticket"
+
+# AUTH-TOKEN GENERATION
+URL_AUTH_TOKEN_GENERATION = "/v1/oauth2/token"
+
+# cache support added
+mcp_cache_ttl_in_seconds = int(os.getenv("MCP_CACHE_TTL_IN_SECONDS", "82800"))
+cow_cache = TTLCache(maxsize=300, ttl=mcp_cache_ttl_in_seconds)

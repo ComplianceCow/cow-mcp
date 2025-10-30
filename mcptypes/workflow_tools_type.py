@@ -175,6 +175,7 @@ class WorkflowRuleVO(BaseModel):
     description: Optional[str] = ""
     ruleInputs: Optional[List[WorkflowRuleInputsVO]] = None
     ruleOutputs: Optional[List[WorkflowRuleOutputsVO]] = None
+    # appScopeName: Optional[str] = ""
     model_config = {
         "extra": "ignore"
     }
@@ -220,3 +221,13 @@ class WorkflowCustomEventCreateVO(BaseModel):
     model_config = {
         "extra": "ignore"
     }
+
+class TaskReadmeResponseVO(BaseModel):
+    readmeText: Optional[str] = ""
+    taskName: Optional[str] = ""
+    error: Optional[str] = ""
+
+class RuleReadmeResponseVO(BaseModel):
+    readmeText: Optional[str] = ""
+    ruleName: Optional[str] = ""
+    error: Optional[str] = ""

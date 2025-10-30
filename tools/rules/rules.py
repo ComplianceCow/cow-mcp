@@ -350,13 +350,15 @@ def get_template_guidance(task_name: str, input_name: str) -> Dict[str, Any]:
 
         # Find the specific input
         task_input = None
+        available_task_inputs=[]
         for inp in task.inputs:
+            available_task_inputs.append(inp.name)
             if inp.name == input_name:
                 task_input = inp
                 break
 
         if not task_input:
-            return {"success": False, "error": f"Input {input_name} not found in task {task_name}"}
+            return {"success": False, "error": f"Input '{input_name}' not found in task '{task_name}'. Available inputs are: {available_task_inputs}"}
 
         if not task_input.templateFile:
             return {"success": False, "error": f"Input {input_name} does not have a template file"}
@@ -446,20 +448,21 @@ def collect_template_input(task_name: str, input_name: str, user_content: Any) -
 
         # Find the specific input
         task_input = None
+        available_task_inputs=[]
         for inp in task.inputs:
             if inp.name == input_name:
+                available_task_inputs.append(inp.name)
                 task_input = inp
                 break
 
         if not task_input:
-            return {"success": False, "error": f"Input {input_name} not found in task {task_name}"}
+            return {"success": False, "error": f"Input '{input_name}' not found in task '{task_name}'. Available inputs are: {available_task_inputs}"}
         
         # Check type and convert to string
         if isinstance(user_content, (dict, list)):
             user_content = json.dumps(user_content)
         else:
             user_content = str(user_content)
-
 
         # Validate the content including JSON arrays (preserved validation)
         validation_result = rule.validate_template_content_enhanced(task_input, user_content)
@@ -516,6 +519,9 @@ def confirm_template_input(rule_name: str, task_name: str, rule_input_name: str,
     4. Calls create_rule() to save the updated rule
     5. Rule status will be auto-detected (DRAFT → collecting_inputs → READY_FOR_CREATION)
 
+    UI DISPLAY REQUIREMENT:
+    - The file URL must ALWAYS be displayed to the user in the UI, allowing the user to view or download the file directly.
+    
     Args:
         rule_name: Descriptive name for the rule based on the user's use case. 
                    Note: Use the same rule name for all inputs that belong to this rule.
@@ -538,13 +544,15 @@ def confirm_template_input(rule_name: str, task_name: str, rule_input_name: str,
 
         # Find the specific input
         task_input = None
+        available_task_inputs=[]
         for inp in task.inputs:
+            available_task_inputs.append(inp.name)
             if inp.name == input_name:
                 task_input = inp
                 break
 
         if not task_input:
-            return {"success": False, "error": f"Input {input_name} not found in task {task_name}"}
+            return {"success": False, "error": f"Input '{input_name}' not found in task '{task_name}'. Available inputs are: {available_task_inputs}"}
 
         # Check if this is a FILE or HTTP_CONFIG type input that needs upload (preserved logic)
         if task_input.dataType.upper() in ["FILE", "HTTP_CONFIG"]:
@@ -878,13 +886,15 @@ def collect_parameter_input(task_name: str, input_name: str, user_value: str = N
 
         # Find the specific input
         task_input = None
+        available_task_inputs=[]
         for inp in task.inputs:
+            available_task_inputs.append(inp.name)
             if inp.name == input_name:
                 task_input = inp
                 break
 
         if not task_input:
-            return {"success": False, "error": f"Input {input_name} not found in task {task_name}"}
+            return {"success": False, "error": f"Input '{input_name}' not found in task '{task_name}'. Available inputs are: {available_task_inputs}"}
 
         # Check if this input is required
         is_required = task_input.required
@@ -916,7 +926,7 @@ def collect_parameter_input(task_name: str, input_name: str, user_value: str = N
 
 
 @mcp.tool()
-def confirm_parameter_input(task_name: str, input_name: str, rule_input_name:str, confirmed_value: str, confirmation_type: str = "final", rule_name: str = None) -> Dict[str, Any]:
+def confirm_parameter_input(task_name: str, input_name: str, rule_input_name:str, confirmed_value: str, explaination: str, confirmation_type: str = "final", rule_name: str = None) -> Dict[str, Any]:
     """Confirm and store parameter input after user validation.
 
     CONFIRMATION PROCESSING (Enhanced with Automatic Rule Updates):
@@ -950,6 +960,7 @@ def confirm_parameter_input(task_name: str, input_name: str, rule_input_name:str
         input_name: Name of the input parameter
         rule_input_name: Must be one of the values defined in the rule structure's inputs
         confirmed_value: The value user confirmed
+        explanation: Add explanation only if dataType is JQ_EXPRESSION or SQL_EXPRESSION. This field provides details about the confirmed_value.
         confirmation_type: Type of confirmation ("default" or "final")
         rule_name: Optional rule name for automatic rule updates
 
@@ -966,13 +977,15 @@ def confirm_parameter_input(task_name: str, input_name: str, rule_input_name:str
 
         # Find the specific input
         task_input = None
+        available_task_inputs=[]
         for inp in task.inputs:
+            available_task_inputs.append(inp.name)
             if inp.name == input_name:
                 task_input = inp
                 break
 
         if not task_input:
-            return {"success": False, "error": f"Input {input_name} not found in task {task_name}"}
+            return {"success": False, "error": f"Input '{input_name}' not found in task '{task_name}'. Available inputs are: {available_task_inputs}"}
 
         # Validate the confirmed value (preserved validation)
         validation_result = rule.validate_parameter_value(confirmed_value, task_input.dataType)
@@ -1001,6 +1014,10 @@ def confirm_parameter_input(task_name: str, input_name: str, rule_input_name:str
                         "required": task_input.required,
                         "defaultValue": validation_result["converted_value"]
                     }
+
+                    # Add explanation if dataType is JQ_EXPRESSION or SQL_EXPRESSION
+                    if task_input.dataType in ["JQ_EXPRESSION", "SQL_EXPRESSION"]:
+                        input_meta["explanation"] = explaination
                     
                     if hasattr(task_input, 'format') and task_input.format:
                         input_meta["format"] = task_input.format
@@ -1047,26 +1064,26 @@ def confirm_parameter_input(task_name: str, input_name: str, rule_input_name:str
 # INPUT VERIFICATION TOOLS - MANDATORY WORKFLOW STEPS
 @mcp.tool()
 def prepare_input_collection_overview(selected_tasks: List[Dict[str, str]]) -> Dict[str, Any]:
-    """Prepare and present input collection overview before starting any input collection.
+    """
+    INPUT COLLECTION OVERVIEW & RULE CREATION
+
+    Prepare and present input collection overview before starting any input collection.
 
     MANDATORY FIRST STEP - INPUT OVERVIEW PROCESS (Enhanced):
-
-    This tool MUST be called before collecting any inputs. It analyzes all selected tasks
-    and presents a complete overview of what inputs will be needed.
+    This tool MUST be called before collecting any inputs. It analyzes all selected tasks and presents a complete overview of what inputs will be needed.
 
     ENHANCED WITH AUTOMATIC RULE CREATION:
-    After user confirms the input overview, this tool automatically creates the initial 
-    rule structure with selected tasks. The rule will be saved with DRAFT status and 
-    can be progressively updated as inputs are collected.
+    After user confirms the input overview, this tool automatically creates the initial rule structure with selected tasks. The rule will be saved with DRAFT status and can be progressively updated as inputs are collected.
 
     **MANDATORY WORKFLOW ENFORCEMENT - CRITICAL INSTRUCTION:**
-    - AFTER user confirms the input overview, IMMEDIATELY call create_rule() with initial structure
-    - This call is MANDATORY and CANNOT be skipped or deferred
-    - The initial rule structure MUST be created before any input collection begins
-    - BLOCK all subsequent input collection if initial rule creation fails
-    - NEVER proceed to input collection without successful initial rule creation
-    - If create_rule() fails, STOP workflow and resolve the issue before continuing
-    - The rule creation establishes the foundation for progressive updates during input collection
+    - AFTER user confirms the input overview, IMMEDIATELY call create_rule() with initial structure.
+    - This call is MANDATORY and CANNOT be skipped or deferred.
+    - The initial rule structure MUST be created before any input collection begins.
+    - BLOCK all subsequent input collection if initial rule creation fails.
+    - NEVER proceed to input collection without successful initial rule creation.
+    - If create_rule() fails, STOP workflow and resolve the issue before continuing.
+    - The rule creation establishes the foundation for progressive updates during input collection.
+
 
     **ENFORCEMENT STEPS:**
     1. Present overview to user
@@ -1075,84 +1092,137 @@ def prepare_input_collection_overview(selected_tasks: List[Dict[str, str]]) -> D
     4. Verify rule creation success before proceeding
     5. Only then allow input collection to begin
 
+    TASK-BY-TASK INPUT COLLECTION & VALIDATION (CRITICAL ENFORCEMENT):
+    ═══════════════════════════════════════════════════════════════════
+    MANDATORY WORKFLOW FOR EACH TASK:
+    
+    FOR EACH TASK in selected_tasks:
+        STEP 1: Collect ALL inputs for current task
+                - Use collect_template_input() for file/template inputs
+                - Use collect_parameter_input() for parameter inputs
+                - Wait for ALL task inputs to be collected
+        
+        STEP 2: **MANDATORY VALIDATION** (CANNOT BE SKIPPED)
+                - Call validate_task_inputs(task_name, collected_inputs_for_this_task)
+                - This MUST happen IMMEDIATELY after all task inputs are collected
+                - BLOCK progression if validation fails
+                - If validation fails:
+                  * Show validation errors to user
+                  * Allow input correction
+                  * Re-validate with corrected inputs
+                  * Only proceed when validation passes
+        
+        STEP 3: Move to next task ONLY after validation passes
+                - Validation success = prerequisite for next task
+                - No task can start input collection without previous task validation passing
+    
+    VALIDATION CHECKPOINT ENFORCEMENT:
+    - After collecting Task 1 inputs → MUST call validate_task_inputs(Task1, inputs)
+    - After collecting Task 2 inputs → MUST call validate_task_inputs(Task2, inputs)
+    - After collecting Task 3 inputs → MUST call validate_task_inputs(Task3, inputs)
+    - This creates validation checkpoints between each task
+    - NEVER skip validation, even if inputs seem correct
+
     **SELECTIVE INPUT INCLUSION:**
-    - DO NOT automatically include ALL task inputs in initial rule creation
-    - Only include inputs that are REQUIRED or explicitly needed for the user's use case
-    - Skip optional inputs unless user specifically requests them
-    - Additional inputs can be added later if needed during execution or refinement
+    - DO NOT automatically include ALL task inputs in initial rule creation.
+    - Only include inputs that are REQUIRED or explicitly needed for the user's use case.
+    - Skip optional inputs unless user specifically requests them.
+    - Additional inputs can be added later if needed during execution or refinement.
 
     **FAILURE HANDLING:**
-    - If user confirms but create_rule() fails → STOP and fix issue
-    - If user declines → End workflow, no rule creation needed
-    - If create_rule() succeeds → Proceed to input collection
-    - NEVER skip the create_rule() call after user confirmation
+    - If user confirms but create_rule() fails → STOP and fix issue.
+    - If user declines → End workflow, no rule creation needed.
+    - If create_rule() succeeds → Proceed to task-wise input collection and validation.
+    - NEVER skip the create_rule() call after user confirmation.
+
 
     HANDLES DUPLICATE INPUT NAMES WITH TASK ALIASES (Preserved):
-    - Creates unique identifiers for each task-alias-input combination
-    - Format: "{task_alias}.{input_name}" for uniqueness
-    - Prevents conflicts when multiple tasks have same input names or same task used multiple times
-    - Maintains clear mapping between task aliases and their specific inputs
-    - Task aliases should be simple, meaningful step indicators (e.g., "step1", "validation", "processing")
+    - Creates unique identifiers for each task-alias-input combination.
+    - Format: "{task_alias}.{input_name}" for uniqueness.
+    - Prevents conflicts when multiple tasks have same input names or same task used multiple times.
+    - Maintains clear mapping between task aliases and their specific inputs.
+    - Task aliases should be simple, meaningful step indicators (e.g., "step1", "validation", "processing").
 
     OVERVIEW REQUIREMENTS (Preserved):
-    1. Analyze ALL selected tasks with their aliases for input requirements
-    2. Categorize inputs: templates vs parameters
-    3. Create unique identifiers for each task-alias-input combination
-    4. Count total inputs needed
-    5. Present clear overview to user
-    6. Get user confirmation before proceeding
-    7. Return structured overview for systematic collection
-    8. NEW: Automatically create initial rule after user confirmation
+    1. Analyze ALL selected tasks with their aliases for input requirements.
+    2. Categorize inputs: templates vs parameters.
+    3. Create unique identifiers for each task-alias-input combination.
+    4. Count total inputs needed.
+    5. Present clear overview to user.
+    6. Get user confirmation before proceeding.
+    7. Return structured overview for systematic collection.
+    8. NEW: Automatically create initial rule after user confirmation.
 
-    OVERVIEW PRESENTATION FORMAT (Preserved):
-    "INPUT COLLECTION OVERVIEW:
+    OVERVIEW PRESENTATION FORMAT (Enhanced with Validation):
+    
+    INPUT COLLECTION OVERVIEW:
 
     I've analyzed your selected tasks. Here's what we need to configure:
 
-    TEMPLATE INPUTS (Files):
-    • Task: [TaskAlias] ([TaskName]) → Input: [InputName] ([Format] file)
-        Unique ID: [TaskAlias.InputName]
-        Description: [InputDescription]
+    TASK 1: [TaskAlias] ([TaskName])
+    ───────────────────────────────────
+    Template Inputs:
+    • [InputName] ([Format] file) - [Description]
+      Unique ID: [TaskAlias.InputName]
+    
+    Parameter Inputs:
+    • [InputName] ([DataType]) - [Description]
+      Unique ID: [TaskAlias.InputName]
+      Required: [Yes/No]
+    
+    ⚠️  VALIDATION CHECKPOINT: After collecting all Task 1 inputs, 
+        validate_task_inputs() will be called before proceeding to Task 2.
 
-    PARAMETER INPUTS (Values):
-    • Task: [TaskAlias] ([TaskName]) → Input: [InputName] ([DataType])
-        Unique ID: [TaskAlias.InputName]
-        Description: [InputDescription]
-        Required: [Yes/No]
+    TASK 2: [TaskAlias] ([TaskName])
+    ───────────────────────────────────
+    [... similar structure ...]
+    
+    ⚠️  VALIDATION CHECKPOINT: After collecting all Task 2 inputs,
+        validate_task_inputs() will be called before proceeding to Task 3.
 
     SUMMARY:
     - Total inputs needed: X
     - Template files: Y ([formats])
     - Parameter values: Z
     - Estimated time: ~[X] minutes
+    - Validation checkpoints: [number of tasks]
 
-    This will be collected step-by-step with progress indicators.
-    Ready to start systematic input collection?"
+    WORKFLOW:
+    1. Collect all inputs for Task 1 → Validate Task 1 → ✓
+    2. Collect all inputs for Task 2 → Validate Task 2 → ✓
+    3. Collect all inputs for Task 3 → Validate Task 3 → ✓
+    4. Final rule completion
+    
+    Ready to start task-by-task input collection with validation checkpoints?
 
-    CRITICAL WORKFLOW RULES (Preserved):
-    - ALWAYS call this tool first before any input collection
-    - NEVER start collecting inputs without user seeing overview
-    - NEVER proceed without user confirmation
-    - Create unique task_alias.input identifiers to avoid conflicts
-    - Show clear task-alias-input relationships to user
-    - NEW: Create initial rule structure after user confirmation
+    CRITICAL WORKFLOW RULES:
+    - ALWAYS call this tool first before any input collection.
+    - NEVER start collecting inputs without user seeing overview.
+    - NEVER proceed without user confirmation.
+    - Create unique task_alias.input identifiers to avoid conflicts.
+    - Show clear task-alias-input relationships to user.
+    - NEW: Collect inputs task-by-task and validate each task's inputs immediately after collection.
+    - NEW: Create initial rule structure after user confirmation.
 
     CRITICAL REQUIREMENTS:
     - Input names: alphanumeric + underscore only (auto-sanitize with re.sub(r'[^a-zA-Z0-9_]', '_', name))
-    - Collection order: Complete ALL inputs for Task 1, then Task 2, then Task 3
-    - Within each task: templates first, parameters second
+    - Collection order: Complete ALL inputs for each task one by one (Task 1 → verify Task 1 inputs → Task 2 → verify Task 2 inputs → Task 3 → verify Task 3 inputs)
+    - Within each task: collect all inputs, then verify using 'validate_task_inputs()' before proceeding
+    - If a task (e.g., Task 2) has input files or other inputs that are skipped or mapped from a previous task, generate a sample input file based on the previous task response, upload its content using `upload_file()`, and use the returned file URL as the input for file-type parameters during validation.
 
-    Args:
-        selected_tasks: List of dicts with 'task_name' and 'task_alias'
-                       Example: [
-                           {"task_name": "data_validation", "task_alias": "step1"},
-                           {"task_name": "data_processing", "task_alias": "step2"},
-                           {"task_name": "data_validation", "task_alias": "final_check"}
-                       ]
+    ARGS:
+    - selected_tasks: List of dicts with 'task_name' and 'task_alias'
+    Example:
+    [
+        {"task_name": "data_validation", "task_alias": "step1"},
+        {"task_name": "data_processing", "task_alias": "step2"},
+        {"task_name": "data_validation", "task_alias": "final_check"}
+    ]
 
     Returns:
         Dict containing structured input overview and collection plan with unique identifiers,
-        plus automatic rule creation capability after user confirmation
+        plus automatic rule creation capability after user confirmation, with explicit
+        validation checkpoints for each task
     """
 
     if not selected_tasks:
@@ -1166,11 +1236,12 @@ def prepare_input_collection_overview(selected_tasks: List[Dict[str, str]]) -> D
             "template_count": 0,
             "parameter_count": 0, 
             "estimated_minutes": 0, 
-            "unique_input_map": {},  # Maps unique_id to task alias and input info
-            "task_alias_map": {}     # Maps task_alias to task_name for reference
+            "unique_input_map": {},
+            "task_alias_map": {},
+            "task_input_groups": {}  # NEW: Group inputs by task for validation tracking
         }
 
-        # Validate input format and task aliases (preserved validation)
+        # Validate input format and task aliases
         for task_info in selected_tasks:
             if not isinstance(task_info, dict) or "task_name" not in task_info or "task_alias" not in task_info:
                 return {"success": False, "error": "Each task must be a dict with 'task_name' and 'task_alias' keys"}
@@ -1191,8 +1262,17 @@ def prepare_input_collection_overview(selected_tasks: List[Dict[str, str]]) -> D
                 "task_name": task_info["task_name"],
                 "purpose": task_info.get("purpose", "")
             }
+            
+            # Initialize task input group for validation tracking
+            input_analysis["task_input_groups"][task_alias] = {
+                "task_name": task_info["task_name"],
+                "task_alias": task_alias,
+                "inputs": [],
+                "input_count": 0,
+                "validation_required": True
+            }
 
-        # Get available tasks (preserved logic)
+        # Get available tasks
         available_tasks = []
         tasks_resp = rule.fetch_task_api(params={"tags": "primitive"})
         if rule.is_valid_key(tasks_resp, "items", array_check=True):
@@ -1201,7 +1281,7 @@ def prepare_input_collection_overview(selected_tasks: List[Dict[str, str]]) -> D
         if not available_tasks:
             return {"success": False, "error": "No tasks loaded"}
 
-        # Analyze each selected task with its alias (preserved analysis)
+        # Analyze each selected task with its alias
         for task_info in selected_tasks:
             task_name = task_info["task_name"]
             task_alias = task_info["task_alias"]
@@ -1220,8 +1300,11 @@ def prepare_input_collection_overview(selected_tasks: List[Dict[str, str]]) -> D
             # Process each input with unique identifier using task alias
             for inp in task.inputs:
                 cleaned_input_name = validate_input_name(inp.name)
-                # Create unique identifier: TaskAlias.InputName
                 unique_input_id = f"{task_alias}.{cleaned_input_name}"
+                
+                data_type = ""
+                if inp.dataType:
+                    data_type = inp.dataType
 
                 input_info = {
                     "task_name": task_name,
@@ -1230,7 +1313,7 @@ def prepare_input_collection_overview(selected_tasks: List[Dict[str, str]]) -> D
                     "input_name": inp.name,
                     "unique_input_id": unique_input_id,
                     "description": inp.description,
-                    "data_type": inp.dataType,
+                    "data_type": data_type,
                     "required": inp.required,
                     "has_template": bool(inp.templateFile),
                     "format": inp.format if inp.templateFile else None,
@@ -1243,18 +1326,26 @@ def prepare_input_collection_overview(selected_tasks: List[Dict[str, str]]) -> D
                     "task_name": task_name,
                     "task_alias": task_alias,
                     "input_name": inp.name,
-                    "task_input_obj": inp
+                    "task_input_obj": {
+                        "name": inp.name,
+                        "description": inp.description,
+                        "dataType": inp.dataType,
+                        "required": inp.required,
+                        "format": inp.format if inp.templateFile else None,
+                    }
                 }
+                
+                # Add to task input group for validation tracking
+                input_analysis["task_input_groups"][task_alias]["inputs"].append(unique_input_id)
+                input_analysis["task_input_groups"][task_alias]["input_count"] += 1
 
                 if inp.templateFile or inp.dataType.upper() in ["FILE", "HTTP_CONFIG"]:
                     input_analysis["template_inputs"].append(input_info)
                     input_analysis["template_count"] += 1
-                    # File inputs take longer (2-3 minutes each)
                     input_analysis["estimated_minutes"] += 3
                 else:
                     input_analysis["parameter_inputs"].append(input_info)
                     input_analysis["parameter_count"] += 1
-                    # Parameter inputs are quicker (30 seconds each)
                     input_analysis["estimated_minutes"] += 0.5
 
         input_analysis["total_count"] = input_analysis["template_count"] + input_analysis["parameter_count"]
@@ -1265,8 +1356,6 @@ def prepare_input_collection_overview(selected_tasks: List[Dict[str, str]]) -> D
         
         # Track duplicate input names to handle conflicts
         input_name_counts = {}
-
-        task_to_inputs_map = {}  # Maps task_alias to list of input names
 
         # Process only required inputs from template_inputs and parameter_inputs
         all_required_inputs = input_analysis["template_inputs"] + input_analysis["parameter_inputs"]
@@ -1285,7 +1374,6 @@ def prepare_input_collection_overview(selected_tasks: List[Dict[str, str]]) -> D
                 unique_name = f"{task_alias}_{input_name}"
             else:
                 input_name_counts[input_name] = 1
-                # Check if this input name appears in other required inputs
                 duplicate_count = sum(1 for other_input in all_required_inputs 
                                     if other_input["input_name"] == input_name and other_input["required"])
                 if duplicate_count > 1:
@@ -1294,68 +1382,75 @@ def prepare_input_collection_overview(selected_tasks: List[Dict[str, str]]) -> D
                     unique_name = input_name
             
             # Set initial value based on dataType
-            data_type = task_input_obj.dataType.upper()
-            if data_type in ["FILE", "HTTP_CONFIG"]:
-                initial_value = ""  # Empty string for file inputs
-            elif data_type == "BOOLEAN":
-                initial_value = False  # Default boolean value
-            elif data_type in ["INT", "INTEGER"]:
-                initial_value = 0  # Default integer value
-            elif data_type == "FLOAT":
-                initial_value = 0.0  # Default float value
-            elif data_type in ["STRING", "TEXT"]:
-                initial_value = ""  # Empty string for text inputs
-            elif data_type in ["DATE", "DATETIME"]:
-                initial_value = ""  # Empty string for date inputs
+            data_type = getattr(task_input_obj, "dataType", None)
+            if data_type:
+                data_type_upper = data_type.upper()
             else:
-                initial_value = ""  # Default to empty string for unknown types
+                data_type_upper = ""
+            if data_type_upper in ["FILE", "HTTP_CONFIG"]:
+                initial_value = ""
+            elif data_type_upper == "BOOLEAN":
+                initial_value = False
+            elif data_type_upper in ["INT", "INTEGER"]:
+                initial_value = 0
+            elif data_type_upper == "FLOAT":
+                initial_value = 0.0
+            elif data_type_upper in ["STRING", "TEXT"]:
+                initial_value = ""
+            elif data_type_upper in ["DATE", "DATETIME"]:
+                initial_value = ""
+            else:
+                initial_value = ""
             
-            # Add to inputs with dataType-appropriate initial value
             initial_inputs[unique_name] = initial_value
             
-            # Add to inputsMeta__ with complete metadata
             input_meta = {
                 "name": unique_name,
-                "dataType": task_input_obj.dataType,
-                "defaultValue": initial_value,  # Same as inputs value
+                "dataType": data_type if data_type else "",
+                "defaultValue": initial_value,
                 "showField": True,
-                "required": task_input_obj.required,
+                "required": getattr(task_input_obj, "required", False),
                 "allowedValues": [],
                 "repeated": False
             }
             
-            # Add format if it's available
-            if hasattr(task_input_obj, 'format') and task_input_obj.format:
-                input_meta["format"] = task_input_obj.format
+            if hasattr(task_input_obj, 'format') and getattr(task_input_obj, 'format', None):
+                input_meta["format"] = getattr(task_input_obj, 'format')
             
             initial_inputs_meta.append(input_meta)
 
-        # Generate overview presentation (preserved)
-        overview_text = rule.generate_input_overview_presentation_with_unique_ids(input_analysis)
+        # Generate overview presentation with validation checkpoints
+        overview_text = rule.generate_input_overview_presentation_with_validation_checkpoints(
+            input_analysis
+        )
         
         return {
             "success": True,
             "input_analysis": input_analysis,
             "overview_presentation": overview_text,
             "task_alias_map": input_analysis["task_alias_map"],
-            "collection_plan": {
-                "step1": "Template inputs (files) - collected first with task aliases",
-                "step2": "Parameter inputs (values) - collected second with task aliases",
-                "step3": "Final verification of all collected inputs with aliases",
-                "step4": "Rule structure creation with proper task alias mapping"
+            "task_input_groups": input_analysis["task_input_groups"],  # NEW: For validation tracking
+            "mandatory_collection_plan": {
+                "step1": "Collect inputs task-wise for all defined tasks. For each task, gather all required inputs (e.g., if a task has three inputs, collect all three before proceeding).",
+                "step2": "After collecting all inputs for a specific task, **MANDATORY VALIDATION CHECKPOINT** - call validate_task_inputs(task_name, collected_inputs_dict) to verify all inputs are correct.",
+                "step3": "If validation fails, allow user to correct inputs and re-validate. Only proceed to next task when validation passes.",
+                "step4": "Once a task's inputs are successfully validated (validation passes), proceed to collect inputs for the next task and repeat the same validation process.",
+                "step5": "After completing and validating inputs for all tasks, perform a final cross-task consistency check to confirm overall readiness for execution.",
+                "step6": "Finally, execute the tasks sequentially, maintaining verified task alias mappings for accurate dependency tracking and rule formation.",
+                "critical_note": "**VALIDATION IS MANDATORY AND CANNOT BE SKIPPED** - Each task MUST have its inputs validated before moving to the next task. This creates checkpoints ensuring data integrity throughout the workflow."
             },
-            "rule_creation_ready": True,  # NEW: Indicates ready for initial rule creation
-            "selected_tasks": selected_tasks,  # NEW: Store for rule creation
-            "initial_inputs": initial_inputs,  # NEW: Store for rule creation
-            "initial_inputs_meta": initial_inputs_meta,  # NEW: Store for rule creation
-            "message": "Input overview prepared with task aliases. Present to user and get confirmation before proceeding.",
-            "next_action": "Show overview_presentation to user and wait for confirmation, then create initial rule"
+            "rule_creation_ready": True,
+            "selected_tasks": selected_tasks,
+            "initial_inputs": initial_inputs,
+            "initial_inputs_meta": initial_inputs_meta,
+            "validation_checkpoint_count": len(selected_tasks),  # NEW: Number of validation checkpoints
+            "message": "Input overview prepared with task aliases and validation checkpoints. Present to user and get confirmation before proceeding.",
+            "next_action": "Show overview_presentation to user and wait for confirmation, then create initial rule and follow 'mandatory_collection_plan' with STRICT validation enforcement"
         }
 
     except Exception as e:
         return {"success": False, "error": f"Failed to prepare input overview: {e}"}
-
-
+    
 @mcp.tool()
 def verify_collected_inputs(collected_inputs: Dict[str, Any]) -> Dict[str, Any]:
     """Verify all collected inputs with user before rule creation.
@@ -2328,13 +2423,12 @@ def create_design_notes(rule_name: str, design_notes_structure: Dict[str, Any]) 
 
 
 @mcp.tool()
-def fetch_rule(rule_name: str,include_read_me: bool = False) -> Dict[str, Any]:
+def fetch_rule(rule_name: str) -> Dict[str, Any]:
     """
     Fetch rule details by rule name.
 
     Args:
         rule_name: Name of the rule to retrieve
-        include_read_me: Whether to include the README data in the response.
         
     Returns:
         Dict containing complete rule structure and metadata
@@ -3229,7 +3323,14 @@ def get_applications_for_tag(tag_name: str) -> Dict[str, Any]:
 
         if rule.is_valid_array(applications_resp, "items"):
             for item in applications_resp["items"]:
-                applications.append({"id": item.get("id"), "name": item.get("credentialName"), "appType": item.get("appType")})
+                app_type = item.get("appType", "")
+                if isinstance(app_type, str) and app_type.endswith("::"):
+                    app_type = app_type[:-2]
+                applications.append({
+                    "id": item.get("id"),
+                    "name": item.get("credentialName"),
+                    "appType": app_type
+                })
             return {
                 "success": True, 
                 "tag_name": tag_name, 
@@ -3329,15 +3430,19 @@ def execute_rule(rule_name: str, from_date: str, to_date:str, rule_inputs: List[
     0. **MANDATORY: Check rule status to ensure rule is fully developed before execution**
     1. User chooses to execute rule after creation
     2. Extract unique appTags from selected tasks → get user confirmation
-    3. For each tag:
-        - Get available applications via get_applications_for_tag()
-        - Present choice: existing app or new credentials → get user confirmation
-        - If existing: use application ID → confirm → move to next tag
+    3. MANDATORY STEP (CANNOT BE SKIPPED):
+        For each tag:
+        - Fetch available applications via get_applications_for_tag().
+        - Present them to the user for manual selection.
+        - **Tool must not auto-select.** User decides to:
+            a. Use an existing application, or  
+            b. Run with new credentials (not persisted or saved as an application).
+        - Proceed only after user confirmation for each tag.
         ```json
         [
             {
                 "applicationType": "[application_class_name from fetch_applications(appType)]",
-                "applicationId": "[Actual ID]",
+                "applicationId": "[Actual application ID chosen by user]",
                 "appTags": "[Complete object from rule spec.tasks[].appTags]"
             }
         ]
@@ -3379,6 +3484,9 @@ def execute_rule(rule_name: str, from_date: str, to_date:str, rule_inputs: List[
     - Ask user: "Do you want to publish this rule to make it available in ComplianceCow system? (yes/no)"
     - If yes: Call publish_rule() to publish the rule
     - If no: End workflow    
+
+    UI DISPLAY REQUIREMENT:
+    - The file URL must ALWAYS be displayed to the user in the UI, allowing the user to view or download the file directly.
 
     Args:
         rule_name: Rule to execute
@@ -3473,6 +3581,9 @@ def fetch_execution_progress(rule_name: str, execution_id: str) -> Dict[str, Any
     - continue_polling: false = execution complete, show final summary
     - display_mode: "replace" = replace previous display
     
+    UI DISPLAY REQUIREMENT:
+    - The file URL must ALWAYS be displayed to the user in the UI, allowing the user to view or download the file directly.
+
     Args:
         rule_name: Rule being executed
         execution_id: ID from execute_rule()
@@ -3563,7 +3674,10 @@ def fetch_execution_progress(rule_name: str, execution_id: str) -> Dict[str, Any
                 "progress_bar": progress_bar,
                 "percentage": percentage,
                 "status": status,
-                "outputs": task.get("outputs")
+                "outputs": {
+                    key : value for key, value in (task.get("outputs") or {}).items()
+                    if key not in ["CompliancePCT_", "ComplianceStatus_"]
+                } if task.get("outputs") else None
             }
             
             if status == "ERROR" and task.get("error"):
@@ -3712,13 +3826,14 @@ def fetch_output_file(file_url: str) -> Dict[str, Any]:
     - Always return file format extracted from filename
     - Provide clear user messaging about content truncation
     - CRITICAL: If content is truncated or full content, include truncation message with the display_content
-
+    - The file URL (file_url) must ALWAYS be displayed to the user in the UI, allowing the user to view or download the file directly.
+    
     MANDATORY CONTENT DISPLAY FORMAT:
     - FileName: [extracted from file_url]
     - Format: [file format from file_format]
     - Message: [truncation status or completion message if applicable user_message]  
     - Content: [display_content based on file format show the entire display_content]
-
+    - File URL: [always show the file_url in the UI so the user can view or download the file]
     Args:
         file_url: URL of the file to fetch and display
 
@@ -3776,7 +3891,7 @@ def fetch_output_file(file_url: str) -> Dict[str, Any]:
                 display_content = '\n'.join(lines[:3])
                 if len(lines) > 3:
                     display_content += "\n... (truncated)"
-                user_message = f"📄 File ({file_size_kb:.2f}KB). Showing first 3 of {len(lines)} lines"
+                user_message = f"📄 File ({file_size_kb:.2f}KB). Showing first 3 of {len(lines)} lines, You can download it using the link below."
 
         return {
             "success": True,
@@ -4638,8 +4753,12 @@ def check_rule_status(rule_name: str) -> Dict[str, Any]:
             "inferred_status": inferred_status,  # Auto-detected, not from stored field
             "inferred_phase": inferred_phase,    # Auto-detected, not from stored field
             "progress_percentage": progress_percentage,  # Calculated from actual content
-            "completion_analysis": completion_analysis,  # Real-time analysis
             "missing_components": missing_components,
+            "has_tasks": completion_analysis["has_tasks"],
+            "has_inputs": completion_analysis["has_inputs"],
+            "has_inputs_meta": completion_analysis["has_inputs_meta"],
+            "inputs_match_metadata": completion_analysis["inputs_match_metadata"],
+            "outputs_count": completion_analysis["outputs_count"],
             "tasks_defined": completion_analysis["tasks_count"],
             "inputs_collected": completion_analysis["inputs_collected"],
             "inputs_metadata_count": completion_analysis["inputs_meta_count"],
@@ -4752,11 +4871,9 @@ def create_initial_rule_from_planning(rule_name: str, purpose: str, description:
 def configure_rule_output_schema() -> Dict[str, Any]:
     """
     PREREQUISITE — MUST RUN FIRST (NON-SKIPPABLE)
-    This tool is a hard prerequisite and MUST be executed successfully before the
-    `prepare_input_collection_overview()` tool (and before any downstream rule-creation
-    or evaluation steps). If this tool has not run or did not complete, the workflow
-    MUST fail fast with an explicit error.
-
+    This tool is a hard prerequisite and MUST be executed successfully before the `prepare_input_collection_overview()` tool (and any downstream rule-creation or evaluation steps). 
+    If this tool has not run or did not complete, the workflow MUST fail fast with an explicit error.
+    
     PURPOSE
     Establish the rule's output schema policy for ComplianceCow and apply any required transformations. In ComplianceCow, we maintain a standard format for storing evidence records. The user MUST choose one of the following rule output options:
 
@@ -4769,15 +4886,6 @@ def configure_rule_output_schema() -> Dict[str, Any]:
     This step CANNOT be bypassed, defaulted, auto-selected, or inferred.  
     If the user has not actively selected one of (a), (b), or (c), this tool MUST fail fast with a clear error message and stop execution.  
 
-    Inform the user:
-    '''
-    In ComplianceCow, evidence is stored in a structured format.  
-    Please select one of the following options:  
-    (a) Standard schema — Stores evidence in the ComplianceCow standard format (mandatory information only)
-    (b) Extended schema — Stores the raw or modified response (all information, not in standard structure)  
-    (c) Standard + Extended — Stores evidence in both standard and extended formats
-    '''
-
     VALIDATION & ENFORCEMENT
     - This tool is NON-SKIPPABLE. If not executed, or if the user does not provide an explicit choice (a/b/c), the workflow MUST stop immediately with an error.  
     - No implicit defaults, assumptions, or auto-selections are allowed.  
@@ -4786,8 +4894,9 @@ def configure_rule_output_schema() -> Dict[str, Any]:
     BEHAVIOR BY SELECTION
 
     A) If user selects STANDARD ONLY:
-    - Append a Transformation task at the END of the selected task pipeline.
-    - In that Transformation task, map ALL Mandatory Keys (listed below).
+    - If the pipeline already ends with a Transformation task, reuse the existing Transformation task instead of appending a new one.
+    - Otherwise, append a Transformation task at the END of the selected task pipeline.
+    - In the Transformation task, map ALL Mandatory Keys (listed below).
     - Values for these keys MUST be taken from the pipeline's input file(s) and/or upstream task outputs, following the Deeper Analysis Rules.
     - Continue collecting inputs for the Transformation task using:
         `collect_template_input()` or `collect_parameter_input()`.
@@ -4860,14 +4969,24 @@ def configure_rule_output_schema() -> Dict[str, Any]:
         * `get_template_guidance()` has been used for each input needing guidance
         * The user has confirmed or edited the configuration
         * All Mandatory Keys are mapped and validated in order
+    - Mandatory, a JS chart (Mermaid/D3) MUST be generated to visualize the rule's I/O field structure. The chart must be displayed in this chat immediately after user input, and no further processing is allowed until this step is completed.
 
     EXECUTION ORDER GUARANTEE
     On success, and ONLY after input collection and configuration confirmation,
     the next tool to run MUST be `prepare_input_collection_overview()`.
     """
+    user_message = (
+        "In ComplianceCow, evidence is stored in a structured format.\n"
+        "Please select one of the following options:\n"
+        "(a) Standard schema — Stores evidence in the ComplianceCow standard format (mandatory information only)\n"
+        "(b) Extended schema — Stores the raw or modified response (all information, not in standard structure)\n"
+        "(c) Standard + Extended — Stores evidence in both standard and extended formats"
+    )
+
     return {
-        "nextStep": "USER PROMPT (MANDATORY)",
-        "message": "Proceeding to user selection: Standard schema, Extended schema, or Standard + Extended."
+        "user_prompt": user_message,
+        "message": "Proceeding to user selection: Standard schema, Extended schema, or Standard + Extended.",
+        "next_step":"Generates a JS chart (Mermaid/D3) to visualize the rule's I/O fields and task structure. The chart must be shown in this chat immediately after user input. NOTE: No further processing should occur before this step."
     }
 
 
@@ -4982,3 +5101,350 @@ def validate_input_name(input_name: str) -> str:
         cleaned_name = re.sub(r'[^a-zA-Z0-9_]', '_', input_name)
         return cleaned_name
     return input_name
+
+
+@mcp.tool()
+def validate_task_inputs(task_name: str, task_inputs: dict) -> Dict[str, Any]:
+    """
+    Validate the inputs of a specific task after gathering all required data during rule input collection.
+
+    EXECUTION CONTEXT:
+    - This tool MUST be executed immediately after completing input collection for each task 
+      (e.g., after Task 1 input collection, validate Task 1 inputs; after Task 2 input collection, validate Task 2 inputs).
+    - Ensures that validation occurs in sequence for every task before proceeding to the next.
+    - If validation errors are found, the tool should provide detailed feedback and allow retrying input collection with corrections before re-validating the task inputs.
+    - THIS IS A MANDATORY CHECKPOINT - NO TASK CAN PROCEED WITHOUT VALIDATION PASSING
+
+    ADVANCED INPUT VALIDATION LOGIC:
+    - Dynamically validates and maps collected inputs for the given task
+    - Ensures that all mandatory parameters are provided and correctly formatted
+    - Supports validation with mapped or skipped inputs using sample input based on the previous task response
+
+    INTER-TASK DEPENDENCY HANDLING:
+    - If a task expects input from a previous task (file or data mapping):
+      1. Check if the input is marked as "from_previous_task" or has dependency metadata
+      2. Generate sample data based on expected format from previous task's output
+      3. Upload sample file using upload_file() and get file URL
+      4. Use the file URL as input value for validation purposes only
+      5. Mark this input as "sample_for_validation" in response
+    
+    SAMPLE FILE GENERATION LOGIC:
+    - For CSV files: Generate 3-5 sample rows with realistic column names
+    - For JSON files: Generate sample object/array with expected structure
+    - For text files: Generate representative sample content
+    - Sample should be minimal but structurally valid
+
+    VALIDATION FLOW OVERVIEW:
+    1. Receive collected inputs for a specific task
+    2. Identify inputs that depend on previous tasks
+    3. For dependency inputs:
+       a. Generate appropriate sample data based on expected format
+       b. Upload sample file and get URL
+       c. Replace dependency marker with sample file URL
+    4. Call task validation API with all inputs (actual + sample URLs)
+    5. Parse validation response
+    6. Return validation results with clear success/failure indicators
+
+    VALIDATION RESPONSE HANDLING:
+    - On Success: Return validation_status="PASSED" with any output details
+    - On Failure: Return validation_status="FAILED" with detailed error messages
+    - Include list of which inputs failed validation and why
+    - Provide actionable guidance for fixing validation errors
+
+    ERROR HANDLING:
+    - Missing required inputs: List which inputs are missing
+    - Invalid format: Specify format expected vs received
+    - Type mismatches: Indicate correct data type needed
+    - File access errors: Report if files can't be read/processed
+
+    Args:
+        task_name: Name of the task to validate
+        task_inputs: Dictionary containing key-value pairs of collected task inputs
+                    Format: {"input_name": "value" or "<<FROM_PREVIOUS_TASK>>" or file_url}
+
+    Returns:
+        Dict containing:
+        {
+            "success": bool,
+            "validation_status": "PASSED" | "FAILED",
+            "task_name": str,
+            "validated_inputs": dict,  # Actual inputs used for validation (with sample URLs)
+            "validation_output": dict,  # Output from validation API
+            "errors": list,  # List of validation errors if failed
+            "inputs_with_samples": list,  # List of inputs where samples were generated
+            "message": str,
+            "next_action": str  # What to do next based on validation result
+        }
+    """
+
+    try:
+        # Step 1: Prepare inputs for validation
+        validated_input_dict = {}
+        inputs_with_samples = []
+        generated_files = []
+        
+        # Get task details to understand expected input structure
+        task_details = get_task_details(task_name)
+        if task_details.get("error"):
+            return {
+                "success": False,
+                "validation_status": "FAILED",
+                "task_name": task_name,
+                "error": f"Could not fetch task details: {task_details['error']}",
+                "next_action": "verify_task_name"
+            }
+        
+        task_inputs_spec = task_details.get("inputs", [])
+        
+        # Step 2: Process each input
+        for input_spec in task_inputs_spec:
+            input_name = input_spec["name"]
+            input_data_type = input_spec.get("dataType", "STRING")
+            input_format = input_spec.get("format")
+            
+            # Check if this input was collected
+            if input_name in task_inputs:
+                input_value = task_inputs[input_name]
+                
+                # Check if this input depends on previous task
+                if isinstance(input_value, str) and (
+                    input_value == "<<FROM_PREVIOUS_TASK>>" or
+                    input_value.startswith("<<") or
+                    "previous_task" in input_value.lower() or
+                    input_value.strip() == ""
+                ):
+                    # This input needs sample data for validation
+                    logger.info(f"Generating sample data for input '{input_name}' (depends on previous task)")
+                    
+                    # Generate sample file based on expected format
+                    sample_content = generate_sample_input_content(
+                        input_name=input_name,
+                        data_type=input_data_type,
+                        file_format=input_format,
+                        task_context=task_details
+                    )
+                    
+                    # Upload sample file
+                    sample_filename = f"sample_{task_name}_{input_name}.{input_format or 'txt'}"
+                    upload_result = upload_file(
+                        rule_name=f"validation_{task_name}",
+                        file_name=sample_filename,
+                        content=sample_content,
+                        content_encoding="utf-8"
+                    )
+                    
+                    if upload_result.get("success"):
+                        validated_input_dict[input_name] = upload_result["file_url"]
+                        inputs_with_samples.append({
+                            "input_name": input_name,
+                            "sample_file_url": upload_result["file_url"],
+                            "sample_filename": sample_filename,
+                            "note": "Sample data generated for validation - will use actual previous task output during execution"
+                        })
+                        generated_files.append(upload_result["file_url"])
+                    else:
+                        return {
+                            "success": False,
+                            "validation_status": "FAILED",
+                            "task_name": task_name,
+                            "error": f"Failed to upload sample file for input '{input_name}': {upload_result.get('error')}",
+                            "next_action": "retry_sample_generation"
+                        }
+                else:
+                    # Use the actual collected value
+                    validated_input_dict[input_name] = input_value
+            else:
+                # Input not collected - check if it's required
+                if input_spec.get("required", False):
+                    return {
+                        "success": False,
+                        "validation_status": "FAILED",
+                        "task_name": task_name,
+                        "error": f"Required input '{input_name}' is missing",
+                        "missing_inputs": [input_name],
+                        "next_action": "collect_missing_inputs"
+                    }
+        
+        # Step 3: Add validation flag
+        validated_input_dict["ValidateFlow"] = True
+        
+        # Step 4: Call validation API
+        request_body = {
+            "taskname": task_name,
+            "taskInputs": {
+                "inputs": validated_input_dict
+            }
+        }
+        
+        logger.info(f"Validating task '{task_name}' with inputs: {list(validated_input_dict.keys())}")
+        
+        response = rule.execute_task_api(request_body)
+        
+        if not response:
+            return {
+                "success": False,
+                "validation_status": "FAILED",
+                "task_name": task_name,
+                "validated_inputs": validated_input_dict,
+                "inputs_with_samples": inputs_with_samples,
+                "error": "Validation API returned no response",
+                "next_action": "retry_validation"
+            }
+        
+        # Step 5: Parse validation response
+        task_outputs = response.get("taskOutputs", {})
+        outputs = task_outputs.get("Outputs", {})
+        validation_status_output = outputs.get("ValidationStatus")
+        errors = outputs.get("Errors", [])
+        
+        # Determine if validation passed
+        validation_passed = False
+        if validation_status_output:
+            # Check if validation explicitly passed
+            if isinstance(validation_status_output, dict):
+                validation_passed = validation_status_output.get("status") == "success"
+            elif isinstance(validation_status_output, str):
+                validation_passed = "success" in validation_status_output.lower()
+        
+        # Also check if there are no errors
+        if not errors or len(errors) == 0:
+            validation_passed = True
+        
+        # Step 6: Build response
+        if validation_passed:
+            return {
+                "success": True,
+                "validation_status": "PASSED",
+                "task_name": task_name,
+                "validated_inputs": validated_input_dict,
+                "validation_output": outputs,
+                "inputs_with_samples": inputs_with_samples,
+                "generated_sample_files": generated_files,
+                "message": f"✅ Task '{task_name}' inputs validated successfully. Ready to proceed to next task.",
+                "next_action": "proceed_to_next_task"
+            }
+        else:
+            # Validation failed
+            error_details = []
+            if errors:
+                for error in errors:
+                    if isinstance(error, dict):
+                        error_details.append({
+                            "field": error.get("field", "unknown"),
+                            "message": error.get("message", "Validation failed"),
+                            "type": error.get("type", "validation_error")
+                        })
+                    else:
+                        error_details.append({"message": str(error)})
+            
+            return {
+                "success": False,
+                "validation_status": "FAILED",
+                "task_name": task_name,
+                "validated_inputs": validated_input_dict,
+                "validation_output": outputs,
+                "errors": error_details if error_details else ["Validation failed without specific error details"],
+                "inputs_with_samples": inputs_with_samples,
+                "message": f"❌ Task '{task_name}' validation failed. Please review errors and correct inputs.",
+                "next_action": "fix_validation_errors"
+            }
+
+    except Exception as e:
+        logger.error(f"Exception during task validation: {e}")
+        return {
+            "success": False,
+            "validation_status": "FAILED",
+            "task_name": task_name,
+            "error": f"Exception during validation: {str(e)}",
+            "exception_type": type(e).__name__,
+            "next_action": "review_exception"
+        }
+
+
+def generate_sample_input_content(input_name: str, data_type: str, file_format: str, task_context: dict) -> str:
+    """
+    Generate sample input content for validation purposes.
+    
+    Args:
+        input_name: Name of the input
+        data_type: Data type of the input (FILE, STRING, etc.)
+        file_format: Format of the file (csv, json, txt, etc.)
+        task_context: Task details for context
+    
+    Returns:
+        String content for sample file
+    """
+    
+    # Default sample content
+    if not file_format:
+        return "Sample data for validation purposes"
+    
+    file_format = file_format.lower()
+    
+    # Generate format-specific samples
+    if file_format == "csv":
+        # Generate sample CSV
+        return """id,name,value,status
+1,Sample Item 1,100,active
+2,Sample Item 2,200,active
+3,Sample Item 3,150,inactive"""
+    
+    elif file_format == "json":
+        # Generate sample JSON
+        sample_data = [
+            {
+                "id": "1",
+                "name": "Sample Item 1",
+                "value": 100,
+                "status": "active",
+                "timestamp": "2025-01-15T10:00:00Z"
+            },
+            {
+                "id": "2",
+                "name": "Sample Item 2",
+                "value": 200,
+                "status": "active",
+                "timestamp": "2025-01-15T11:00:00Z"
+            }
+        ]
+        return json.dumps(sample_data, indent=2)
+    
+    elif file_format in ["yaml", "yml"]:
+        # Generate sample YAML
+        return """items:
+  - id: 1
+    name: Sample Item 1
+    value: 100
+    status: active
+  - id: 2
+    name: Sample Item 2
+    value: 200
+    status: active"""
+    
+    elif file_format == "xml":
+        # Generate sample XML
+        return """<?xml version="1.0" encoding="UTF-8"?>
+<items>
+    <item>
+        <id>1</id>
+        <name>Sample Item 1</name>
+        <value>100</value>
+        <status>active</status>
+    </item>
+    <item>
+        <id>2</id>
+        <name>Sample Item 2</name>
+        <value>200</value>
+        <status>active</status>
+    </item>
+</items>"""
+    
+    elif file_format == "txt":
+        # Generate sample text
+        return """Sample Data Line 1
+Sample Data Line 2
+Sample Data Line 3"""
+    
+    else:
+        # Generic sample
+        return f"Sample data for {input_name} - validation purposes only"
