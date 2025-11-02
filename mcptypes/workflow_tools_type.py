@@ -175,7 +175,7 @@ class WorkflowRuleVO(BaseModel):
     description: Optional[str] = ""
     ruleInputs: Optional[List[WorkflowRuleInputsVO]] = None
     ruleOutputs: Optional[List[WorkflowRuleOutputsVO]] = None
-    # appScopeName: Optional[str] = ""
+    appScopeName: Optional[str] = ""
     model_config = {
         "extra": "ignore"
     }

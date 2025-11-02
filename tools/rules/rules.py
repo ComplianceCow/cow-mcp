@@ -1822,6 +1822,9 @@ def create_rule(rule_structure: Dict[str, Any]) -> Dict[str, Any]:
     - Ensure sequential data flow: Rule → Task1 → Task2 → Rule
     - Mandatory compliance outputs from last task
 
+    STEP 4 - inputsMeta__ Cleanup:
+    In spec.inputsMeta__, retain only the entries whose keys exist in spec.inputs. Remove any fields in spec.inputsMeta__ that are not present in spec.inputs.
+
     VALIDATION CHECKLIST (Preserved):
     □ Rule structure validation against schema
     □ Task alias validation in I/O mappings
@@ -4258,12 +4261,16 @@ def publish_rule(rule_name: str, cc_rule_name: str = None) -> Dict[str, Any]:
             header=headers
         )
 
+        base_host = constants.host.rstrip("/api") if hasattr(constants, "host") and isinstance(constants.host, str) else getattr(constants, "host", "")
+        ui_url = f"{base_host}/ui/rules-workflow" if base_host else ""
+
         if publish_resp and publish_resp.get("message") and  publish_resp.get("message") == "Rule has been published successfully":
             return {
                 "success": True,
                 "published": True,
                 "rule_info": publish_resp.get("items"),
-                "message": f"Rule '{rule_name}' published successfully"
+                "message": f"Rule '{rule_name}' published successfully",
+                "ui_display_message": f"View your published rule on the ComplianceCow Rules Dashboard → {ui_url}"
             }
         else:
             return {
