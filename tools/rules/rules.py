@@ -17,6 +17,7 @@ from mcptypes import exception
 from mcptypes.rule_type import TaskVO
 from utils import rule, wsutils
 from utils.debug import logger
+import uuid
 
 # Phase 1: Lightweight task summary resource
 
@@ -1117,11 +1118,15 @@ def prepare_input_collection_overview(selected_tasks: List[Dict[str, str]]) -> D
                 - No task can start input collection without previous task validation passing
     
     VALIDATION CHECKPOINT ENFORCEMENT:
-    - After collecting Task 1 inputs → MUST call validate_task_inputs(Task1, inputs)
-    - After collecting Task 2 inputs → MUST call validate_task_inputs(Task2, inputs)
-    - After collecting Task 3 inputs → MUST call validate_task_inputs(Task3, inputs)
-    - This creates validation checkpoints between each task
-    - NEVER skip validation, even if inputs seem correct
+        - After collecting inputs for each task, you MUST call:
+            validate_task_inputs(<TaskName>, inputs)
+        - Example:
+            - After Task 1 → validate_task_inputs(Task1, inputs)
+            - After Task 2 → validate_task_inputs(Task2, inputs)
+            - After Task 3 → validate_task_inputs(Task3, inputs)
+        - These serve as mandatory validation checkpoints between tasks.
+        - Validation must NEVER be skipped, even if inputs appear correct.
+
 
     **SELECTIVE INPUT INCLUSION:**
     - DO NOT automatically include ALL task inputs in initial rule creation.
@@ -1188,11 +1193,12 @@ def prepare_input_collection_overview(selected_tasks: List[Dict[str, str]]) -> D
     - Validation checkpoints: [number of tasks]
 
     WORKFLOW:
-    1. Collect all inputs for Task 1 → Validate Task 1 → ✓
-    2. Collect all inputs for Task 2 → Validate Task 2 → ✓
-    3. Collect all inputs for Task 3 → Validate Task 3 → ✓
-    4. Final rule completion
-    
+    1. For each task in the rule:
+        - Collect all required inputs for the task
+        - Validate the collected inputs
+        - Mark the task as validated (✓)
+    2. After all tasks are validated → proceed to final rule completion
+
     Ready to start task-by-task input collection with validation checkpoints?
 
     CRITICAL WORKFLOW RULES:
@@ -2824,7 +2830,8 @@ def generate_rule_readme_preview(rule_name: str) -> Dict[str, Any]:
     - Use consistent formatting
 
     WORKFLOW:
-    1. MCP retrieves rule context using fetch_rule()
+    1. MCP retrieves rule context using fetch_rule() 
+       (ensure only the fetch_rule tool is called, not fetch_cc_rule)
     2. MCP extracts metadata and technical details
     3. MCP generates complete README.md content using template above
     4. MCP populates all placeholders with actual rule data
@@ -3294,15 +3301,19 @@ def get_applications_for_tag(tag_name: str) -> Dict[str, Any]:
     Get available applications for a specific app tag.
 
     APPLICATION RETRIEVAL:
-    - Fetches all existing applications configured for the specified app tag
-    - Returns list of applications with ID, name, and app type
-    - Used during rule execution to present application choices to user
+    - Fetches all existing applications configured for the specified app tag.
+    - Returns a list of applications with ID, name, and app type.
+    - Used during rule execution to present application choices to the user.
 
     Args:
-        tag_name: The app tag name to get applications for
+        tag_name (str): The app tag name to get applications for. 
+                        This parameter is mandatory and must not be empty.
 
     Returns:
-        Dict containing available applications for the tag
+        dict: A dictionary containing available applications for the specified tag.
+
+    Raises:
+        ValueError: If tag_name is not provided or is empty.
     """
     try:
         header = wsutils.create_header()
@@ -3422,7 +3433,7 @@ def get_application_info(tag_name: str) -> Dict[str, Any]:
 
 
 @mcp.tool()
-def execute_rule(rule_name: str, from_date: str, to_date:str, rule_inputs: List[Dict[str, Any]], applications: List[Dict[str, Any]]) -> Dict[str, Any]:
+def execute_rule(rule_name: str, from_date: str, to_date:str, rule_inputs: List[Dict[str, Any]], applications: List[Dict[str, Any]], is_application_data_provided_by_user: bool) -> Dict[str, Any]:
     """
     RULE EXECUTION WORKFLOW:
 
@@ -3489,16 +3500,72 @@ def execute_rule(rule_name: str, from_date: str, to_date:str, rule_inputs: List[
     - The file URL must ALWAYS be displayed to the user in the UI, allowing the user to view or download the file directly.
 
     Args:
-        rule_name: Rule to execute
-        from_date: Optional start date from user (format: YYYY-MM-DD)
-        to_date: Optional end date from user (format: YYYY-MM-DD)
-        rule_inputs: Complete objects from spec.inputsMeta__
-        applications: Application configurations with credentials
+        rule_name: The name of the rule to be executed.
+        from_date: (Optional) Start date provided by the user in the format YYYY-MM-DD.
+        to_date: (Optional) End date provided by the user in the format YYYY-MM-DD.
+        rule_inputs: Complete input objects as defined in spec.inputsMeta__.
+        applications: Application configuration details, including credentials.
+        is_application_data_provided_by_user (bool): 
+            This value **must be determined strictly based on actual user input** during the workflow.
+            - Set to True **only if** the user has provided or configured application details 
+              (such as credentials or URL) during execution.
+            - Set to False **if** the application information was pre-existing or selected from saved applications.
+            - The tool must **not assume or predefine** this value without user confirmation.
 
     Returns:
         Dict with execution results
     """
     try:
+
+        if not is_application_data_provided_by_user:
+            return {
+                "success": False, 
+                "error": "Application information is missing. get application detials from user and try again."
+            }
+
+        for application in applications:
+            is_valid, result = False,{}
+            apllication_id = application.get("applicationId", None)
+            logger.debug("applictcation id: {}\n".format(application))
+
+            if apllication_id:
+                if not is_valid_uuid(apllication_id):
+                    return {"success": False, "error": f'The provided application ID: {apllication_id} is not valid. Please try again with a valid application ID.'}
+                
+                headers = wsutils.create_header()
+                params = {
+                    "id": application.get("applicationId", None),
+                    "validated": True
+                }
+
+                application_resp = wsutils.get(
+                    path=wsutils.build_api_url(endpoint=constants.URL_FETCH_CREDENTIAL), 
+                    params=params, 
+                    header=headers
+                )
+                logger.debug("application_resp {}\n".format(application_resp))
+
+                if rule.is_valid_array(application_resp, "items"):
+                    for item in application_resp["items"]:
+                        app_type = item.get("appType", "")
+                        if isinstance(app_type, str) and app_type.endswith("::"):
+                            app_type = app_type[:-2]
+                        cc_application={
+                            "id": item.get("id"),
+                            "name": item.get("credentialName"),
+                            "appType": app_type,
+                            "othersTags":item.get("othersTags")
+                        }
+                        is_valid, result = validate_application(application,cc_application)
+                        logger.debug("is_valid {}\n".format(is_valid))
+                        if is_valid:
+                            break
+            else:
+                continue
+
+            if not is_valid and result:
+                return {"success": False, "result":result}
+        
         # Prepare execution payload
         execution_payload = {
             "fromDate": from_date,
@@ -5448,3 +5515,80 @@ Sample Data Line 3"""
     else:
         # Generic sample
         return f"Sample data for {input_name} - validation purposes only"
+    
+def is_valid_uuid(value: str) -> bool:
+    """
+    Check if the given string is a valid UUID.
+
+    Args:
+        value (str): The string to validate.
+
+    Returns:
+        bool: True if the string is a valid UUID, otherwise False.
+    """
+    try:
+        uuid_obj = uuid.UUID(str(value))
+        return str(uuid_obj) == value.lower()
+    except (ValueError, TypeError, AttributeError):
+        return False
+
+
+def validate_application(selected_application: dict, cc_application: dict):
+    """
+    Validates that the user-selected application matches the stored ComplianceCow application.
+
+    Checks:
+        - applicationId matches the record ID.
+        - appTags and othersTags have matching keys and values (case-insensitive).
+        - Identifies missing, extra, or mismatched tags.
+
+    Returns:
+        (bool, dict):
+            - bool: True if valid, False otherwise.
+            - dict: Details of differences and a reconfiguration message if invalid.
+    """
+
+    if selected_application.get("applicationId") != cc_application.get("id"):
+        return False, {
+            "error": "The provided applicationId does not match the selected application. Please try again with a valid application ID."
+        }
+
+    result = {
+        "missingInOthersTags": [],
+        "extraInOthersTags": [],
+        "mismatchedValues": []
+    }
+    is_valid = True
+    app_tags = selected_application.get("appTags",{})
+    others_tags = cc_application.get("othersTags",{})
+    # Normalize all keys and values to lowercase for comparison
+    app_tags_normalized = {k.lower(): sorted([v.lower() for v in vals]) for k, vals in app_tags.items()}
+    others_tags_normalized = {k.lower(): sorted([v.lower() for v in vals]) for k, vals in others_tags.items()}
+
+    # Check missing keys
+    for key in app_tags_normalized:
+        if key not in others_tags_normalized:
+            is_valid = False
+            result["missingInOthersTags"].append(key)
+
+    # Check extra keys
+    for key in others_tags_normalized:
+        if key not in app_tags_normalized:
+            is_valid = True
+            result["extraInOthersTags"].append(key)
+
+    # Check mismatched values for common keys
+    for key in app_tags_normalized:
+        if key in others_tags_normalized:
+            if app_tags_normalized[key] != others_tags_normalized[key]:
+                is_valid = False
+                result["mismatchedValues"].append({
+                    "key": key,
+                    "expected": app_tags_normalized[key],
+                    "found": others_tags_normalized[key]
+                })
+    if not is_valid:
+        result["reconfigure"] = "Reconfigure the application and rule structure, then try again."
+
+    return is_valid, result
+
