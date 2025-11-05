@@ -778,6 +778,14 @@ async def create_workflow(workflow_yaml: str) -> str:
 
 @mcp.tool()
 async def list_workflows() -> dict | str:
+    """
+    Retrieve a list of all available workflow configurations.
+    
+    Returns:
+        - List of workflow configuration items : Each item contains workflow metadata
+        - Error message (str): If retrieval fails or an error occurs
+    
+    """
     try:
         logger.info("list_workflows: \n")
 
