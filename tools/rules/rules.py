@@ -5,6 +5,7 @@ import base64
 import json
 import mimetypes
 import os
+import uuid
 from datetime import datetime
 from pathlib import Path
 from typing import Any, Dict, List, Optional, Tuple, get_type_hints
@@ -3491,12 +3492,16 @@ def execute_rule(rule_name: str, from_date: str, to_date:str, rule_inputs: List[
     UI DISPLAY REQUIREMENT:
     - The file URL must ALWAYS be displayed to the user in the UI, allowing the user to view or download the file directly.
 
+    CRITICAL: rule_inputs MUST be the complete spec.inputsMeta__ objects with ALL original fields 
+    (name, description, dataType, repeated, allowedValues, required, defaultValue, format, showField, 
+    explanation) plus the 'value' field. DO NOT send trimmed objects with only name/dataType/value.
+
     Args:
-        rule_name: Rule to execute
-        from_date: Optional start date from user (format: YYYY-MM-DD)
-        to_date: Optional end date from user (format: YYYY-MM-DD)
-        rule_inputs: Complete objects from spec.inputsMeta__
-        applications: Application configurations with credentials
+        rule_name: The name of the rule to be executed.
+        from_date: (Optional) Start date provided by the user in the format YYYY-MM-DD.
+        to_date: (Optional) End date provided by the user in the format YYYY-MM-DD.
+        rule_inputs: Complete spec.inputsMeta__ objects with ALL fields plus 'value' field.
+        applications: Application configuration details, including credentials.
 
     Returns:
         Dict with execution results
