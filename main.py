@@ -33,6 +33,9 @@ if "workflow" in MCP_TOOLS:
     from prompts.workflow import workflow
     from tools.workflow import workflow
 
+if "assistant" in MCP_TOOLS:
+    from tools.assistant import assistant
+    from prompts.assistant import assistant
 
 def signal_handler(sig, frame):
     print("Shutting down...")
