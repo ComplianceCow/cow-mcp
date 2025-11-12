@@ -4069,12 +4069,15 @@ def execute_rule(rule_name: str, from_date: str, to_date:str, rule_inputs: List[
     CRITICAL: rule_inputs MUST be the complete spec.inputsMeta__ objects with ALL original fields 
     (name, description, dataType, repeated, allowedValues, required, defaultValue, format, showField, 
     explanation) plus the 'value' field. DO NOT send trimmed objects with only name/dataType/value.
+    
+    MANDATORY: The 'value' field content MUST also be copied to the 'defaultValue' field. Both fields 
+    must contain identical values. Example: if value="CSV", then defaultValue must also be "CSV".
 
     Args:
         rule_name: The name of the rule to be executed.
         from_date: (Optional) Start date provided by the user in the format YYYY-MM-DD.
         to_date: (Optional) End date provided by the user in the format YYYY-MM-DD.
-        rule_inputs: Complete spec.inputsMeta__ objects with ALL fields plus 'value' field.
+        rule_inputs: Complete spec.inputsMeta__ objects with ALL fields plus 'value' field, and 'defaultValue' set to same value as 'value'.
         applications: Application configuration details, including credentials.
         is_application_data_provided_by_user (bool): 
             This value **must be determined strictly based on actual user input** during the workflow.
