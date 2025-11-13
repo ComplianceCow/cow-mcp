@@ -6,6 +6,8 @@ from datetime import datetime
 from io import BytesIO, StringIO
 from typing import Any, Dict, List, Union
 
+import os
+
 import pandas as pd
 import toml
 from ruamel.yaml import YAML
@@ -715,16 +717,23 @@ def create_support_ticket_api(body: Dict[str, Any] = None ) -> Dict[str, Any]:
         return {**ticket_details, "status": "created", "message": "Ticket created successfully", "timestamp": datetime.now().isoformat()}
     except Exception as e:
         return {"error": f"Failed to create support ticket: {e}"}
-    
+
+
+def get_file_preview_limit() -> float:
+    limit_kb = float(os.getenv("COW_FILE_PREVIEW_LIMIT_KB", "10"))
+    return limit_kb
+   
 def get_json_preview(content: str, file_size_kb: float) -> tuple[str, str]:
     """Extract preview of JSON content. Shows all if < 1KB or only 1 record, first 3 if >= 1KB with multiple records."""
+    
+    size_limit_kb = get_file_preview_limit()
     try:
         data = json.loads(content)
         
         if isinstance(data, list):
             total = len(data)
             # Show all if file < 1KB OR only 1 record
-            if file_size_kb < 1.0 or total <= 1:
+            if file_size_kb < size_limit_kb or total <= 1:
                 preview_json = json.dumps(data, indent=2)
                 return preview_json, f"All {total} records shown"
             else:
@@ -737,7 +746,7 @@ def get_json_preview(content: str, file_size_kb: float) -> tuple[str, str]:
                 
         elif isinstance(data, dict):
             # Single object - always show complete for < 1KB, check arrays for >= 1KB
-            if file_size_kb < 1.0:
+            if file_size_kb < size_limit_kb:
                 preview_json = json.dumps(data, indent=2)
                 return preview_json, "Complete object shown"
             else:
@@ -757,7 +766,7 @@ def get_json_preview(content: str, file_size_kb: float) -> tuple[str, str]:
             
     except:
         lines = content.split('\n')
-        if file_size_kb < 1.0:
+        if file_size_kb < size_limit_kb:
             return content, f"All {len(lines)} lines"
         else:
             preview = '\n'.join(lines[:3])
@@ -767,13 +776,15 @@ def get_csv_preview(content: str, file_size_kb: float) -> tuple[str, str]:
     """Extract preview of CSV content. Shows all if < 1KB or only 1 record, header + first 3 if >= 1KB with multiple records."""
     lines = [line for line in content.split('\n') if line.strip()]
     
+    size_limit_kb = get_file_preview_limit()
+    
     if not lines:
         return content, "Empty file"
     
     total_data_rows = len(lines) - 1  # Exclude header
     
     # Show all if file < 1KB OR only 1 data record
-    if file_size_kb < 1.0 or total_data_rows <= 1:
+    if file_size_kb < size_limit_kb or total_data_rows <= 1:
         preview_content = '\n'.join(lines)
         return preview_content, f"Header + all {total_data_rows} records shown"
     else:
@@ -796,9 +807,10 @@ def get_parquet_preview(content: str, file_size_kb: float) -> tuple[str, str]:
         df = pd.read_parquet(BytesIO(decoded_bytes))
         
         total = len(df)
+        size_limit_kb = get_file_preview_limit()
         
         # Show all if file < 1KB OR only 1 record
-        if file_size_kb < 1.0 or total <= 1:
+        if file_size_kb < size_limit_kb or total <= 1:
             preview_json = df.to_json(orient="records", indent=2)
             return preview_json, f"All {total} records shown"
         else:

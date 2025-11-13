@@ -654,12 +654,17 @@ if constants.ENABLE_CCOW_API_TOOLS:
                 header=headers
             )
 
+            base_host = constants.host.rstrip("/api") if hasattr(constants, "host") and isinstance(constants.host, str) else getattr(constants, "host", "")
+            ui_url = f"{base_host}/ui/rules-workflow" if base_host else ""
+
+
             if publish_resp and publish_resp.get("message") and  publish_resp.get("message") == "Rule has been published successfully":
                 return {
                     "success": True,
                     "published": True,
                     "rule_info": publish_resp.get("items"),
-                    "message": f"Rule '{rule_name}' published successfully"
+                    "message": f"Rule '{rule_name}' published successfully",
+                    "ui_display_message": f"View your published rule on the ComplianceCow Rules Dashboard → {ui_url}"
                 }
             else:
                 return {
@@ -2749,6 +2754,9 @@ def create_rule(rule_structure: Dict[str, Any]) -> Dict[str, Any]:
     - Ensure sequential data flow: Rule → Task1 → Task2 → Rule
     - Mandatory compliance outputs from last task
 
+    STEP 4 - inputsMeta__ Cleanup:
+    In spec.inputsMeta__, retain only the entries whose keys exist in spec.inputs. Remove any fields in spec.inputsMeta__ that are not present in spec.inputs.
+
     VALIDATION CHECKLIST (Preserved):
     □ Rule structure validation against schema
     □ Task alias validation in I/O mappings
@@ -4398,8 +4406,8 @@ def fetch_output_file(file_url: str) -> Dict[str, Any]:
     - Files contain reports, logs, compliance data, or analysis results
 
     CONTENT DISPLAY LOGIC:
-    - If file size < 1KB: Show entire file content
-    - If file size >= 1KB: Show only first 3 records/lines with user-friendly message
+    - If file size < 10KB: Show entire file content
+    - If file size >= 10KB: Show only first 3 records/lines with user-friendly message
     - Supported formats: JSON, CSV, Parquet, and other text files
     - Always return file format extracted from filename
     - Provide clear user messaging about content truncation
@@ -4462,7 +4470,9 @@ def fetch_output_file(file_url: str) -> Dict[str, Any]:
         else:
             # For other text files
             lines = actual_content.split('\n')
-            if file_size_kb < 1.0:
+            # Determine preview size limit (in KB) from environment, defaulting to 10KB
+            size_limit_kb = rule.get_file_preview_limit()
+            if file_size_kb < size_limit_kb:
                 display_content = actual_content
                 user_message = f"✅ Complete file ({file_size_kb:.3f}KB)"
             else:

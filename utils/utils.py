@@ -68,7 +68,7 @@ async def make_API_call_to_CCow(request_body: dict | str,uriSuffix: str, type: s
     logger.info(f"uriSuffix: {uriSuffix}")
     async with httpx.AsyncClient() as client:
         try:
-            requestHeader=headers
+            requestHeader=headers.copy()
             accessToken=get_access_token()
             if accessToken is not None:
                 requestHeader=headers.copy()
@@ -101,7 +101,7 @@ async def make_GET_API_call_to_CCow(uriSuffix: str) -> dict[str, Any] | str  :
     logger.info(f"uriSuffix: {uriSuffix}")
     async with httpx.AsyncClient() as client:
         try:
-            requestHeader=headers
+            requestHeader=headers.copy()
             accessToken=get_access_token()
             if accessToken is not None:
                 requestHeader=headers.copy()
