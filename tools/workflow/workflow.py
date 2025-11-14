@@ -593,7 +593,7 @@ async def list_workflow_conditions() -> vo.WorkflowConditionListVO:
         return vo.WorkflowConditionListVO(error="Facing internal error")
 
 @mcp.tool()
-async def fetch_workflow_resource_data(resource: str) -> List[any]:
+async def fetch_workflow_resource_data(resource: str) -> dict | str:
     """
     Fetch workflow resource data for a given resource type.
     
@@ -777,7 +777,7 @@ async def create_workflow(workflow_yaml: str) -> str:
         return "Facing internal error"
 
 @mcp.tool()
-async def list_workflows() -> dict | str:
+async def list_workflows() -> list | str:
     """
     Retrieve a list of all available workflow configurations.
     

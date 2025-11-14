@@ -56,10 +56,10 @@ class RecordsVO(BaseModel):
     }
     
 class RecordListVO(BaseModel):
-    totalRecords:  Optional[int] = ""
-    compliantRecords:  Optional[int] = ""
-    nonCompliantRecords:  Optional[int] = ""
-    notDeterminedRecords:  Optional[int] = ""
+    totalRecords:  Optional[int] = 0
+    compliantRecords:  Optional[int] = 0
+    nonCompliantRecords:  Optional[int] = 0
+    notDeterminedRecords:  Optional[int] = 0
     records:  Optional[List[Any]] = None
 
 class RecordSchemaVO(BaseModel):
@@ -110,8 +110,8 @@ class ControlVO(BaseModel):
     assignedBy: Optional[str] = ""
     assignedDate: Optional[str] = ""
     checkedOut: Optional[bool] = False
-    compliancePCT__: Optional[float] = ""
-    complianceWeight__: Optional[float] = ""
+    compliancePCT__: Optional[float] = 0.0
+    complianceWeight__: Optional[float] = 0.0
     complianceStatus: Optional[str] = ""
     createdAt: Optional[str] = ""
     updatedAt: Optional[str] = ""
@@ -141,8 +141,8 @@ class AssessmentRunVO:
     computedScore: Optional[str] = ""
     computedWeight: Optional[str] = ""
     complianceStatus: Optional[str] = ""
-    compliancePCT: Optional[float] = ""
-    complianceWeight: Optional[float] = ""
+    compliancePCT: Optional[float] = 0.0
+    complianceWeight: Optional[float] = 0.0
     createdAt: Optional[str] = ""
 
 
