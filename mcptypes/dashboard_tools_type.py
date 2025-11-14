@@ -3,7 +3,7 @@ from typing import List, Optional
     
 class ComplianceStatusSummaryVO(BaseModel):
     status: Optional[str] = ""
-    count: Optional[int] = ""
+    count: Optional[int] = 0
     
 class ControlSummaryVO(BaseModel):
     category: Optional[str] = ""
@@ -99,7 +99,7 @@ class CommonControlVO(BaseModel):
     displayable: Optional[str] = ""
     controlName: Optional[str] = ""
     dueDate: Optional[str] = ""
-    score: Optional[float] = ""
+    score: Optional[float] = 0.0
     priority: Optional[str] = ""
     status: Optional[str] = ""
     complianceStatus: Optional[str] = ""

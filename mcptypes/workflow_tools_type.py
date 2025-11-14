@@ -61,7 +61,7 @@ class WorkflowPayloadVO(BaseModel):
     name: Optional[str] = ""
     desc: Optional[str] = ""
     type: Optional[str] = ""
-    possible_values: Optional[List[str]] = ""
+    possible_values: Optional[List[str]] = None
     model_config = {
         "extra": "ignore"
     }
@@ -154,7 +154,7 @@ class WorkflowRuleInputsVO(BaseModel):
     name: Optional[str] = ""
     description: Optional[str] = ""
     type: Optional[str] = ""
-    isrequired: Optional[bool] = ""
+    isrequired: Optional[bool] = False
     format: Optional[str] = ""
     model_config = {
         "extra": "ignore"

@@ -12,6 +12,6 @@ class UniqueNodeDataVO:
     
 @dataclass
 class CypherQueryVO:
-    result: Optional[Any] = ""
+    result: Optional[Any] = None
     error: Optional[str] = ""
 
