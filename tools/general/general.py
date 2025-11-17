@@ -2,6 +2,17 @@ from mcpconfig.config import mcp
 import mimetypes
 from pathlib import Path
 from urllib.parse import urlparse
+from utils.debug import logger
+import os
+from utils import utils
+from constants import constants
+import re
+import time
+from typing import Any
+import traceback
+
+mcp_tools_to_be_included = os.getenv("MCP_TOOLS_TO_BE_INCLUDED", "").lower().strip()
+
 
 @mcp.tool()
 def read_file(uri: str, max_chars: int = 8000) -> dict:
@@ -88,3 +99,64 @@ def read_resource(uri: str, max_chars: int = 8000) -> dict:
     """
     return read_file(uri, max_chars)
 
+if mcp_tools_to_be_included:
+    @mcp.tool()
+    async def create_downloadable_file(filename: str, content: str) -> dict:
+        """
+        Use this tool whenever the user asks to “download as file” or “save as file.”
+
+        Accepts file content, uploads it to a storage bucket,
+        and returns a URL the UI will use to show a downloadable file attachment.
+
+        Args:
+            filename: File name including extension (e.g. "report.pdf")
+            content: Raw or encoded file content
+
+        Returns:
+            {
+                "filename": "<filename>",
+                "url": "<public_url>"
+            }
+        """
+
+        try:
+            logger.info("create_downloadable_file:\n fileName: {} \n content: \n{}".format(filename, content))
+
+            file_bytes = content.encode("utf-8")
+
+            name, ext = os.path.splitext(filename)
+            ext = ext if ext else ".txt"
+            
+            timestamp = str(int(time.time()))
+
+            # Remove any special character or numbers
+            folder = re.sub(r"[^a-zA-Z]", "", mcp_tools_to_be_included)
+            
+            updated_file_name = f'{name}_{timestamp}{ext}'
+
+            path = f"{folder}/{updated_file_name}"
+
+            upload_payload = {
+                "FileName": path,
+                "FileType": ext,
+                "FileContent": list(file_bytes), 
+            }
+
+            logger.info("payload: {}".format(upload_payload))
+
+            output = await utils.make_API_call_to_CCow_and_get_response(constants.URL_STORAGE_UPLOAD, "POST", upload_payload)
+            logger.debug("create_downloadable_file output: {}\n".format(output))
+
+            if isinstance(output, str) and utils.isFileHash(output):
+                file_url = f'http://cowfile/hash/{output}/{updated_file_name}'
+                return {
+                    "filename": filename,
+                    "url": file_url
+                }
+            
+            return { "error": "Unable to download the file"}           
+
+        except Exception as e:
+            logger.error(traceback.format_exc())
+            logger.error("create_downloadable_file: {}\n".format(e))
+            return {"error": "Facing internal error"}

@@ -133,3 +133,6 @@ URL_AUTH_TOKEN_GENERATION = "/v1/oauth2/token"
 # cache support added
 mcp_cache_ttl_in_seconds = int(os.getenv("MCP_CACHE_TTL_IN_SECONDS", "82800"))
 cow_cache = TTLCache(maxsize=300, ttl=mcp_cache_ttl_in_seconds)
+
+# MCP Upload
+URL_STORAGE_UPLOAD = "/v1/mcp-upload"

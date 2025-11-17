@@ -7,6 +7,7 @@ from constants.constants import headers, host
 # from mcpconfig import get_access_token
 from mcp.server.auth.middleware.auth_context import get_access_token
 from mcptypes.error_type import ErrorVO,ErrorResponseVO,ErrorWorkflowVO
+import re
 
 
 async def make_API_call_to_CCow_and_get_response(uriSuffix: str,method: str,request_body: dict | list | str = None, type: str = "json",return_raw: bool = False):
@@ -187,3 +188,6 @@ def deleteKey(src: dict,key: str):
         return
     if key in src:
         del src[key]
+
+def isFileHash(s: str) -> bool:
+    return bool(re.fullmatch(r"[a-fA-F0-9]{40}", s.strip()))
