@@ -3,7 +3,7 @@ import logging
 import re
 import urllib.parse
 from enum import Enum
-from typing import Union
+from typing import Union, Optional
 from urllib.parse import urlencode
 
 import requests
@@ -14,6 +14,8 @@ from requests.exceptions import ConnectionError, HTTPError, RequestException, Ti
 from constants import constants, cowenums, errordesc
 from mcptypes import exception
 from utils import rule
+from fastmcp import Context
+from mcpconfig.config import get_cc_headers
 
 
 class ContentTypeEnum(Enum):
@@ -230,21 +232,28 @@ def get_service_name(url):
         return None
 
 
-def create_header():
+def create_header(ctx: Optional[Context] = None):
 
-    request_headers = {}
+    request_headers = get_cc_headers(ctx)
+
     if constants.basic_auth_flow:
-        auth_token = get_auth_token()
-        if auth_token:
-            newHeader=constants.headers.copy()
-            newHeader["Authorization"]= auth_token
-            return newHeader
+        auth_header = (
+        request_headers.get(constants.AUTH_HEADER_KEY)
+        or request_headers.get(constants.AUTH_HEADER_KEY.lower())
+        )
+        if not auth_header and not auth_header.startswith("Basic"):
+            auth_token = get_auth_token()
+            if auth_token:
+                newHeader=constants.headers.copy()
+                newHeader["Authorization"]= auth_token
+                return newHeader
 
-    request_headers = constants.headers.copy()
-    access_token = get_access_token()
+    # request_headers = constants.headers.copy()
+    
+    # access_token = get_access_token()
 
-    if access_token and hasattr(access_token, "token"):
-        request_headers["Authorization"] = access_token.token
+    # if access_token and hasattr(access_token, "token"):
+    #     request_headers["Authorization"] = access_token.token
 
     return request_headers
 

@@ -10,6 +10,7 @@ import re
 import time
 from typing import Any
 import traceback
+from fastmcp import Context
 
 mcp_tools_to_be_included = os.getenv("MCP_TOOLS_TO_BE_INCLUDED", "").lower().strip()
 
@@ -101,13 +102,18 @@ def read_resource(uri: str, max_chars: int = 8000) -> dict:
 
 if mcp_tools_to_be_included:
     @mcp.tool()
-    async def create_downloadable_file(filename: str, content: str) -> dict:
+    async def create_downloadable_file(filename: str, content: str, ctx: Context | None = None) -> dict:
         """
         Use this tool whenever the user asks to “download as file” or “save as file.”
 
         Accepts file content, uploads it to a storage bucket,
         and returns a URL the UI will use to show a downloadable file attachment.
 
+        Output Specification:
+        After the tool returns the URL, display it to the user in this format:
+        File :
+            <file_url> (Displayed as file Attachment in UI)
+        
         Args:
             filename: File name including extension (e.g. "report.pdf")
             content: Raw or encoded file content
@@ -144,7 +150,7 @@ if mcp_tools_to_be_included:
 
             logger.info("payload: {}".format(upload_payload))
 
-            output = await utils.make_API_call_to_CCow_and_get_response(constants.URL_STORAGE_UPLOAD, "POST", upload_payload)
+            output = await utils.make_API_call_to_CCow_and_get_response(constants.URL_STORAGE_UPLOAD, "POST", upload_payload, ctx=ctx)
             logger.debug("create_downloadable_file output: {}\n".format(output))
 
             if isinstance(output, str) and utils.isFileHash(output):

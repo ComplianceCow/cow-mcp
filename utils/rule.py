@@ -4,7 +4,7 @@ import json
 import re
 from datetime import datetime
 from io import BytesIO, StringIO
-from typing import Any, Dict, List, Union
+from typing import Any, Dict, List, Union, Optional
 
 import os
 
@@ -16,6 +16,7 @@ import mcptypes.rule_type as vo
 from constants import constants
 from utils import rule, wsutils
 from utils.debug import logger
+from fastmcp import Context
 
 yaml = YAML()
 yaml.indent(mapping=2, sequence=4, offset=2)
@@ -593,28 +594,28 @@ def basic_yaml_format(data: Dict[str, Any], indent: int = 0) -> str:
     return result
 
 
-def fetch_task_api(params: Dict[str, Any] = {}) -> Dict[str, Any]:
-    headers = wsutils.create_header()
+def fetch_task_api(params: Dict[str, Any] = {}, ctx: Optional[Context] = None) -> Dict[str, Any]:
+    headers = wsutils.create_header(ctx)
     tasks = wsutils.get(path=wsutils.build_api_url(
         endpoint=constants.URL_FETCH_TASKS), params=params, header=headers)
     return tasks
 
 
-def create_rule_api(rule_structure: Dict[str, Any]) -> Dict[str, Any]:
-    headers = wsutils.create_header()
+def create_rule_api(rule_structure: Dict[str, Any], ctx: Optional[Context] = None) -> Dict[str, Any]:
+    headers = wsutils.create_header(ctx)
     rule_id = f"rule_{abs(hash(str(rule_structure))) % 10000}"
     wsutils.post(path=wsutils.build_api_url(
         endpoint=constants.URL_CREATE_RULE), data=json.dumps(rule_structure), header=headers)
     return {"rule_id": rule_id, "status": "created", "message": "Rule created successfully", "timestamp": datetime.now().isoformat()}
 
-def fetch_rule(rule_name: str, include_read_me: bool = False) -> Dict[str, Any]:
+def fetch_rule(rule_name: str, include_read_me: bool = False, ctx: Optional[Context] = None) -> Dict[str, Any]:
     params = {
         "name":rule_name
     }
     if include_read_me:
         params={**params,"include_read_me" : "true"}
 
-    headers = wsutils.create_header()
+    headers = wsutils.create_header(ctx)
     try:
         rules_items = wsutils.get(
             path=wsutils.build_api_url(endpoint=constants.URL_FETCH_RULES),
@@ -641,14 +642,14 @@ def encode_content(data: Union[Dict[str, Any], str]) -> str:
     except Exception:
         return ""
 
-def fetch_rules_api(params: Dict[str, Any] = None ) -> List[vo.SimplifiedRuleVO]:
+def fetch_rules_api(params: Dict[str, Any] = None, ctx: Optional[Context] = None ) -> List[vo.SimplifiedRuleVO]:
     if params is None:
         params = {}
 
     if not is_valid_key(params,"page_size"):
         params["page_size"] = 50
 
-    headers = wsutils.create_header()
+    headers = wsutils.create_header(ctx)
     cur_page = 1
     has_next = True
     combined_rules = []
@@ -684,12 +685,12 @@ def fetch_rules_api(params: Dict[str, Any] = None ) -> List[vo.SimplifiedRuleVO]
 
     return combined_rules
 
-def fetch_rules_and_tasks_suggestions(query: str = None, identifierType: str = None) -> List[vo.SimplifiedRuleVO]:
+def fetch_rules_and_tasks_suggestions(query: str = None, identifierType: str = None, ctx: Optional[Context] = None) -> List[vo.SimplifiedRuleVO]:
     req_data = {
         "query": query,
         "identifierType": identifierType
     }
-    headers = wsutils.create_header()
+    headers = wsutils.create_header(ctx)
     suggestions = []
     try:
         rules_items = wsutils.post(
@@ -706,8 +707,8 @@ def fetch_rules_and_tasks_suggestions(query: str = None, identifierType: str = N
     except Exception as e:
         return {"error": f"Failed to fetch {identifierType} suggestions : {str(e)}"}
 
-def create_support_ticket_api(body: Dict[str, Any] = None ) -> Dict[str, Any]:
-    headers = wsutils.create_header()
+def create_support_ticket_api(body: Dict[str, Any] = None, ctx: Optional[Context] = None ) -> Dict[str, Any]:
+    headers = wsutils.create_header(ctx)
     try:
         ticket_details = wsutils.post(
             path=wsutils.build_api_url(endpoint=constants.URL_CREATE_TICKET),
@@ -827,14 +828,14 @@ def get_parquet_preview(content: str, file_size_kb: float) -> tuple[str, str]:
     except Exception as e:
         return f"Error processing Parquet: {e}", "Processing failed"
     
-def get_assessment_controls(params: Dict[str, Any] = None ) -> List[vo.AssessmentControlVO]:
+def get_assessment_controls(params: Dict[str, Any] = None, ctx: Optional[Context] = None ) -> List[vo.AssessmentControlVO]:
     if params is None:
         params = {}
 
     if not is_valid_key(params,"page_size"):
         params["page_size"] = 100
 
-    headers = wsutils.create_header()
+    headers = wsutils.create_header(ctx)
     cur_page = 1
     has_next = True
     combined_leaf_controls = []
@@ -865,8 +866,8 @@ def get_assessment_controls(params: Dict[str, Any] = None ) -> List[vo.Assessmen
 
     return combined_leaf_controls
 
-def get_assessments(params: Dict[str, Any] = None ) -> List[vo.AssessmentVO]:
-    headers = wsutils.create_header()
+def get_assessments(params: Dict[str, Any] = None, ctx: Optional[Context] = None ) -> List[vo.AssessmentVO]:
+    headers = wsutils.create_header(ctx)
     assessment_response = wsutils.get(
         path=wsutils.build_api_url(endpoint=constants.URL_PLANS),
         params=params,
@@ -883,9 +884,9 @@ def get_assessments(params: Dict[str, Any] = None ) -> List[vo.AssessmentVO]:
     return assessments
 
 
-def fetch_cc_rule_by_id(rule_id: str) -> Dict[str, Any]:
+def fetch_cc_rule_by_id(rule_id: str, ctx: Optional[Context] = None) -> Dict[str, Any]:
 
-    headers = wsutils.create_header()
+    headers = wsutils.create_header(ctx)
     try:
         rule_response = wsutils.get(
             path=wsutils.build_api_url(endpoint=f"{constants.URL_GET_CC_RULE_BY_ID.replace('{id}',rule_id)}"),
@@ -895,14 +896,14 @@ def fetch_cc_rule_by_id(rule_id: str) -> Dict[str, Any]:
     except Exception as e:
         return {"error": f"Failed to fetch the rule: {e}"}
     
-def fetch_cc_rule_by_name(rule_name: str) -> Dict[str, Any]:
+def fetch_cc_rule_by_name(rule_name: str, ctx: Optional[Context] = None) -> Dict[str, Any]:
     params={
         "name":rule_name,
         "page_size":10,
         "page":1
     }
 
-    headers = wsutils.create_header()
+    headers = wsutils.create_header(ctx)
     try:
         rule_response = wsutils.get(
             path=wsutils.build_api_url(endpoint=f"{constants.URL_GET_CC_RULE}"),
@@ -917,9 +918,9 @@ def fetch_cc_rule_by_name(rule_name: str) -> Dict[str, Any]:
     except Exception as e:
         return {"error": f"Failed to fetch the rule: {e}"}
     
-def attach_rule_to_control_api(control_id: str, body:dict) -> Dict[str, Any]:
+def attach_rule_to_control_api(control_id: str, body:dict, ctx: Optional[Context] = None) -> Dict[str, Any]:
 
-    headers = wsutils.create_header()
+    headers = wsutils.create_header(ctx)
     try:
         wsutils.post(
             path=wsutils.build_api_url(endpoint=f"{constants.URL_LINK_CC_RULE_TO_CONTROL.replace('{control_id}',control_id)}"),
@@ -1052,8 +1053,8 @@ def fix_json_string(content: str) -> str:
 
     return content.strip()    
 
-def execute_task_api(body: Dict[str, Any] = None ) -> Dict[str, Any]:
-    headers = wsutils.create_header()
+def execute_task_api(body: Dict[str, Any] = None, ctx: Optional[Context] = None ) -> Dict[str, Any]:
+    headers = wsutils.create_header(ctx)
     try:
         execute_response = wsutils.post(
             path=wsutils.build_api_url(endpoint=constants.URL_EXECUTE_TASK),

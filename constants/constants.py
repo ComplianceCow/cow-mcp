@@ -136,3 +136,8 @@ cow_cache = TTLCache(maxsize=300, ttl=mcp_cache_ttl_in_seconds)
 
 # MCP Upload
 URL_STORAGE_UPLOAD = "/v1/mcp-upload"
+
+AUTH_HEADER_KEY = 'Authorization'
+
+X_COW_SECURITY_CONTEXT = 'X-Cow-Security-Context'
+

@@ -12,10 +12,11 @@ from mcpconfig.config import mcp
 
 from constants import constants
 from mcptypes import assets_tools_type as vo
+from fastmcp import Context
 
 
 @mcp.tool()
-async def list_assets() -> vo.AssetListVO:
+async def list_assets(ctx: Context | None = None) -> vo.AssetListVO:
     """
         Get all assets
         
@@ -28,7 +29,7 @@ async def list_assets() -> vo.AssetListVO:
     try:
         logger.info("get_assets_list: \n")
 
-        output=await utils.make_GET_API_call_to_CCow(constants.URL_ASSETS)
+        output=await utils.make_GET_API_call_to_CCow(constants.URL_ASSETS, ctx)
         logger.debug("assets output: {}\n".format(output))
         
         if isinstance(output, str) or  "error" in output:
@@ -49,7 +50,7 @@ async def list_assets() -> vo.AssetListVO:
         return vo.AssetListVO(error="Facing internal error")
 
 @mcp.tool()
-async def fetch_assets_summary(id: str) -> vo.AssestsSummaryVO:
+async def fetch_assets_summary(id: str, ctx: Context | None = None) -> vo.AssestsSummaryVO:
     """
         Get assets summary for given assessment id
 
@@ -70,7 +71,7 @@ async def fetch_assets_summary(id: str) -> vo.AssestsSummaryVO:
         logger.info("fetch_assets_summary: \n")
         output=await utils.make_API_call_to_CCow({
             "planID": id,
-        },constants.URL_FETCH_ASSETS_SUMMARY)
+        },constants.URL_FETCH_ASSETS_SUMMARY, ctx=ctx)
         
         if isinstance(output, str) or  "error" in output:
             logger.error("fetch_assets_summary error: {}\n".format(output))
@@ -85,7 +86,7 @@ async def fetch_assets_summary(id: str) -> vo.AssestsSummaryVO:
         return vo.AssestsSummaryVO(error="Facing internal error")
 
 @mcp.tool()
-async def fetch_resource_types(id: str, page: int=1, pageSize: int=0) -> dict:
+async def fetch_resource_types(id: str, page: int=1, pageSize: int=0, ctx: Context | None = None) -> dict:
     """
         Get resource types for given asset run id.
         Use 'fetch_assets_summary' tool to get assets run id
@@ -123,7 +124,7 @@ async def fetch_resource_types(id: str, page: int=1, pageSize: int=0) -> dict:
             "planRunID": id,
             "page": page,
             "pageSize": pageSize
-        },constants.URL_FETCH_RESOURCE_TYPES)
+        },constants.URL_FETCH_RESOURCE_TYPES, ctx=ctx)
         logger.debug("output: {}\n".format(json.dumps(output)))
 
         if isinstance(output, str) or  "error" in output:
@@ -142,7 +143,7 @@ async def fetch_resource_types(id: str, page: int=1, pageSize: int=0) -> dict:
         return vo.ResourceTypeListVO(error="Facing internal error")
 
 @mcp.tool()
-async def fetch_checks(id: str, resourceType: str, page: int=1, pageSize: int=0, complianceStatus: str="") -> vo.ChecksListVO:
+async def fetch_checks(id: str, resourceType: str, page: int=1, pageSize: int=0, complianceStatus: str="", ctx: Context | None = None) -> vo.ChecksListVO:
     """
         Get checks for given assets run id and resource type. Use this function to get all checks for given assets run id and resource type
         Use 'fetch_assets_summary' tool to get asset run id
@@ -198,7 +199,7 @@ async def fetch_checks(id: str, resourceType: str, page: int=1, pageSize: int=0,
             "page": page,
             "pageSize": pageSize,
             "complianceStatus": complianceStatus
-        },constants.URL_FETCH_CHECKS)
+        },constants.URL_FETCH_CHECKS, ctx=ctx)
         logger.debug("output: {}\n".format(json.dumps(output)))
         
         if isinstance(output, str) or  "error" in output:
@@ -220,7 +221,7 @@ async def fetch_checks(id: str, resourceType: str, page: int=1, pageSize: int=0,
         return vo.ChecksListVO(error="Facing internal error")
 
 @mcp.tool()
-async def fetch_resources(id: str, resourceType: str, page: int=1, pageSize: int=0, complianceStatus: str="") -> vo.ResourceListVO:
+async def fetch_resources(id: str, resourceType: str, page: int=1, pageSize: int=0, complianceStatus: str="", ctx: Context | None = None) -> vo.ResourceListVO:
     """
         Get resources for given asset run id and resource type
         Function accepts page number (page) and page size (pageSize) for pagination. If MCP client host unable to handle large response use page and pageSize, default page is 1
@@ -277,7 +278,7 @@ async def fetch_resources(id: str, resourceType: str, page: int=1, pageSize: int
             "page": page,
             "pageSize": pageSize,
             "complianceStatus": complianceStatus
-        },constants.URL_FETCH_RESOURCES)
+        },constants.URL_FETCH_RESOURCES, ctx=ctx)
         logger.debug("output: {}\n".format(json.dumps(output)))
         
         if isinstance(output, str) or  "error" in output:
@@ -301,7 +302,7 @@ async def fetch_resources(id: str, resourceType: str, page: int=1, pageSize: int
         return vo.ResourceListVO(error="Facing internal error")
 
 @mcp.tool()
-async def fetch_resources_by_check_name(id: str,  checkName: str, page: int=1, pageSize: int=0) -> vo.ResourceListVO:
+async def fetch_resources_by_check_name(id: str,  checkName: str, page: int=1, pageSize: int=0, ctx: Context | None = None) -> vo.ResourceListVO:
     """
         Get resources for given asset run id, and check name.
         Function accepts page number (page) and page size (pageSize) for pagination. If MCP client host unable to handle large response use page and pageSize.
@@ -344,7 +345,7 @@ async def fetch_resources_by_check_name(id: str,  checkName: str, page: int=1, p
             "checkName": checkName,
             "page": page,
             "pageSize": pageSize
-        },constants.URL_FETCH_RESOURCES)
+        },constants.URL_FETCH_RESOURCES, ctx=ctx)
         logger.debug("output: {}\n".format(json.dumps(output)))
         if isinstance(output, str) or  "error" in output:
             logger.error("fetch_resources_by_check_name error: {}\n".format(output))
@@ -364,7 +365,7 @@ async def fetch_resources_by_check_name(id: str,  checkName: str, page: int=1, p
     
 
 # @mcp.tool()
-async def fetch_resource_types_summary(id: str) -> dict:
+async def fetch_resource_types_summary(id: str, ctx: Context | None = None) -> dict:
     """
         Use this to get the summary on resource types
         Use this when total items in 'fetch_resource_types' is high
@@ -387,17 +388,17 @@ async def fetch_resource_types_summary(id: str) -> dict:
                 "planRunID": id,
                 "page": 1,
                 "pageSize": 10
-            }, constants.URL_FETCH_RESOURCE_TYPES),
+            }, constants.URL_FETCH_RESOURCE_TYPES, ctx=ctx),
             utils.make_API_call_to_CCow({
                 "planRunID": id,
                 "page": 2,
                 "pageSize": 10
-            }, constants.URL_FETCH_RESOURCE_TYPES),
+            }, constants.URL_FETCH_RESOURCE_TYPES, ctx=ctx),
             utils.make_API_call_to_CCow({
                 "planRunID": id,
                 "page": 3,
                 "pageSize": 10
-            }, constants.URL_FETCH_RESOURCE_TYPES)
+            }, constants.URL_FETCH_RESOURCE_TYPES, ctx=ctx)
         )
 
         resource_types: List[vo.ResourceTypeVO] = []
@@ -421,7 +422,7 @@ async def fetch_resource_types_summary(id: str) -> dict:
         return vo.ResourceListVO(error="Facing internal error")
 
 @mcp.tool()
-async def fetch_checks_summary(id: str, resourceType: str) -> vo.CheckSummaryVO:
+async def fetch_checks_summary(id: str, resourceType: str, ctx: Context | None = None) -> vo.CheckSummaryVO:
     """
         Use this to get the summary on checks
         Use this when total items in 'fetch_checks' is high
@@ -450,7 +451,7 @@ async def fetch_checks_summary(id: str, resourceType: str) -> vo.CheckSummaryVO:
                 "planRunID": id,
                 "resourceType": resourceType,
                 "summaryType": "checks"
-            }, constants.URL_FETCH_ASSETS_DETAIL_SUMMARY)
+            }, constants.URL_FETCH_ASSETS_DETAIL_SUMMARY, ctx=ctx)
 
         logger.debug("output: {}\n".format(json.dumps(output)))
         if isinstance(output, str) or  "error" in output:
@@ -464,7 +465,7 @@ async def fetch_checks_summary(id: str, resourceType: str) -> vo.CheckSummaryVO:
         return vo.CheckSummaryVO(error="Facing internal error")
     
 @mcp.tool()
-async def fetch_resources_summary(id: str, resourceType: str) -> vo.ResourceSummaryVO:
+async def fetch_resources_summary(id: str, resourceType: str, ctx: Context | None = None) -> vo.ResourceSummaryVO:
     """
         Use this to get the summary on resource 
         Use this when total items in 'fetch_resources' is high
@@ -493,7 +494,7 @@ async def fetch_resources_summary(id: str, resourceType: str) -> vo.ResourceSumm
                 "planRunID": id,
                 "resourceType": resourceType,
                 "summaryType": "resources"
-            }, constants.URL_FETCH_ASSETS_DETAIL_SUMMARY)
+            }, constants.URL_FETCH_ASSETS_DETAIL_SUMMARY, ctx=ctx)
 
         logger.debug("output: {}\n".format(json.dumps(output)))
         if isinstance(output, str) or  "error" in output:
@@ -507,7 +508,7 @@ async def fetch_resources_summary(id: str, resourceType: str) -> vo.ResourceSumm
         return vo.ResourceSummaryVO(error="Facing internal error")
 
 @mcp.tool()
-async def fetch_resources_by_check_name_summary(id: str, resourceType: str, check: str) -> vo.ResourceSummaryVO:
+async def fetch_resources_by_check_name_summary(id: str, resourceType: str, check: str, ctx: Context | None = None) -> vo.ResourceSummaryVO:
     """
         Use this to get the summary on check resources 
         Use this when total items in 'fetch_resources_for_check' is high
@@ -540,7 +541,7 @@ async def fetch_resources_by_check_name_summary(id: str, resourceType: str, chec
             "resourceType": resourceType,
             "checkName": check,
             "summaryType": "resources"
-        },constants.URL_FETCH_ASSETS_DETAIL_SUMMARY)
+        },constants.URL_FETCH_ASSETS_DETAIL_SUMMARY, ctx=ctx)
         logger.debug("output: {}\n".format(json.dumps(output)))
         if isinstance(output, str) or  "error" in output:
             logger.error("fetch_checks_summary error: {}\n".format(output))

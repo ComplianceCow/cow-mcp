@@ -11,9 +11,10 @@ from mcpconfig.config import mcp
 from constants import constants
 
 from mcptypes import dashboard_tools_type as vo
+from fastmcp import Context
 
 @mcp.tool()
-async def get_dashboard_review_periods() -> vo.CCFDashboardReviewPeriods:
+async def get_dashboard_review_periods(ctx: Context | None = None) -> vo.CCFDashboardReviewPeriods:
     """
     Fetch list of review periods
     Returns:
@@ -24,7 +25,7 @@ async def get_dashboard_review_periods() -> vo.CCFDashboardReviewPeriods:
         logger.info("get_dashboard_review_periods: \n")
         data={}
 
-        output=await utils.make_API_call_to_CCow(data, constants.URL_CCF_DASHBOARD_REVIEW_PERIODS)
+        output=await utils.make_API_call_to_CCow(data, constants.URL_CCF_DASHBOARD_REVIEW_PERIODS, ctx=ctx)
         logger.debug("output: {}\n".format(json.dumps(output)))
         
         if isinstance(output, str) or  "error" in output:
@@ -38,7 +39,7 @@ async def get_dashboard_review_periods() -> vo.CCFDashboardReviewPeriods:
         return vo.CCFDashboardReviewPeriods(error="Facing internal error")
 
 @mcp.tool()
-async def get_dashboard_data(period: str = "Q1 2024") -> vo.DashboardSummaryVO:
+async def get_dashboard_data(period: str = "Q1 2024", ctx: Context | None = None) -> vo.DashboardSummaryVO:
     """
     Function accepts compliance period as 'period'. Period denotes for which quarter of year dashboard data is needed. Format: Q1 2024. 
 
@@ -88,7 +89,7 @@ async def get_dashboard_data(period: str = "Q1 2024") -> vo.DashboardSummaryVO:
         logger.info("get_dashboard: \n")
         logger.debug("payload: {}\n".format(data))
 
-        output=await utils.make_API_call_to_CCow(data, constants.URL_CCF_DASHBOARD_FRAMEWORK_SUMMARY)
+        output=await utils.make_API_call_to_CCow(data, constants.URL_CCF_DASHBOARD_FRAMEWORK_SUMMARY, ctx=ctx)
         logger.debug("output: {}\n".format(json.dumps(output)))
         
         if isinstance(output, str) or  "error" in output:
@@ -104,7 +105,7 @@ async def get_dashboard_data(period: str = "Q1 2024") -> vo.DashboardSummaryVO:
         return vo.DashboardSummaryVO(error="Facing internal error")
   
 @mcp.tool()
-async def fetch_dashboard_framework_controls(period: str, framework_name : str) -> vo.FrameworkControlListVO:
+async def fetch_dashboard_framework_controls(period: str, framework_name : str, ctx: Context | None = None) -> vo.FrameworkControlListVO:
     """
     Function Overview: Retrieve Control Details for a Given CCF and Review Period
 
@@ -153,7 +154,7 @@ async def fetch_dashboard_framework_controls(period: str, framework_name : str) 
         logger.debug("payload: {}\n".format(data))
         
 
-        output=await utils.make_API_call_to_CCow(data, constants.URL_CCF_DASHBOARD_CONTROL_DETAILS)
+        output=await utils.make_API_call_to_CCow(data, constants.URL_CCF_DASHBOARD_CONTROL_DETAILS, ctx=ctx)
         logger.debug("output: {}\n".format(json.dumps(output)))
         
         if isinstance(output, str) or  "error" in output:
@@ -178,7 +179,7 @@ async def fetch_dashboard_framework_controls(period: str, framework_name : str) 
         return vo.FrameworkControlListVO(error="Facing internal error")
     
 @mcp.tool()
-async def fetch_dashboard_framework_summary(period: str, framework_name : str) -> vo.FrameworkControlListVO:
+async def fetch_dashboard_framework_summary(period: str, framework_name : str, ctx: Context | None = None) -> vo.FrameworkControlListVO:
     """
     Function Overview: CCF Dashboard Summary Retrieval
 
@@ -227,7 +228,7 @@ async def fetch_dashboard_framework_summary(period: str, framework_name : str) -
         logger.debug("payload: {}\n".format(data))
         
 
-        output=await utils.make_API_call_to_CCow(data, constants.URL_CCF_DASHBOARD_CONTROL_DETAILS)
+        output=await utils.make_API_call_to_CCow(data, constants.URL_CCF_DASHBOARD_CONTROL_DETAILS, ctx=ctx)
         logger.debug("output: {}\n".format(json.dumps(output)))
         
         if isinstance(output, str) or  "error" in output:
@@ -252,7 +253,7 @@ async def fetch_dashboard_framework_summary(period: str, framework_name : str) -
         return vo.FrameworkControlListVO(error="Facing internal error")
     
 @mcp.tool()
-async def get_dashboard_common_controls_details(period: str, complianceStatus: str="", controlStatus: str="",  priority: str="", controlCategoryName: str="",page: int=1, pageSize:  int=50) -> vo.CommonControlListVO:
+async def get_dashboard_common_controls_details(period: str, complianceStatus: str="", controlStatus: str="",  priority: str="", controlCategoryName: str="",page: int=1, pageSize:  int=50, ctx: Context | None = None) -> vo.CommonControlListVO:
     """
     Function accepts compliance period as 'period'. Period donates for which quarter of year dashboard data is needed. Format: Q1 2024. 
     Use this tool to get Common Control Framework (CCF) dashboard data for a specific compliance period with filters.
@@ -360,7 +361,7 @@ def list_as_table_prompt(response: dict) -> str:
 
 
 @mcp.tool()
-async def get_top_over_due_controls_detail(period: str = "Q1 2024", count: int = 10) -> vo.OverdueControlListVO: 
+async def get_top_over_due_controls_detail(period: str = "Q1 2024", count: int = 10, ctx: Context | None = None) -> vo.OverdueControlListVO: 
     """
         Fetch controls with top over due (over-due)
         Function accepts count as 'count'
@@ -415,7 +416,7 @@ async def get_top_over_due_controls_detail(period: str = "Q1 2024", count: int =
         return vo.OverdueControlListVO(error="Facing internal error")
 
 @mcp.tool()
-async def get_top_non_compliant_controls_detail(period: str, count= 1, page=1) -> vo.NonCompliantControlListVO: 
+async def get_top_non_compliant_controls_detail(period: str, count= 1, page=1, ctx: Context | None = None) -> vo.NonCompliantControlListVO: 
 
     """
         Function overview: Fetch control with low compliant score or non compliant controls.

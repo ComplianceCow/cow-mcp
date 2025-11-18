@@ -14,9 +14,11 @@ from mcpconfig.config import mcp
 from constants import constants
 from mcptypes import workflow_tools_type as vo
 import yaml
+from fastmcp import Context
+
 
 @mcp.tool()
-async def list_workflow_event_categories() -> vo.WorkflowEventCategoryListVO:
+async def list_workflow_event_categories(ctx: Context | None = None) -> vo.WorkflowEventCategoryListVO:
     """
     Retrieve available workflow event categories.
     
@@ -31,7 +33,7 @@ async def list_workflow_event_categories() -> vo.WorkflowEventCategoryListVO:
     try:
         logger.info("list_workflow_event_categories: \n")
 
-        output=await utils.make_GET_API_call_to_CCow(constants.URL_WORKFLOW_EVENT_CATEGORIES)
+        output=await utils.make_GET_API_call_to_CCow(constants.URL_WORKFLOW_EVENT_CATEGORIES,ctx)
         logger.debug("workflow event categories output: {}\n".format(output))
         
         if isinstance(output, str) or  "error" in output:
@@ -52,7 +54,7 @@ async def list_workflow_event_categories() -> vo.WorkflowEventCategoryListVO:
         return vo.WorkflowEventCategoryListVO(error="Facing internal error")
 
 @mcp.tool()
-async def list_workflow_events() -> vo.WorkflowEventListVO:
+async def list_workflow_events(ctx: Context | None = None) -> vo.WorkflowEventListVO:
     """
     Retrieve available workflow events that can trigger workflows.
     
@@ -92,7 +94,7 @@ async def list_workflow_events() -> vo.WorkflowEventListVO:
     try:
         logger.info("Fetching workflow events")
         
-        output = await utils.make_GET_API_call_to_CCow(constants.URL_WORKFLOW_EVENTS)
+        output = await utils.make_GET_API_call_to_CCow(constants.URL_WORKFLOW_EVENTS, ctx)
         logger.debug(f"Events response: {output}")
         
         if isinstance(output, str) or "error" in output:
@@ -122,7 +124,7 @@ async def list_workflow_events() -> vo.WorkflowEventListVO:
         return vo.WorkflowEventListVO(error="Facing internal error")
 
 @mcp.tool()
-async def list_workflow_activity_types() -> List[str]:
+async def list_workflow_activity_types(ctx: Context | None = None) -> List[str]:
     """
     Get available workflow activity types.
     
@@ -142,7 +144,7 @@ async def list_workflow_activity_types() -> List[str]:
         return "Facing internal error"
 
 @mcp.tool()
-async def list_workflow_function_categories() -> vo.WorkflowActivityCategoryListVO:
+async def list_workflow_function_categories(ctx: Context | None = None) -> vo.WorkflowActivityCategoryListVO:
     """
     Retrieve available workflow function categories.
     
@@ -157,7 +159,7 @@ async def list_workflow_function_categories() -> vo.WorkflowActivityCategoryList
     try:
         logger.info("list_workflow_activity_categories: \n")
 
-        output=await utils.make_GET_API_call_to_CCow(constants.URL_WORKFLOW_ACTIVITY_CATEGORIES)
+        output=await utils.make_GET_API_call_to_CCow(constants.URL_WORKFLOW_ACTIVITY_CATEGORIES, ctx)
         logger.debug("workflow activity categories output: {}\n".format(output))
         
         if isinstance(output, str) or  "error" in output:
@@ -178,7 +180,7 @@ async def list_workflow_function_categories() -> vo.WorkflowActivityCategoryList
         return vo.WorkflowActivityCategoryListVO(error="Facing internal error")
 
 @mcp.tool()
-async def list_workflow_functions() -> vo.WorkflowActivityListVO:
+async def list_workflow_functions(ctx: Context | None = None) -> vo.WorkflowActivityListVO:
     """
     Retrieve available workflow functions (activities).
     
@@ -202,7 +204,7 @@ async def list_workflow_functions() -> vo.WorkflowActivityListVO:
     try:
         logger.info("list_workflow_activities: \n")
 
-        output=await utils.make_GET_API_call_to_CCow(constants.URL_WORKFLOW_ACTIVITIES)
+        output=await utils.make_GET_API_call_to_CCow(constants.URL_WORKFLOW_ACTIVITIES, ctx)
         logger.debug("workflow activities output: {}\n".format(output))
         
         if isinstance(output, str) or  "error" in output:
@@ -223,7 +225,7 @@ async def list_workflow_functions() -> vo.WorkflowActivityListVO:
         return vo.WorkflowActivityListVO(error="Facing internal error")
 
 @mcp.tool()
-async def list_workflow_rules() -> vo.WorkflowRuleListVO:
+async def list_workflow_rules(ctx: Context | None = None) -> vo.WorkflowRuleListVO:
     """
     Retrieve available workflow rules.
     
@@ -244,7 +246,7 @@ async def list_workflow_rules() -> vo.WorkflowRuleListVO:
     try:
         logger.info("list_workflow_prebuild_rules: \n")
 
-        output=await utils.make_GET_API_call_to_CCow(f"{constants.URL_WORKFLOW_PREBUILD_RULES}?type=rule&meta_tags=MCP")
+        output=await utils.make_GET_API_call_to_CCow(f"{constants.URL_WORKFLOW_PREBUILD_RULES}?type=rule&meta_tags=MCP", ctx)
         logger.debug("workflow rules output: {}\n".format(output))
         
         if isinstance(output, str) or  "error" in output:
@@ -281,7 +283,7 @@ async def list_workflow_rules() -> vo.WorkflowRuleListVO:
         return vo.WorkflowRuleListVO(error="Facing internal error")
 
 @mcp.tool()
-async def fetch_workflow_rule(name: str) -> vo.WorkflowRuleListVO:
+async def fetch_workflow_rule(name: str, ctx: Context | None = None) -> vo.WorkflowRuleListVO:
     """
     Retrieve a specific workflow rule by name.
     
@@ -304,7 +306,7 @@ async def fetch_workflow_rule(name: str) -> vo.WorkflowRuleListVO:
     try:
         logger.info(f"fetch_workflow_rule: searching for rule '{name}'\n")
 
-        output = await utils.make_GET_API_call_to_CCow(f"{constants.URL_WORKFLOW_PREBUILD_RULES}?name={name}")
+        output = await utils.make_GET_API_call_to_CCow(f"{constants.URL_WORKFLOW_PREBUILD_RULES}?name={name}", ctx)
         logger.debug("workflow rule output: {}\n".format(output))
         
         if isinstance(output, str) or "error" in output:
@@ -340,7 +342,7 @@ async def fetch_workflow_rule(name: str) -> vo.WorkflowRuleListVO:
         return vo.WorkflowRuleListVO(error="Facing internal error")
 
 @mcp.tool()
-async def fetch_task_readme(name: str) -> vo.TaskReadmeResponseVO:
+async def fetch_task_readme(name: str, ctx: Context | None = None) -> vo.TaskReadmeResponseVO:
     """
     Retrieve README documentation for a specific task by name.
     
@@ -360,7 +362,7 @@ async def fetch_task_readme(name: str) -> vo.TaskReadmeResponseVO:
     try:
         logger.info(f"fetch_task_readme: searching for task '{name}'\n")
 
-        output = await utils.make_GET_API_call_to_CCow(f"{constants.URL_FETCH_TASK_README}?name={name}")
+        output = await utils.make_GET_API_call_to_CCow(f"{constants.URL_FETCH_TASK_README}?name={name}", ctx)
         logger.debug("task readme output: {}\n".format(output))
         
         if isinstance(output, str) or "error" in output:
@@ -393,7 +395,7 @@ async def fetch_task_readme(name: str) -> vo.TaskReadmeResponseVO:
         return vo.TaskReadmeResponseVO(error="Facing internal error")
 
 @mcp.tool()
-async def fetch_rule_readme(name: str) -> vo.RuleReadmeResponseVO:
+async def fetch_rule_readme(name: str, ctx: Context | None = None) -> vo.RuleReadmeResponseVO:
     """
     Retrieve README documentation for a specific rule by name.
     
@@ -413,7 +415,7 @@ async def fetch_rule_readme(name: str) -> vo.RuleReadmeResponseVO:
     try:
         logger.info(f"fetch_rule_readme: searching for rule '{name}'\n")
 
-        output = await utils.make_GET_API_call_to_CCow(f"{constants.URL_FETCH_RULE_README}?name={name}")
+        output = await utils.make_GET_API_call_to_CCow(f"{constants.URL_FETCH_RULE_README}?name={name}", ctx)
         logger.debug("rule readme output: {}\n".format(output))
         
         if isinstance(output, str) or "error" in output:
@@ -433,7 +435,7 @@ async def fetch_rule_readme(name: str) -> vo.RuleReadmeResponseVO:
             return vo.RuleReadmeResponseVO(ruleName=rule_name, error=f"README not available for rule: {name}")
         
         try:
-            readme_response = await utils.make_GET_API_call_to_CCow(f"{constants.URL_FETCH_FILE_BY_HASH}/{readme_hash}")
+            readme_response = await utils.make_GET_API_call_to_CCow(f"{constants.URL_FETCH_FILE_BY_HASH}/{readme_hash}", ctx)
             logger.debug(f"README fetch response for rule {rule_name}: {readme_response}")
             
             if isinstance(readme_response, str) or "error" in readme_response:
@@ -471,7 +473,7 @@ async def fetch_rule_readme(name: str) -> vo.RuleReadmeResponseVO:
         return vo.RuleReadmeResponseVO(error="Facing internal error")
 
 @mcp.tool()
-async def list_workflow_tasks() -> vo.WorkflowTaskListVO:
+async def list_workflow_tasks(ctx: Context | None = None) -> vo.WorkflowTaskListVO:
     """
     Retrieve available workflow tasks.
     
@@ -493,7 +495,7 @@ async def list_workflow_tasks() -> vo.WorkflowTaskListVO:
     try:
         logger.info("list_workflow_prebuild_tasks: \n")
 
-        output = await utils.make_GET_API_call_to_CCow(f"{constants.URL_WORKFLOW_PREBUILD_TASKS}?tags=MCP-WORKFLOW")
+        output = await utils.make_GET_API_call_to_CCow(f"{constants.URL_WORKFLOW_PREBUILD_TASKS}?tags=MCP-WORKFLOW", ctx)
         logger.debug("workflow prebuild tasks output: {}\n".format(output))
         
         if isinstance(output, str) or  "error" in output:
@@ -514,7 +516,7 @@ async def list_workflow_tasks() -> vo.WorkflowTaskListVO:
         return vo.WorkflowTaskListVO(error="Facing internal error")
 
 @mcp.tool()
-async def list_workflow_condition_categories() -> vo.WorkflowConditionCategoryListVO:
+async def list_workflow_condition_categories(ctx: Context | None = None) -> vo.WorkflowConditionCategoryListVO:
     """
     Retrieve available workflow condition categories.
     
@@ -529,7 +531,7 @@ async def list_workflow_condition_categories() -> vo.WorkflowConditionCategoryLi
     try:
         logger.info("list_workflow_condition_categories: \n")
 
-        output=await utils.make_GET_API_call_to_CCow(constants.URL_WORKFLOW_CONDITION_CATEGORIES)
+        output=await utils.make_GET_API_call_to_CCow(constants.URL_WORKFLOW_CONDITION_CATEGORIES, ctx)
         logger.debug("workflow condition categories output: {}\n".format(output))
         
         if isinstance(output, str) or  "error" in output:
@@ -550,7 +552,7 @@ async def list_workflow_condition_categories() -> vo.WorkflowConditionCategoryLi
         return vo.WorkflowConditionCategoryListVO(error="Facing internal error")
 
 @mcp.tool()
-async def list_workflow_conditions() -> vo.WorkflowConditionListVO:
+async def list_workflow_conditions(ctx: Context | None = None) -> vo.WorkflowConditionListVO:
     """
     Retrieve available workflow conditions.
     
@@ -572,7 +574,7 @@ async def list_workflow_conditions() -> vo.WorkflowConditionListVO:
     try:
         logger.info("list_workflow_conditions: \n")
 
-        output=await utils.make_GET_API_call_to_CCow(constants.URL_WORKFLOW_CONDITIONS)
+        output=await utils.make_GET_API_call_to_CCow(constants.URL_WORKFLOW_CONDITIONS, ctx)
         logger.debug("workflow conditions output: {}\n".format(output))
         
         if isinstance(output, str) or  "error" in output:
@@ -593,7 +595,7 @@ async def list_workflow_conditions() -> vo.WorkflowConditionListVO:
         return vo.WorkflowConditionListVO(error="Facing internal error")
 
 @mcp.tool()
-async def fetch_workflow_resource_data(resource: str) -> dict | str:
+async def fetch_workflow_resource_data(resource: str, ctx: Context | None = None) -> dict | str:
     """
     Fetch workflow resource data for a given resource type.
     
@@ -609,7 +611,7 @@ async def fetch_workflow_resource_data(resource: str) -> dict | str:
     try:
         logger.info("list_user_blocks: \n")
 
-        output=await utils.make_API_call_to_CCow({"resource":resource},constants.URL_WORKFLOW_RESOURCE_DATA)
+        output=await utils.make_API_call_to_CCow({"resource":resource},constants.URL_WORKFLOW_RESOURCE_DATA, ctx=ctx)
         logger.debug("list_user_blocks outputs : {}\n".format(output))
         
         if isinstance(output, str) or  "error" in output or "items" not in output:
@@ -624,7 +626,7 @@ async def fetch_workflow_resource_data(resource: str) -> dict | str:
         return "Facing internal error"
 
 @mcp.tool()
-async def create_workflow(workflow_yaml: str) -> str:
+async def create_workflow(workflow_yaml: str, ctx: Context | None = None) -> str:
     """
     Create a new workflow using YAML definition. Always display the workflow diagram. 
     Before creation confirm workflow name and creation with the user before executing this tool. 
@@ -672,7 +674,7 @@ async def create_workflow(workflow_yaml: str) -> str:
             logger.warning("Failed to set MCP tags or extract metadata from workflow YAML; proceeding with defaults")
 
         # Create workflow configuration first
-        output = await utils.make_API_call_to_CCow_and_get_response(constants.URL_WORKFLOW_CREATE,"POST",workflow_yaml,type="yaml")
+        output = await utils.make_API_call_to_CCow_and_get_response(constants.URL_WORKFLOW_CREATE,"POST",workflow_yaml,type="yaml", ctx=ctx)
         logger.debug("create workflow output: {}\n".format(output))
 
         if not (output and isinstance(output, dict) and output.get("status") and output["status"].get("id")):
@@ -714,7 +716,7 @@ async def create_workflow(workflow_yaml: str) -> str:
             },
         }
 
-        spec_resp = await utils.make_API_call_to_CCow_and_get_response(constants.URL_WORKFLOW_SPECS, "POST", spec_payload)
+        spec_resp = await utils.make_API_call_to_CCow_and_get_response(constants.URL_WORKFLOW_SPECS, "POST", spec_payload, ctx=ctx)
         logger.debug("create workflow spec output: {}\n".format(spec_resp))
 
         spec_id = None
@@ -749,7 +751,7 @@ async def create_workflow(workflow_yaml: str) -> str:
             },
         }
 
-        binding_resp = await utils.make_API_call_to_CCow_and_get_response(constants.URL_WORKFLOW_BINDINGS, "POST", binding_payload)
+        binding_resp = await utils.make_API_call_to_CCow_and_get_response(constants.URL_WORKFLOW_BINDINGS, "POST", binding_payload, ctx=ctx)
         logger.debug("create workflow binding output: {}\n".format(binding_resp))
 
         binding_id = None
@@ -777,7 +779,7 @@ async def create_workflow(workflow_yaml: str) -> str:
         return "Facing internal error"
 
 @mcp.tool()
-async def list_workflows() -> list | str:
+async def list_workflows(ctx: Context | None = None) -> list | str:
     """
     Retrieve a list of all available workflow configurations.
     
@@ -789,7 +791,7 @@ async def list_workflows() -> list | str:
     try:
         logger.info("list_workflows: \n")
 
-        output=await utils.make_GET_API_call_to_CCow("/v3/workflow-configs?fields=meta")
+        output=await utils.make_GET_API_call_to_CCow("/v3/workflow-configs?fields=meta", ctx)
         logger.debug("list_workflows output: {}\n".format(output))
         
         if isinstance(output, str) or  "error" in output:
@@ -814,7 +816,7 @@ async def list_workflows() -> list | str:
 
 
 @mcp.tool()
-async def get_workflow_by_name(name: str) -> dict | str:
+async def get_workflow_by_name(name: str, ctx: Context | None = None) -> dict | str:
     """
         Get a workflow configuration by its name (exact, case-sensitive match).
 
@@ -824,7 +826,7 @@ async def get_workflow_by_name(name: str) -> dict | str:
     try:
         logger.info(f"get_workflow_by_name: {name}\n")
 
-        output = await utils.make_GET_API_call_to_CCow(f"/v3/workflow-configs?name={name}")
+        output = await utils.make_GET_API_call_to_CCow(f"/v3/workflow-configs?name={name}", ctx)
         logger.debug("get_workflow_by_name output: {}\n".format(output))
 
         if isinstance(output, str) or  "error" in output:
@@ -843,7 +845,7 @@ async def get_workflow_by_name(name: str) -> dict | str:
         return "Facing internal error"
 
 @mcp.tool()
-async def fetch_workflow_details(id:str) -> dict | str:
+async def fetch_workflow_details(id:str, ctx: Context | None = None) -> dict | str:
     """
         Args:
             - id (str): workflow id. This can be fetched from path /status/id of 'get_workflows' output
@@ -851,7 +853,7 @@ async def fetch_workflow_details(id:str) -> dict | str:
     try:
         logger.info(f"fetch_workflow_details: {id}\n")
 
-        output=await utils.make_GET_API_call_to_CCow("/v3/workflow-configs/"+id)
+        output=await utils.make_GET_API_call_to_CCow("/v3/workflow-configs/"+id, ctx)
         logger.debug("fetch_workflow_details output: {}\n".format(output))
         
         if isinstance(output, str) or  "error" in output:
@@ -864,7 +866,7 @@ async def fetch_workflow_details(id:str) -> dict | str:
         return "Facing internal error"
 
 @mcp.tool()
-async def update_workflow_summary(id:str,summary:str) -> dict | str:
+async def update_workflow_summary(id:str,summary:str, ctx: Context | None = None) -> dict | str:
     """
         Args:
             - id (str): workflow id. This can be fetched from path /status/id of 'get_workflows' output
@@ -880,7 +882,7 @@ async def update_workflow_summary(id:str,summary:str) -> dict | str:
                 "value": summary
             }
         ]
-        output=await utils.make_API_call_to_CCow_and_get_response("/v3/workflow-configs/"+id,"PATCH",req)
+        output=await utils.make_API_call_to_CCow_and_get_response("/v3/workflow-configs/"+id,"PATCH",req, ctx=ctx)
         logger.debug("update_workflow_summary output: {}\n".format(output))
         
         if isinstance(output, str) or  "error" in output:
@@ -893,7 +895,7 @@ async def update_workflow_summary(id:str,summary:str) -> dict | str:
         return "Facing internal error"
 
 @mcp.tool()
-async def update_workflow_mermaid_diagram(id:str,mermaidDiagram:str) -> dict | str:
+async def update_workflow_mermaid_diagram(id:str,mermaidDiagram:str, ctx: Context | None = None) -> dict | str:
     """
         Args:
             - id (str): workflow id. This can be fetched from path /status/id of 'get_workflows' output
@@ -909,7 +911,7 @@ async def update_workflow_mermaid_diagram(id:str,mermaidDiagram:str) -> dict | s
                 "value": mermaidDiagram
             }
         ]
-        output=await utils.make_API_call_to_CCow_and_get_response("/v3/workflow-configs/"+id,"PATCH",req)
+        output=await utils.make_API_call_to_CCow_and_get_response("/v3/workflow-configs/"+id,"PATCH",req, ctx=ctx)
         logger.debug("update_workflow_mermaid_diagram output: {}\n".format(output))
         
         if isinstance(output, str) or  "error" in output:
@@ -922,7 +924,7 @@ async def update_workflow_mermaid_diagram(id:str,mermaidDiagram:str) -> dict | s
         return "Facing internal error"
 
 @mcp.tool()
-async def modify_workflow(workflow_yaml: str, workflow_id: str) -> str:
+async def modify_workflow(workflow_yaml: str, workflow_id: str, ctx: Context | None = None) -> str:
     """
     Modify an existing workflow using YAML definition.
     
@@ -953,7 +955,7 @@ async def modify_workflow(workflow_yaml: str, workflow_id: str) -> str:
         logger.info(f"Modifying workflow with ID: {workflow_id}")
         logger.debug(f"Updated workflow YAML: {workflow_yaml}")
 
-        response =await utils.make_API_call_to_CCow_and_get_response(f"{constants.URL_WORKFLOW_CREATE}/{workflow_id}","PUT",workflow_yaml,type="yaml",return_raw=True)
+        response =await utils.make_API_call_to_CCow_and_get_response(f"{constants.URL_WORKFLOW_CREATE}/{workflow_id}","PUT",workflow_yaml,type="yaml",return_raw=True, ctx=ctx)
         logger.debug("create workflow output: {}\n".format(response))
 
         if response.status_code == 204:
@@ -973,7 +975,7 @@ async def modify_workflow(workflow_yaml: str, workflow_id: str) -> str:
         return "Facing internal error"
 
 @mcp.tool()
-async def list_workflow_predefined_variables() -> vo.WorkflowPredefinedVariableListVO:
+async def list_workflow_predefined_variables(ctx: Context | None = None) -> vo.WorkflowPredefinedVariableListVO:
     """
     Retrieve available predefined variables for workflow configuration.
     
@@ -993,7 +995,7 @@ async def list_workflow_predefined_variables() -> vo.WorkflowPredefinedVariableL
     try:
         logger.info("list_workflow_predefined_variables: \n")
 
-        output = await utils.make_GET_API_call_to_CCow(constants.URL_WORKFLOW_PREDEFINED_VARIABLES)
+        output = await utils.make_GET_API_call_to_CCow(constants.URL_WORKFLOW_PREDEFINED_VARIABLES, ctx)
         logger.debug("workflow predefined variables output: {}\n".format(output))
         
         if isinstance(output, str) or "error" in output:
@@ -1021,7 +1023,8 @@ async def create_workflow_custom_event(
     payload: List[vo.WorkflowCustomEventPayloadVO],
     categoryId: str = "7",
     eventType: str = "CUSTOM_EVENT",
-    confirm: bool = False
+    confirm: bool = False,
+    ctx: Context | None = None
 ) -> str:
     """
     Create a Workflow Catalog Custom Event.
@@ -1080,6 +1083,7 @@ async def create_workflow_custom_event(
             constants.URL_WORKFLOW_EVENTS,
             "POST",
             body,
+            ctx=ctx,
         )
         logger.debug("create_workflow_custom_event output: {}\n".format(output))
 
@@ -1104,7 +1108,8 @@ async def trigger_workflow(
     workflowConfigId: str,
     event: str,
     inputs: dict | None = None,
-    confirm: bool = False
+    confirm: bool = False,
+    ctx: Context | None = None
 ) -> str:
     """
     Trigger a workflow by the given workflow config id.
@@ -1127,7 +1132,7 @@ async def trigger_workflow(
             "page_size": 1,
         }
         bindings_resp = await utils.make_API_call_to_CCow_and_get_response(
-            f"{constants.URL_WORKFLOW_BINDINGS}", "GET", query
+            f"{constants.URL_WORKFLOW_BINDINGS}", "GET", query, ctx=ctx
         )
         logger.debug(f"trigger_workflow bindings_resp: {bindings_resp}")
 
@@ -1153,7 +1158,7 @@ async def trigger_workflow(
         required_fields: List[str] = []
         try:
             logger.info("Fetching workflow events to validate required fields")
-            events_resp = await utils.make_GET_API_call_to_CCow(constants.URL_WORKFLOW_EVENTS)
+            events_resp = await utils.make_GET_API_call_to_CCow(constants.URL_WORKFLOW_EVENTS, ctx)
 
             if isinstance(events_resp, dict) and events_resp.get("items"):
                 for ev in events_resp["items"]:
@@ -1202,7 +1207,7 @@ async def trigger_workflow(
 
 
         exec_resp = await utils.make_API_call_to_CCow_and_get_response(
-            constants.URL_WORKFLOW_BINDINGS_EXECUTE, "POST", body
+            constants.URL_WORKFLOW_BINDINGS_EXECUTE, "POST", body, ctx=ctx
         )
         logger.debug(f"trigger_workflow exec_resp: {exec_resp}")
 

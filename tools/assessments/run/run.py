@@ -9,10 +9,11 @@ from mcpconfig.config import mcp
 from constants import constants
 from tools.graphdb import graphdb
 from mcptypes import assessment_run_tool_types as vo
+from fastmcp import Context
 
 
 @mcp.tool()
-async def fetch_recent_assessment_runs(id: str) -> vo.AssessmentRunListVO:
+async def fetch_recent_assessment_runs(id: str, ctx: Context | None = None) -> vo.AssessmentRunListVO:
     """
         Get recent assessment run for given assessment id
 
@@ -39,7 +40,7 @@ async def fetch_recent_assessment_runs(id: str) -> vo.AssessmentRunListVO:
             - error (Optional[str]): An error message if any issues occurred during retrieval.
     """
     try:
-        output=await utils.make_GET_API_call_to_CCow(constants. URL_PLAN_INSTANCES + "?fields=basic&page=1&page_size=10&plan_id="+id)
+        output=await utils.make_GET_API_call_to_CCow(constants. URL_PLAN_INSTANCES + "?fields=basic&page=1&page_size=10&plan_id="+id, ctx)
         logger.debug("output: {}\n".format(output))
 
         if isinstance(output, str) or  "error" in output:
@@ -80,7 +81,7 @@ async def fetch_recent_assessment_runs(id: str) -> vo.AssessmentRunListVO:
         return vo.AssessmentRunListVO(error="Facing internal error")
 
 @mcp.tool()
-async def fetch_assessment_runs(id: str, page: int=1, pageSize: int=0) -> vo.AssessmentRunListVO:
+async def fetch_assessment_runs(id: str, page: int=1, pageSize: int=0, ctx: Context | None = None) -> vo.AssessmentRunListVO:
     """
         Get all assessment run for given assessment id
         Function accepts page number (page) and page size (pageSize) for pagination. If MCP client host unable to handle large response use page and pageSize, default page is 1
@@ -110,7 +111,7 @@ async def fetch_assessment_runs(id: str, page: int=1, pageSize: int=0) -> vo.Ass
             - error (Optional[str]): An error message if any issues occurred during retrieval.
     """
     try:
-        output=await utils.make_GET_API_call_to_CCow(f"{constants.URL_PLAN_INSTANCES}?fields=basic&page={page}&page_size={pageSize}&plan_id={id}")
+        output=await utils.make_GET_API_call_to_CCow(f"{constants.URL_PLAN_INSTANCES}?fields=basic&page={page}&page_size={pageSize}&plan_id={id}", ctx)
         logger.debug("output: {}\n".format(output))
 
         if page==0 and pageSize==0:
@@ -163,7 +164,7 @@ async def fetch_assessment_runs(id: str, page: int=1, pageSize: int=0) -> vo.Ass
         return vo.AssessmentRunListVO(error="Facing internal error")
 
 @mcp.tool()
-async def fetch_assessment_run_details(id: str) -> vo.ControlListVO:
+async def fetch_assessment_run_details(id: str, ctx: Context | None = None) -> vo.ControlListVO:
     """
         Get assessment run details for given assessment run id. This api will return many contorls, use page to get details pagewise.
         If output is large store it in a file.
@@ -196,7 +197,7 @@ async def fetch_assessment_run_details(id: str) -> vo.ControlListVO:
     """
 
     try:
-        output=await utils.make_GET_API_call_to_CCow(constants.URL_PLAN_INSTANCE_CONTROLS + "?fields=basic&is_leaf_control=true&plan_instance_id="+id)
+        output=await utils.make_GET_API_call_to_CCow(constants.URL_PLAN_INSTANCE_CONTROLS + "?fields=basic&is_leaf_control=true&plan_instance_id="+id, ctx)
         logger.debug("output: {}\n".format(json.dumps(output)))
         
         if isinstance(output, str) or  "error" in output:
@@ -214,7 +215,7 @@ async def fetch_assessment_run_details(id: str) -> vo.ControlListVO:
         return vo.ControlVO(error="Facing internal error")
 
 @mcp.tool()
-async def fetch_assessment_run_leaf_controls(id: str) ->  vo.ControlListVO:
+async def fetch_assessment_run_leaf_controls(id: str, ctx: Context | None = None) ->  vo.ControlListVO:
     """
         Get leaf controls for given assessment run id.
         If output is large store it in a file.
@@ -246,7 +247,7 @@ async def fetch_assessment_run_leaf_controls(id: str) ->  vo.ControlListVO:
             - error (Optional[str]): An error message if any issues occurred during retrieval.
     """
     try:
-        output=await utils.make_GET_API_call_to_CCow(constants.URL_PLAN_INSTANCE_CONTROLS +"?fields=basic&is_leaf_control=true&plan_instance_id="+id)
+        output=await utils.make_GET_API_call_to_CCow(constants.URL_PLAN_INSTANCE_CONTROLS +"?fields=basic&is_leaf_control=true&plan_instance_id="+id, ctx)
         logger.debug("output: {}\n".format(json.dumps(output)))
 
         if isinstance(output, str) or  "error" in output:
@@ -266,7 +267,7 @@ async def fetch_assessment_run_leaf_controls(id: str) ->  vo.ControlListVO:
         return vo.ControlListVO(error="Facing internal error")
 
 @mcp.tool()
-async def fetch_run_controls(name: str) -> vo.ControlListVO:
+async def fetch_run_controls(name: str, ctx: Context | None = None) -> vo.ControlListVO:
     """
         use this tool when you there is no result from the tool "execute_cypher_query".
         use this tool to get all controls that matches the given name.
@@ -299,7 +300,7 @@ async def fetch_run_controls(name: str) -> vo.ControlListVO:
             - error (Optional[str]): An error message if any issues occurred during retrieval.
     """
     try:
-        output=await utils.make_GET_API_call_to_CCow(f"{constants.URL_PLAN_INSTANCE_CONTROLS}?fields=basic&control_name_contains={name}&page=1&page_size=50")
+        output=await utils.make_GET_API_call_to_CCow(f"{constants.URL_PLAN_INSTANCE_CONTROLS}?fields=basic&control_name_contains={name}&page=1&page_size=50", ctx)
         logger.debug("output: {}\n".format(json.dumps(output)))
 
         if isinstance(output, str) or  "error" in output:
@@ -318,7 +319,7 @@ async def fetch_run_controls(name: str) -> vo.ControlListVO:
         return vo.ControlListVO(error="Facing internal error")
 
 @mcp.tool()
-async def fetch_run_control_meta_data(id: str) -> vo.ControlMetadataVO:
+async def fetch_run_control_meta_data(id: str, ctx: Context | None = None) -> vo.ControlMetadataVO:
     """
     Use this tool to retrieve control metadata for a given `control_id`, including:
 
@@ -340,7 +341,7 @@ async def fetch_run_control_meta_data(id: str) -> vo.ControlMetadataVO:
         - error (Optional[str]): An error message if any issues occurred during retrieval.
     """
     try:
-        output = await utils.make_GET_API_call_to_CCow(f"{constants.URL_PLAN_INSTANCE_CONTROLS}/{id}/plan-data")
+        output = await utils.make_GET_API_call_to_CCow(f"{constants.URL_PLAN_INSTANCE_CONTROLS}/{id}/plan-data", ctx)
         logger.debug("output: {}\n".format(json.dumps(output)))
         
         if isinstance(output, str) or  "error" in output:
@@ -357,7 +358,7 @@ async def fetch_run_control_meta_data(id: str) -> vo.ControlMetadataVO:
 
 # had to check whether this leaf control is required or not
 @mcp.tool()
-async def fetch_assessment_run_leaf_control_evidence(id: str) -> vo.ControlEvidenceListVO:
+async def fetch_assessment_run_leaf_control_evidence(id: str, ctx: Context | None = None) -> vo.ControlEvidenceListVO:
     """
         Get leaf control evidence for given assessment run control id.
 
@@ -373,7 +374,7 @@ async def fetch_assessment_run_leaf_control_evidence(id: str) -> vo.ControlEvide
             - error (Optional[str]): An error message if any issues occurred during retrieval.
     """
     try:
-        output=await utils.make_GET_API_call_to_CCow(constants.URL_PLAN_INSTANCE_EVIDENCES + "?plan_instance_control_id="+id)
+        output=await utils.make_GET_API_call_to_CCow(constants.URL_PLAN_INSTANCE_EVIDENCES + "?plan_instance_control_id="+id, ctx)
         logger.debug("output: {}\n".format(json.dumps(output)))
 
         if isinstance(output, str) or  "error" in output:
@@ -392,7 +393,7 @@ async def fetch_assessment_run_leaf_control_evidence(id: str) -> vo.ControlEvide
 
 
 @mcp.tool()
-async def fetch_controls(control_name:str = "") -> vo.ControlPromptVO:
+async def fetch_controls(control_name:str = "", ctx: Context | None = None) -> vo.ControlPromptVO:
     """
     To fetch controls.
     Args:
@@ -430,7 +431,7 @@ def generate_cypher_query_for_control(control_name: str =  "", unique_nodes: str
 
 
 @mcp.tool()
-async def fetch_evidence_records(id: str, compliantStatus: str = "") -> vo.RecordListVO:
+async def fetch_evidence_records(id: str, compliantStatus: str = "", ctx: Context | None = None) -> vo.RecordListVO:
     """
     Get evidence records for a given evidence ID with optional compliance status filtering.
     Returns max 50 records but counts all records for the summary.
@@ -467,7 +468,7 @@ async def fetch_evidence_records(id: str, compliantStatus: str = "") -> vo.Recor
             "isUserPriority": True,
             "considerFileSizeRestriction": True,
             "viewEvidenceFlow": True
-        },constants.URL_DATAHANDLER_FETCH_DATA)
+        },constants.URL_DATAHANDLER_FETCH_DATA, ctx=ctx)
         logger.debug("output: {}\n".format(json.dumps(output)))
 
         if isinstance(output, str) or  "error" in output:
@@ -540,7 +541,7 @@ async def fetch_evidence_records(id: str, compliantStatus: str = "") -> vo.Recor
         return vo.RecordListVO(error="Facing internal error")
     
 @mcp.tool()
-async def fetch_evidence_record_schema(id: str) -> vo.RecordSchemaListVO:
+async def fetch_evidence_record_schema(id: str, ctx: Context | None = None) -> vo.RecordSchemaListVO:
     """
     Get evidence record schema for a given evidence ID.
     Returns the schema of evidence record.
@@ -562,7 +563,7 @@ async def fetch_evidence_record_schema(id: str) -> vo.RecordSchemaListVO:
             "isUserPriority": True,
             "considerFileSizeRestriction": True,
             "viewEvidenceFlow": True
-        },constants.URL_DATAHANDLER_FETCH_DATA)
+        },constants.URL_DATAHANDLER_FETCH_DATA, ctx=ctx)
         logger.debug("output: {}\n".format(json.dumps(output)))
 
         if isinstance(output, str) or  "error" in output:
@@ -587,7 +588,7 @@ async def fetch_evidence_record_schema(id: str) -> vo.RecordSchemaListVO:
         return vo.RecordSchemaListVO(error="Facing internal error")       
 
 @mcp.tool()
-async def fetch_available_control_actions(assessmentName: str, controlNumber: str = "", controlAlias: str = "", evidenceName: str = "") -> vo.RecordListVO:
+async def fetch_available_control_actions(assessmentName: str, controlNumber: str = "", controlAlias: str = "", evidenceName: str = "", ctx: Context | None = None) -> vo.RecordListVO:
     """
         This tool should be used for handling control-related actions such as create, update, or to retrieve available actions for a given control.
 
@@ -625,7 +626,7 @@ async def fetch_available_control_actions(assessmentName: str, controlNumber: st
             "evidenceName": evidenceName,
             "isRulesReq":True,
             "triggerType":"userAction"
-        },constants.URL_FETCH_AVAILABLE_ACTIONS)
+        },constants.URL_FETCH_AVAILABLE_ACTIONS, ctx=ctx)
         logger.debug("output: {}\n".format(json.dumps(output)))
 
         if isinstance(output, str) or  "error" in output:
@@ -655,7 +656,7 @@ async def fetch_available_control_actions(assessmentName: str, controlNumber: st
         return vo.ActionsListVO(error="Facing internal error")
     
 @mcp.tool()
-async def fetch_assessment_available_actions(name: str = "") -> vo.RecordListVO:
+async def fetch_assessment_available_actions(name: str = "", ctx: Context | None = None) -> vo.RecordListVO:
     """
         Get **actions available on assessment** for given assessment name. 
         Once fetched, ask user to confirm to execute the action, then use 'execute_action' tool with appropriate parameters to execute the action.
@@ -677,7 +678,7 @@ async def fetch_assessment_available_actions(name: str = "") -> vo.RecordListVO:
             "assessmentName": name,
             "isRulesReq":True,
             "triggerType":"userAction"
-        },constants.URL_FETCH_AVAILABLE_ACTIONS)
+        },constants.URL_FETCH_AVAILABLE_ACTIONS, ctx=ctx)
         logger.debug("output: {}\n".format(json.dumps(output)))
 
         if isinstance(output, str) or  "error" in output:
@@ -708,7 +709,7 @@ async def fetch_assessment_available_actions(name: str = "") -> vo.RecordListVO:
     
 
 @mcp.tool()
-async def fetch_evidence_available_actions(assessment_name: str = "", control_number: str="", control_alias: str ="", evidence_name: str ="") -> vo.ActionsListVO:
+async def fetch_evidence_available_actions(assessment_name: str = "", control_number: str="", control_alias: str ="", evidence_name: str ="", ctx: Context | None = None) -> vo.ActionsListVO:
     """
         Get actions available on evidence for given evidence name. 
         If the required parameters are not provided, use the existing tools to retrieve them.
@@ -737,7 +738,7 @@ async def fetch_evidence_available_actions(assessment_name: str = "", control_nu
             "evidenceName": evidence_name,
             "isRulesReq":True,
             "triggerType":"userAction"
-        },constants.URL_FETCH_AVAILABLE_ACTIONS)
+        },constants.URL_FETCH_AVAILABLE_ACTIONS, ctx=ctx)
         logger.debug("output: {}\n".format(json.dumps(output)))
 
         if isinstance(output, str) or  "error" in output:
@@ -767,7 +768,7 @@ async def fetch_evidence_available_actions(assessment_name: str = "", control_nu
         return vo.ActionsListVO(error="Facing internal error")
 
 @mcp.tool()
-async def fetch_general_available_actions(type: str = "") -> vo.ActionsListVO:
+async def fetch_general_available_actions(type: str = "", ctx: Context | None = None) -> vo.ActionsListVO:
     """
         Get general actions available on assessment, control & evidence. 
         Once fetched, ask user to confirm to execute the action, then use 'execute_action' tool with appropriate parameters to execute the action.
@@ -791,7 +792,7 @@ async def fetch_general_available_actions(type: str = "") -> vo.ActionsListVO:
             "targetType" : type,
             "isRulesReq":True,
             "triggerType":"userAction"
-        },constants.URL_FETCH_AVAILABLE_ACTIONS)
+        },constants.URL_FETCH_AVAILABLE_ACTIONS, ctx=ctx)
         logger.debug("output: {}\n".format(json.dumps(output)))
 
         if isinstance(output, str) or  "error" in output:
@@ -821,7 +822,7 @@ async def fetch_general_available_actions(type: str = "") -> vo.ActionsListVO:
         return vo.ActionsListVO(error="Facing internal error")
      
 @mcp.tool()
-async def fetch_automated_controls_of_an_assessment(assessment_id: str = "") -> vo.AutomatedControlListVO:
+async def fetch_automated_controls_of_an_assessment(assessment_id: str = "", ctx: Context | None = None) -> vo.AutomatedControlListVO:
     
     """
     To fetch the only the **automated controls** for a given assessment.
@@ -845,7 +846,7 @@ async def fetch_automated_controls_of_an_assessment(assessment_id: str = "") -> 
         logger.info("fetch_automated_controls: \n")
 
         output=await utils.make_GET_API_call_to_CCow(constants.URL_PLAN_CONTROLS + 
-         "?is_automated=true&fields=basic&skip_prereq_ctrl_priv_check=false&page=1&page_size=100&plan_id=" + assessment_id)
+         "?is_automated=true&fields=basic&skip_prereq_ctrl_priv_check=false&page=1&page_size=100&plan_id=" + assessment_id, ctx)
         logger.debug("output: {}\n".format(output))
 
         if isinstance(output, str) or  "error" in output:
@@ -876,7 +877,7 @@ async def fetch_automated_controls_of_an_assessment(assessment_id: str = "") -> 
 
 
 @mcp.tool()
-async def execute_action(assessmentId: str, assessmentRunId: str, actionBindingId: str , assessmentRunControlId: str="", assessmentRunControlEvidenceId: str="", evidenceRecordIds: List[str]=[], inputs: dict[str, Any] = None) -> vo.TriggerActionVO:
+async def execute_action(assessmentId: str, assessmentRunId: str, actionBindingId: str , assessmentRunControlId: str="", assessmentRunControlEvidenceId: str="", evidenceRecordIds: List[str]=[], inputs: dict[str, Any] = None, ctx: Context | None = None) -> vo.TriggerActionVO:
     """
         Use this tool when the user asks about actions such as create, update or other action-related queries.
 
@@ -939,7 +940,7 @@ async def execute_action(assessmentId: str, assessmentRunId: str, actionBindingI
 
         logger.debug("execute_action request body: {}\n".format(json.dumps(req_body)))
 
-        output=await utils.make_API_call_to_CCow(req_body,constants.URL_ACTIONS_EXECUTIONS)
+        output=await utils.make_API_call_to_CCow(req_body,constants.URL_ACTIONS_EXECUTIONS, ctx=ctx)
         logger.debug("output: {}\n".format(json.dumps(output)))
 
         if isinstance(output, str) or  "error" in output:

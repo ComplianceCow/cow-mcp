@@ -69,4 +69,4 @@ if __name__ == "__main__":
     else:
         # mcp.settings.auth = AuthSettings(issuer_url=host)
         # mcp._auth_server_provider = CCowOAuthProvider()
-        mcp.run(transport='streamable-http')
+        mcp.run(transport='streamable-http',port=portInInt,host='0.0.0.0')

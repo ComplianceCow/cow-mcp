@@ -6,9 +6,10 @@ from utils.debug import logger
 from mcpconfig.config import mcp
 from constants import constants
 from mcptypes import assessment_config_tool_types as vo
+from fastmcp import Context
 
 @mcp.tool()
-async def list_all_assessment_categories() -> vo.CategoryListVO:
+async def list_all_assessment_categories(ctx: Context | None = None) -> vo.CategoryListVO:
     """
         Get all assessment categories
         
@@ -22,7 +23,7 @@ async def list_all_assessment_categories() -> vo.CategoryListVO:
     try:
         logger.info("get_all_assessment_categories: \n")
 
-        output=await utils.make_GET_API_call_to_CCow(constants.URL_ASSESSMENT_CATEGORIES)
+        output=await utils.make_GET_API_call_to_CCow(constants.URL_ASSESSMENT_CATEGORIES, ctx)
         
         if isinstance(output, str) or  "error" in output:
             logger.error("list_all_assessment_categories error: {}\n".format(output))
@@ -43,7 +44,7 @@ async def list_all_assessment_categories() -> vo.CategoryListVO:
         return vo.CategoryListVO(error="Facing internal error")
 
 @mcp.tool()
-async def list_assessments(categoryId: str = "", categoryName: str = "", assessmentName: str = "") -> vo.AssessmentListVO:
+async def list_assessments(categoryId: str = "", categoryName: str = "", assessmentName: str = "", ctx: Context | None = None) -> vo.AssessmentListVO:
     """
         Get all assessments
         Args:
@@ -62,7 +63,7 @@ async def list_assessments(categoryId: str = "", categoryName: str = "", assessm
 
         logger.debug("payload: {} {}\n".format(categoryId, categoryName))
 
-        output=await utils.make_GET_API_call_to_CCow(constants.URL_PLANS+"?fields=basic&category_id="+categoryId+"&category_name_contains="+categoryName+"&name_contains="+assessmentName)
+        output=await utils.make_GET_API_call_to_CCow(constants.URL_PLANS+"?fields=basic&category_id="+categoryId+"&category_name_contains="+categoryName+"&name_contains="+assessmentName, ctx)
         if isinstance(output, str) or  "error" in output:
             logger.error("list_assessments error: {}\n".format(output))
             return vo.AssessmentListVO(error="Facing internal error")

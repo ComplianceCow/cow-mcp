@@ -13,10 +13,11 @@ from mcpconfig.config import mcp
 from constants import constants
 from mcptypes import workflow_tools_type as vo
 import yaml
+from fastmcp import Context
 
 
 @mcp.tool()
-async def create_assessment(yaml_content: str) -> dict:
+async def create_assessment(yaml_content: str, ctx: Context | None = None) -> dict:
     """
     Create a new assessment from YAML definition.
     
@@ -70,7 +71,7 @@ async def create_assessment(yaml_content: str) -> dict:
 
         # Fetch all categories to check if category exists
         try:
-            categories_resp = await utils.make_GET_API_call_to_CCow(constants.URL_ASSESSMENT_CATEGORIES)
+            categories_resp = await utils.make_GET_API_call_to_CCow(constants.URL_ASSESSMENT_CATEGORIES, ctx)
             
             # Handle error response
             if isinstance(categories_resp, str):
@@ -98,7 +99,7 @@ async def create_assessment(yaml_content: str) -> dict:
             if not category_id:
                 logger.info(f"Category '{category_name}' not found, creating new category\n")
                 create_category_payload = {"name": category_name}
-                create_category_resp_raw = await utils.make_API_call_to_CCow_and_get_response(constants.URL_ASSESSMENT_CATEGORIES,"POST",create_category_payload,return_raw=True)
+                create_category_resp_raw = await utils.make_API_call_to_CCow_and_get_response(constants.URL_ASSESSMENT_CATEGORIES,"POST",create_category_payload,return_raw=True, ctx=ctx)
                 create_category_resp = create_category_resp_raw.json()
                 # Handle error response from category creation
                 if isinstance(create_category_resp, str):
@@ -145,7 +146,7 @@ async def create_assessment(yaml_content: str) -> dict:
 
         logger.debug("create_assessment payload: {}\n".format(json.dumps({**payload, "fileContent": "<base64-encoded>"})))
         
-        resp_raw = await utils.make_API_call_to_CCow_and_get_response(constants.URL_ASSESSMENTS,"POST",payload,return_raw=True)
+        resp_raw = await utils.make_API_call_to_CCow_and_get_response(constants.URL_ASSESSMENTS,"POST",payload,return_raw=True, ctx=ctx)
         resp = resp_raw.json()
         logger.debug("create_assessment output: {}\n".format(json.dumps(resp) if isinstance(resp, dict) else resp))
         

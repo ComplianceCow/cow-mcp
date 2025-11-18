@@ -3,6 +3,8 @@ import httpx
 import traceback
 from utils.debug import logger
 from constants.constants import headers, host
+from fastmcp import Context
+from mcpconfig.config import get_cc_headers
 
 # from mcpconfig import get_access_token
 from mcp.server.auth.middleware.auth_context import get_access_token
@@ -10,17 +12,11 @@ from mcptypes.error_type import ErrorVO,ErrorResponseVO,ErrorWorkflowVO
 import re
 
 
-async def make_API_call_to_CCow_and_get_response(uriSuffix: str,method: str,request_body: dict | list | str = None, type: str = "json",return_raw: bool = False):
+async def make_API_call_to_CCow_and_get_response(uriSuffix: str,method: str,request_body: dict | list | str = None, type: str = "json",return_raw: bool = False, ctx: Context | None = None):
     logger.info(f"uriSuffix: {uriSuffix}, Method: {method}, Type: {type}")
     async with httpx.AsyncClient() as client:
         try:
-            requestHeader=headers.copy()
-            accessToken=get_access_token()
-            if accessToken is not None:
-                requestHeader=headers.copy()
-                requestHeader["Authorization"]=accessToken.token
-            if accessToken:
-                requestHeader["Authorization"] = accessToken.token
+            requestHeader = get_cc_headers(ctx)
 
             if type == "yaml":
                 requestHeader["Content-Type"] = "application/x-yaml"
@@ -65,15 +61,11 @@ async def make_API_call_to_CCow_and_get_response(uriSuffix: str,method: str,requ
             return "Facing error  :  "+str(e)
 
 
-async def make_API_call_to_CCow(request_body: dict | str,uriSuffix: str, type: str = "json") -> dict[str, Any] | str  :
+async def make_API_call_to_CCow(request_body: dict | str,uriSuffix: str, type: str = "json", ctx: Context | None = None) -> dict[str, Any] | str  :
     logger.info(f"uriSuffix: {uriSuffix}")
     async with httpx.AsyncClient() as client:
         try:
-            requestHeader=headers.copy()
-            accessToken=get_access_token()
-            if accessToken is not None:
-                requestHeader=headers.copy()
-                requestHeader["Authorization"]=accessToken.token
+            requestHeader = get_cc_headers(ctx)
 
             response = None
             if type=="yaml":
@@ -98,15 +90,11 @@ async def make_API_call_to_CCow(request_body: dict | str,uriSuffix: str, type: s
             logger.error("make_API_call_to_CCow error: {}\n".format(e))
             return "Facing error  :  "+str(e)
 
-async def make_GET_API_call_to_CCow(uriSuffix: str) -> dict[str, Any] | str  :
+async def make_GET_API_call_to_CCow(uriSuffix: str,ctx: Context | None = None) -> dict[str, Any] | str  :
     logger.info(f"uriSuffix: {uriSuffix}")
     async with httpx.AsyncClient() as client:
         try:
-            requestHeader=headers.copy()
-            accessToken=get_access_token()
-            if accessToken is not None:
-                requestHeader=headers.copy()
-                requestHeader["Authorization"]=accessToken.token
+            requestHeader = get_cc_headers(ctx)
             # response = await client.post("http://localhost:14600/v1/llm/"+uriSuffix,json=request_body, headers={"Authorization": "db4f39f2-45b1-445c-9b05-5cd4d5f04990"}, timeout=300.0)
             response = await client.get(host+uriSuffix, headers=requestHeader, timeout=60.0)
             if response.status_code < 200 or response.status_code > 299:
