@@ -379,7 +379,8 @@ async def list_assessments(
                 )
         
         logger.debug("list_assessments: Found {} assessment(s)\n".format(len(assessments)))
-        
+        logger.debug(f"list_assessments: All assessments:\n{assessments}")      
+
         return assessment_vo.AssessmentListVO(assessments=assessments)
         
     except Exception as e:
@@ -389,16 +390,16 @@ async def list_assessments(
 
 
 @mcp.tool()
-async def list_assessment_controls(
+async def list_assessment_control_configs(
     assessmentId: str
 ) -> dict:
     """
-    List all controls for a given assessment id
+    List all control configs for a given assessment id
     
-    This function retrieves all controls for an assessment
+    This function retrieves all control configs for an assessment
     
     Args:
-        assessmentId (str): The assessment ID (plan ID) to list controls for.
+        assessmentId (str): The assessment ID (plan ID) to list control configs for.
     
     Returns:
         Dict with success status and controls:
@@ -412,10 +413,10 @@ async def list_assessment_controls(
         - error (str, optional): Error message if request failed
     """
     try:
-        logger.info("list_assessment_controls: \n")
+        logger.info("list_assessment_control_configs: \n")
         
         if not assessmentId or not str(assessmentId).strip():
-            logger.error("list_assessment_controls error: assessmentId is mandatory\n")
+            logger.error("list_assessment_control_configs error: assessmentId is mandatory\n")
             return {"success": False, "error": "assessmentId is mandatory"}
         
         assessment_id = str(assessmentId).strip()
@@ -427,15 +428,18 @@ async def list_assessment_controls(
         
         # Recursively fetch pages using TotalPage from response (max 10 pages)
         while has_next and cur_page <= max_pages:
-            query_params = f"?page={cur_page}&page_size={page_size}&plan_id={assessment_id}&fields=basic&is_leaf_control=true"
-            logger.debug(f"list_assessment_controls fetching page {cur_page}: {query_params}\n")
+            query_params = f"?page={cur_page}&page_size={page_size}&plan_id={assessment_id}&fields=basic&is_leaf_control=true&include_additional_context=true"
+            logger.debug(f"list_assessment_control_configs fetching page {cur_page}: {query_params}\n")
             
             output = await utils.make_GET_API_call_to_CCow(constants.URL_PLAN_CONTROLS + query_params)
             
+            logger.error("list_assessment_control_configs page: {}\noutput: {}\n".format(cur_page, output))
+
+
             # Handle error response
             if isinstance(output, str) or (isinstance(output, dict) and "error" in output):
                 if cur_page == 1:
-                    logger.error("list_assessment_controls error: {}\n".format(output))
+                    logger.error("list_assessment_control_configs error: {}\n".format(output))
                     return {"success": False, "error": "Failed to fetch controls"}
                 # If error on subsequent pages, break and return what we have
                 has_next = False
@@ -447,7 +451,7 @@ async def list_assessment_controls(
                 
                 # If items is empty, return what we have
                 if not items:
-                    logger.info(f"list_assessment_controls: No more items found at page {cur_page}\n")
+                    logger.info(f"list_assessment_control_configs: No more items found at page {cur_page}\n")
                     break
                 
                 # Abstract and add only necessary fields
@@ -457,7 +461,8 @@ async def list_assessment_controls(
                             "id": item.get("id", ""),
                             "name": item.get("name", ""),
                             "alias": item.get("alias", ""),
-                            "controlNumber": item.get("displayable", "")
+                            "controlNumber": item.get("displayable", ""),
+                            "additionalContext": item.get("additionalContext", "")
                         }
                         all_controls.append(abstracted_control)
                 
@@ -466,17 +471,20 @@ async def list_assessment_controls(
                 cur_page += 1
                 has_next = cur_page <= total_pages
                 
-                logger.debug(f"list_assessment_controls: Page {cur_page - 1}, TotalPages: {total_pages}, HasNext: {has_next}\n")
+                logger.debug(f"list_assessment_control_configs: Page {cur_page - 1}, TotalPages: {total_pages}, HasNext: {has_next}\n")
             else:
                 # Invalid response structure, stop pagination
                 has_next = False
         
-        logger.info(f"list_assessment_controls: Found {len(all_controls)} control(s) across {cur_page - 1} page(s)\n")
+        logger.info(f"list_assessment_control_configs: Found {len(all_controls)} control(s) across {cur_page - 1} page(s)\n")
+
+        logger.info(f"list_assessment_control_configs: Final All control : \n {all_controls}")
+
         return {"success": True, "controls": all_controls, "totalCount": len(all_controls)}
         
     except Exception as e:
         logger.error(traceback.format_exc())
-        logger.error("list_assessment_controls error: {}\n".format(e))
+        logger.error("list_assessment_control_configs error: {}\n".format(e))
         return {"success": False, "error": f"Unexpected error listing assessment controls: {e}"}
 
 
@@ -489,9 +497,9 @@ async def create_control_config(
     description: str = ""
 ) -> dict:
     """
-    Create a new control in an assessment.
+    Create a new control config in an assessment.
     
-    This function creates a new control with the specified details.
+    This tool creates a new control config with the specified details.
     
     Args:
         assessmentId (str): The assessment ID (plan ID) to create the control in.
@@ -510,14 +518,14 @@ async def create_control_config(
         - error (str, optional): Error message if request failed
     """
     try:
-        logger.info("create_control: \n")
+        logger.info("create_control_config: \n")
         
         if not assessmentId or not str(assessmentId).strip():
-            logger.error("create_control error: assessmentId is mandatory\n")
+            logger.error("create_control_config error: assessmentId is mandatory\n")
             return {"success": False, "error": "assessmentId is mandatory"}
         
         if not name or not str(name).strip():
-            logger.error("create_control error: name is mandatory\n")
+            logger.error("create_control_config error: name is mandatory\n")
             return {"success": False, "error": "name is mandatory"}
         
         # Build payload
@@ -530,7 +538,7 @@ async def create_control_config(
             "isPreRequisite": False
         }
         
-        logger.debug("create_control payload: {}\n".format(json.dumps(payload)))
+        logger.debug("create_control_config payload: {}\n".format(json.dumps(payload)))
         
         # Make API call
         resp_raw = await utils.make_API_call_to_CCow_and_get_response(
@@ -541,17 +549,17 @@ async def create_control_config(
         )
         
         resp = resp_raw.json()
-        logger.debug("create_control output: {}\n".format(json.dumps(resp) if isinstance(resp, dict) else resp))
+        logger.debug("create_control_config output: {}\n".format(json.dumps(resp) if isinstance(resp, dict) else resp))
         
         # Handle error response
         if isinstance(resp, str):
-            logger.error("create_control error: {}\n".format(resp))
+            logger.error("create_control_config error: {}\n".format(resp))
             return {"success": False, "error": resp}
         
         if isinstance(resp, dict):
             # Check for error fields
             if "Message" in resp:
-                logger.error("create_control error: {}\n".format(resp))
+                logger.error("create_control_config error: {}\n".format(resp))
                 return {"success": False, "error": resp}
             
             # Abstract and return only necessary fields
@@ -561,16 +569,16 @@ async def create_control_config(
                 "alias": resp.get("alias", "")
             }
             
-            logger.info(f"create_control: Successfully created control with ID: {control.get('id')}\n")
+            logger.info(f"create_control_config: Successfully created control with ID: {control.get('id')}\n")
             return {"success": True, "control": control}
         
         # Fallback: wrap unexpected response type
-        logger.error("create_control error: Unexpected response type: {}\n".format(type(resp)))
+        logger.error("create_control_config error: Unexpected response type: {}\n".format(type(resp)))
         return {"success": False, "error": f"Unexpected response type: {resp}"}
         
     except Exception as e:
         logger.error(traceback.format_exc())
-        logger.error("create_control error: {}\n".format(e))
+        logger.error("create_control_config error: {}\n".format(e))
         return {"success": False, "error": f"Unexpected error creating control: {e}"}
 
 
@@ -585,13 +593,13 @@ async def attach_citation_to_control_config(
     confirm: bool = False
 ) -> dict:
     """
-    Attach citation(s) to a control in an assessment.
+    Attach citation to a control in an assessment.
     
-    This function attaches one or more citations from an authority document to a control.
-    The citation details should come from the get similar controls suggestions.
-    Use control existing or create new control on assessment.
+    This tool attach citation from an authority document to a control.
+    The citation details should come from the get similar control config suggestions.
+    Use control config existing or create new control config on assessment.
     
-    🚨 CRITICAL: Assessment and control MUST be user-selected and confirmed before execution.
+    🚨 CRITICAL: Assessment and control config MUST be user-selected and confirmed before execution.
     - If confirm=False, returns assessment and control IDs for user confirmation.
     - Only proceeds with attachment when confirm=True and user has explicitly confirmed.
     - NEVER assume or auto-select assessment or control - they must be user-selected.
@@ -625,30 +633,30 @@ async def attach_citation_to_control_config(
         - error (str, optional): Error message if request failed
     """
     try:
-        logger.info("attach_citation_to_control: \n")
+        logger.info("attach_citation_to_control_config: \n")
         
         if not assessmentId or not str(assessmentId).strip():
-            logger.error("attach_citation_to_control error: assessmentId is mandatory\n")
+            logger.error("attach_citation_to_control_config error: assessmentId is mandatory\n")
             return {"success": False, "error": "assessmentId is mandatory"}
         
         if not controlId or not str(controlId).strip():
-            logger.error("attach_citation_to_control error: controlId is mandatory\n")
+            logger.error("attach_citation_to_control_config error: controlId is mandatory\n")
             return {"success": False, "error": "controlId is mandatory"}
         
         if not authorityDocument or not str(authorityDocument).strip():
-            logger.error("attach_citation_to_control error: authorityDocument is mandatory\n")
+            logger.error("attach_citation_to_control_config error: authorityDocument is mandatory\n")
             return {"success": False, "error": "authorityDocument is mandatory"}
         
         if not controlIdsInAuthorityDocument or not isinstance(controlIdsInAuthorityDocument, list) or len(controlIdsInAuthorityDocument) == 0:
-            logger.error("attach_citation_to_control error: controlIdsInAuthorityDocument must be a non-empty list\n")
+            logger.error("attach_citation_to_control_config error: controlIdsInAuthorityDocument must be a non-empty list\n")
             return {"success": False, "error": "controlIdsInAuthorityDocument must be a non-empty list"}
         
         if not sortId or not str(sortId).strip():
-            logger.error("attach_citation_to_control error: sortId is mandatory\n")
+            logger.error("attach_citation_to_control_config error: sortId is mandatory\n")
             return {"success": False, "error": "sortId is mandatory"}
         
         if not controlNames or not isinstance(controlNames, list) or len(controlNames) == 0:
-            logger.error("attach_citation_to_control error: controlNames must be a non-empty list\n")
+            logger.error("attach_citation_to_control_config error: controlNames must be a non-empty list\n")
             return {"success": False, "error": "controlNames must be a non-empty list"}
         
         assessment_id = str(assessmentId).strip()
@@ -656,10 +664,10 @@ async def attach_citation_to_control_config(
         
         # If confirm=False, return preview for user confirmation
         if not confirm:
-            logger.info("attach_citation_to_control: Returning confirmation preview\n")
+            logger.info("attach_citation_to_control_config: Returning confirmation preview\n")
             return {
                 "success": True,
-                "message": "Confirmation required before attaching citation to control",
+                "message": "Confirmation required before attaching citation to control config",
                 "assessmentId": assessment_id,
                 "controlId": control_id,
                 "citationDetails": {
@@ -668,7 +676,7 @@ async def attach_citation_to_control_config(
                     "sortId": str(sortId).strip(),
                     "controlNames": controlNames
                 },
-                "next_step": "Review the assessment and control IDs above. If correct, re-run with confirm=True to attach the citation."
+                "next_step": "Review the assessment and control config ID above. If correct, re-run with confirm=True to attach the citation."
             }
         
         # Build payload
@@ -684,7 +692,7 @@ async def attach_citation_to_control_config(
             ]
         }
         
-        logger.debug("attach_citation_to_control payload: {}\n".format(json.dumps(payload)))
+        logger.debug("attach_citation_to_control_config payload: {}\n".format(json.dumps(payload)))
         
         # Make API call
         resp = await utils.make_API_call_to_CCow_and_get_response(
@@ -692,17 +700,17 @@ async def attach_citation_to_control_config(
             "POST",
             payload
         )
-        logger.debug("attach_citation_to_control output: {}\n".format(json.dumps(resp) if isinstance(resp, dict) else resp))
+        logger.debug("attach_citation_to_control_config output: {}\n".format(json.dumps(resp) if isinstance(resp, dict) else resp))
         
         # Handle error response
         if isinstance(resp, str):
-            logger.error("attach_citation_to_control error: {}\n".format(resp))
+            logger.error("attach_citation_to_control_config error: {}\n".format(resp))
             return {"success": False, "error": resp}
         
         if isinstance(resp, dict):
             # Check for error fields
             if "Message" in resp:
-                logger.error("attach_citation_to_control error: {}\n".format(resp))
+                logger.error("attach_citation_to_control_config error: {}\n".format(resp))
                 return {"success": False, "error": resp}
             
             # Abstract and return only necessary fields
@@ -721,7 +729,7 @@ async def attach_citation_to_control_config(
                     }
                     abstracted_citations.append(abstracted_citation)
 
-            logger.info(f"attach_citation_to_control: Successfully attached {len(abstracted_citations)} citation(s)\n")
+            logger.info(f"attach_citation_to_control_config: Successfully attached {len(abstracted_citations)} citation(s)\n")
             
             # Sync CCF IDs after successful citation attachment
             try:
@@ -730,9 +738,9 @@ async def attach_citation_to_control_config(
                     "authorityDocument": str(authorityDocument).strip(),
                     "updateControlLinking": True,
                     "controlId": control_id,
-                    "syncGraph": True
+                    # "syncGraph": True
                 }
-                logger.debug("attach_citation_to_control: Syncing CCF IDs with payload: {}\n".format(json.dumps(sync_payload)))
+                logger.debug("attach_citation_to_control_config: Syncing CCF IDs with payload: {}\n".format(json.dumps(sync_payload)))
                 
                 sync_resp = await utils.make_API_call_to_CCow_and_get_response(
                     constants.URL_PLANS_SYNC_CCFID,
@@ -743,25 +751,25 @@ async def attach_citation_to_control_config(
                 
                 # Log sync result but don't fail the citation attachment if sync fails
                 if isinstance(sync_resp, str):
-                    logger.warning(f"attach_citation_to_control: CCF ID sync returned error (citation still attached): {sync_resp}\n")
+                    logger.warning(f"attach_citation_to_control_config: CCF ID sync returned error (citation still attached): {sync_resp}\n")
                 elif isinstance(sync_resp, dict) and ("Message" in sync_resp or "error" in sync_resp):
-                    logger.warning(f"attach_citation_to_control: CCF ID sync returned error (citation still attached): {sync_resp}\n")
+                    logger.warning(f"attach_citation_to_control_config: CCF ID sync returned error (citation still attached): {sync_resp}\n")
                 else:
-                    logger.info(f"attach_citation_to_control: Successfully synced CCF IDs\n")
+                    logger.info(f"attach_citation_to_control_config: Successfully synced CCF IDs\n")
             except Exception as sync_error:
                 # Log sync error but don't fail the citation attachment
-                logger.warning(f"attach_citation_to_control: Failed to sync CCF IDs (citation still attached): {sync_error}\n")
+                logger.warning(f"attach_citation_to_control_config: Failed to sync CCF IDs (citation still attached): {sync_error}\n")
                 logger.debug(traceback.format_exc())
             
-            return {"success": True, "citations": abstracted_citations, "next_action": "create sql rule"}
+            return {"success": True, "citations": abstracted_citations, "next_action": "fetch control source summary"}
         
         # Fallback: wrap unexpected response type
-        logger.error("attach_citation_to_control error: Unexpected response type: {}\n".format(type(resp)))
+        logger.error("attach_citation_to_control_config error: Unexpected response type: {}\n".format(type(resp)))
         return {"success": False, "error": f"Unexpected response type: {resp}"}
         
     except Exception as e:
         logger.error(traceback.format_exc())
-        logger.error("attach_citation_to_control error: {}\n".format(e))
+        logger.error("attach_citation_to_control_config error: {}\n".format(e))
         return {"success": False, "error": f"Unexpected error attaching citation to control: {e}"}
 
 
@@ -931,3 +939,75 @@ async def create_sql_rule_and_attach(
         logger.error(traceback.format_exc())
         logger.error("create_sql_rule_and_attach error: {}\n".format(e))
         return {"success": False, "error": f"Unexpected error creating SQL rule: {e}"}
+
+@mcp.tool()
+async def fetch_control_source_summary(controlId: str) -> dict:
+    """
+    Fetch aggregated source summary for a control config, including linked control configs, evidences (including schema), and lineage depth.
+    this is a fallback to gather SQL rule context for a control config.
+
+    Primary flow: use graph schema + lineage to design SQL rules. When the graph lacks
+    evidence metadata, use this tool with a control config ID.
+    This will provide linked control configs, evidences (including schema), and lineage depth.
+    Use this to gather SQL rule context for a control config.
+
+    Args:
+        controlId (str): Plan control ID provided by the user (mandatory).
+
+    Returns:
+        Dict containing:
+            - success (bool): API invocation status.
+            - data (dict, optional): Source summary (lineage, evidence, schema) on success.
+            - error (str, optional): Validation or API error details.
+    """
+    try:
+        logger.info("fetch_control_source_summary: \n")
+
+        if not controlId or not str(controlId).strip():
+            logger.error("fetch_control_source_summary error: controlId is mandatory\n")
+            return {"success": False, "error": "controlId is mandatory"}
+
+        payload = {"controlID": str(controlId).strip()}
+        logger.debug(
+            "fetch_control_source_summary payload: {}\n".format(json.dumps(payload))
+        )
+
+        resp_raw = await utils.make_API_call_to_CCow_and_get_response(
+            constants.URL_PLAN_CONTROLS_FETCH_SOURCE_SUMMARY,
+            "POST",
+            payload,
+            return_raw=True,
+        )
+
+        resp = resp_raw.json()
+        logger.debug(
+            "fetch_control_source_summary output: {}\n".format(
+                json.dumps(resp) if isinstance(resp, dict) else resp
+            )
+        )
+
+        if isinstance(resp, str):
+            logger.error("fetch_control_source_summary error: {}\n".format(resp))
+            return {"success": False, "error": resp}
+
+        if isinstance(resp, dict):
+            if "Message" in resp:
+                logger.error("fetch_control_source_summary error: {}\n".format(resp))
+                return {"success": False, "error": resp}
+
+            return {"success": True, "data": resp, "next_action": "create sql rule"}
+
+        logger.error(
+            "fetch_control_source_summary error: Unexpected response type: {}\n".format(
+                type(resp)
+            )
+        )
+        return {"success": False, "error": f"Unexpected response type: {resp}", "next_action": "create sql rule and attach"}
+
+    except Exception as e:
+        logger.error(traceback.format_exc())
+        logger.error("fetch_control_source_summary error: {}\n".format(e))
+        return {
+            "success": False,
+            "error": f"Unexpected error fetching control source summary: {e}",
+        }
