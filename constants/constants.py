@@ -33,6 +33,7 @@ URL_ASSESSMENTS = "/v1/assessments"
 
 # ASSESSMENT CONTROLS
 URL_PLAN_CONTROLS = "/v1/plan-controls"
+URL_PLAN_CONTROLS_FETCH_SOURCE_SUMMARY = "/v1/plan-controls/fetch-source-summary"
 URL_GET_SIMILAR_CONTROLS = "/v1/llm/get-similar-controls"
 URL_PLAN_CONTROL_CITATIONS_BATCH = "/v1/plan-controls/assessment-control-citations/batch"
 URL_PLANS_SYNC_CCFID = "/v1/plans/sync-ccfid"
