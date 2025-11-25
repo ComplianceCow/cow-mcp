@@ -840,11 +840,17 @@ async def create_sql_rule_and_attach(
     sqlrule: str,
     referedEvidenceNames: List[str],
     newEvidenceName: str,
+    confirm: bool = False,
 ) -> dict:
     """
     Create a SQL rule with control and evidence mappings.
     
-    This function creates a SQL rule and associates it with a control and evidence configs.
+    This tool creates a SQL rule and associates it with a control and evidence configs.
+    Important: The SQL query must always be shown to the user before calling this tool.
+    
+    🚨 Confirmation required: It will first return a preview showing the SQL query.
+    The user can review the SQL query and optionally modify it before confirming. 
+    Only after the user confirms (confirm=True) will the SQL rule be created and attached.
     The referedEvidenceNames are evidenceConfigNames which are used as table names in the SQL query.
     A new evidence config will be created with the newEvidenceName.
     Use graphdb to get the required details and evidence schema.
@@ -852,14 +858,18 @@ async def create_sql_rule_and_attach(
     Args:
         controlConfigId (str): The control config ID where the rule is to be attached (required).
         sqlrule (str): The SQL query/rule definition (required). The query should reference evidenceConfigNames as table names.
+                      When confirm=False, this will be displayed in the preview. When confirm=True, the SQL rule will be created and attached.
         referedEvidenceNames (List[str]): List of evidenceConfigNames that are referenced as table names in the SQL query (required, non-empty).
         newEvidenceName (str): Name of the new evidence config to be created (required).
+        confirm (bool, optional): If False, returns preview with the SQL query displayed for review (and optional modification).
+                                 If True, proceeds with SQL rule creation using the provided sqlrule.
 
     Returns:
         Dict with success status and rule data:
         - success (bool): Whether the request was successful
         - ruleId (str, optional): Created rule ID
         - message (str, optional): Success or error message
+        - sqlrule (str, optional): The SQL query shown in preview (when confirm=False)
         - error (str, optional): Error message if request failed
     """
     try:
@@ -887,6 +897,18 @@ async def create_sql_rule_and_attach(
             "evidenceName": str(newEvidenceName).strip(),
             "referedEvidenceNames": [str(name).strip() for name in referedEvidenceNames if name and str(name).strip()]
         }
+
+        if not confirm:
+            logger.info("create_sql_rule_and_attach: Returning confirmation preview\n")
+            return {
+                "success": True,
+                "message": "Confirmation required before creating SQL rule",
+                "controlConfigId": str(controlConfigId).strip(),
+                "sqlQuery": payload["sqlQuery"],
+                "newEvidenceName": payload["evidenceName"],
+                "referedEvidenceNames": payload["referedEvidenceNames"],
+                "next_step": "Review the SQL rule above. If you need to modify it, provide the updated sqlrule parameter when calling with confirm=True. If correct, re-run with confirm=True to create and attach the rule."
+            }
         
         # Construct URL: /v1/plan-controls/{controlConfigId}/create-sql-rule-evidence
         url = f"{constants.URL_PLAN_CONTROLS}/{str(controlConfigId).strip()}/create-sql-rule-evidence"
