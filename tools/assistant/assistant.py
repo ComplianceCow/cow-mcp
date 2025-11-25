@@ -1011,3 +1011,46 @@ async def fetch_control_source_summary(controlId: str) -> dict:
             "success": False,
             "error": f"Unexpected error fetching control source summary: {e}",
         }
+
+
+@mcp.tool()
+async def get_assessment_context() -> dict:
+    """
+    Use this tool when the user wants to automate control operations,
+    or before creating an SQL rule.
+    
+    This tool retrieves assessment context information from ServiceNow entities endpoint.
+    Returns:
+        Dict with success status and context data:
+        - success (bool): Whether the request was successful
+        - data (dict, optional): Assessment context data containing ServiceNow entities
+        - error (str, optional): Error message if request failed
+    """
+    try:
+        logger.info("get_assessment_context: \n")
+        
+        # Make GET API call to ServiceNow entities endpoint
+        output = await utils.make_GET_API_call_to_CCow(constants.URL_GET_ASSESSMENT_CONTEXT)
+        
+        # Handle error response
+        if isinstance(output, str) or (isinstance(output, dict) and "error" in output):
+            logger.error("get_assessment_context error: {}\n".format(output))
+            return {"success": False, "error": "Failed to fetch assessment context"}
+        
+        # Check for error fields in response
+        if isinstance(output, dict):
+            if "Message" in output:
+                logger.error("get_assessment_context error: {}\n".format(output))
+                return {"success": False, "error": output}
+            
+            logger.info(f"get_assessment_context: Successfully retrieved assessment context\n")
+            return {"success": True, "data": output}
+        
+        # Fallback: wrap unexpected response type
+        logger.error("get_assessment_context error: Unexpected response type: {}\n".format(type(output)))
+        return {"success": False, "error": f"Unexpected response type: {output}"}
+        
+    except Exception as e:
+        logger.error(traceback.format_exc())
+        logger.error("get_assessment_context error: {}\n".format(e))
+        return {"success": False, "error": f"Unexpected error fetching assessment context: {e}"}
