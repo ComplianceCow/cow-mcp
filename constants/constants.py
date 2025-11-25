@@ -30,6 +30,7 @@ URL_CCF_DASHBOARD_REVIEW_PERIODS = "/v2/aggregator/fetch-ccf-dashboard-review-pe
 URL_ASSESSMENT_CATEGORIES = "/v1/assessment-categories"
 URL_PLANS = "/v1/plans"
 URL_ASSESSMENTS = "/v1/assessments"
+URL_GET_ASSESSMENT_CONTEXT = "/v1/servicenow/entities"
 
 # ASSESSMENT CONTROLS
 URL_PLAN_CONTROLS = "/v1/plan-controls"
