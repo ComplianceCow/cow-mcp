@@ -772,68 +772,6 @@ async def attach_citation_to_control_config(
         logger.error("attach_citation_to_control_config error: {}\n".format(e))
         return {"success": False, "error": f"Unexpected error attaching citation to control: {e}"}
 
-
-@mcp.tool()
-async def get_graph_schema_relationship() -> dict | str:
-    """
-    Important : Use this as an fallback tool for get-schema tool. if get-schema is incomplete, fails, or exceeds character limits or stored in file.
-    Retrieve the complete graph database schema and relationship structure for ComplianceCow.
-
-    Returns:
-        dict: Complete database schema with structural patterns and query guidelines
-        str: Error message if schema retrieval fails
-    """
-    
-    try:
-        logger.info("\nget_schema_form_control: \n")
-        node_names = ["Assessment","AssessmentRun","Control","ControlConfig","Citation","Evidence","RiskItem","RiskItemAttribute","EvidenceConfig","EvidenceSchema"]
-        output=await utils.make_API_call_to_CCow({"node_names":node_names},constants.URL_RETRIEVE_GRAPH_SCHEMA_RELATIONSHIP)
-        return {
-         "output": output,
-         }
-    except Exception as e:
-        logger.error("get_schema_form_control error: {}\n".format(e))
-        return "Facing internal error"
-
-async def fetch_unique_node_data_and_schema(question: str) -> UniqueNodeDataVO:
-
-    """
-    Important : Use this as an fallback tool for get_graph_schema_relationship tool if enough data was not available on that
-
-    Fetch unique node data and corresponding schema for a given question.
-
-    Args:
-        question (str): The user's input question.
-
-    Returns:
-        - node_names (List[str]): List of unique node names involved.
-        - unique_property_values (list[any]): Unique property values per node.
-        - neo4j_schema (str): The Neo4j schema associated with the nodes.
-        - error (Optional[str]): Error message if any issues occurred during processing.
-    """
-
-    try:
-        logger.info("\nget_unique_node_data_and_schema: \n")
-        logger.debug("question: {}".format(question))
-
-        output=await utils.make_API_call_to_CCow({"user_question":question},constants.URL_RETRIEVE_UNIQUE_NODE_DATA_AND_SCHEMA)
-        logger.debug("output: {}\n".format(output))
-        
-        if isinstance(output, str) or  "error" in output:
-            logger.error("fetch_unique_node_data_and_schema error: {}\n".format(output))
-            return UniqueNodeDataVO(error="Facing internal error")
-        
-        uniqueNodeDataVO = UniqueNodeDataVO(
-            node_names=output["node_names"],
-            unique_property_values=output["unique_property_values"],
-            neo4j_schema=output["neo4j_schema"]
-        )
-        return uniqueNodeDataVO
-    except Exception as e:
-        logger.error(traceback.format_exc())
-        logger.error("fetch_unique_node_data_and_schema error: {}\n".format(e))
-        return  UniqueNodeDataVO(error='Facing internal server error')
-
 @mcp.tool()
 async def create_sql_rule_and_attach(
     controlConfigId: str,
@@ -1017,7 +955,7 @@ async def fetch_control_source_summary(controlId: str) -> dict:
                 logger.error("fetch_control_source_summary error: {}\n".format(resp))
                 return {"success": False, "error": resp}
 
-            return {"success": True, "data": resp, "next_action": "create sql rule"}
+            return {"success": True, "data": resp, "next_action": "get evidence sample data"}
 
         logger.error(
             "fetch_control_source_summary error: Unexpected response type: {}\n".format(
@@ -1034,6 +972,97 @@ async def fetch_control_source_summary(controlId: str) -> dict:
             "error": f"Unexpected error fetching control source summary: {e}",
         }
 
+@mcp.tool()
+async def getEvidenceSampleData(controlConfigId: str, evidenceNames: List[str] | None = None, records: int = 3) -> dict:
+    """
+    Fetch concrete evidence samples for a control config.
+
+    Usage guidance:
+    1. Run `fetch_control_source_summary` first to understand schema/lineage.
+    2. Call this tool before drafting SQL rules to inspect real evidence rows.
+    3. Pass 1-10 records to keep payloads lightweight (defaults to 3).
+
+    Args:
+        controlConfigId (str): Control config ID where the SQL rule will be attached (required).
+        evidenceNames (List[str], optional): Specific evidence config names (table names) to sample.
+            If omitted/empty, all evidences linked to the control are sampled.
+        records (int, optional): Number of records per evidence (1-10, default 3).
+
+    Returns:
+        Dict containing:
+            - success (bool): API invocation status.
+            - controlId (str): Echoed control ID.
+            - recordCount (int): Number of rows requested (after validation).
+            - evidences (List[dict]): Evidence samples grouped by control/evidence. If an evidence
+              is missing from the response, no records exist for it in the latest run.
+            - next_action (str): Recommended next step (typically "create sql rule").
+            - error (str, optional): Validation or API error.
+    """
+    try:
+        logger.info("getEvidenceSampleData: \n")
+
+        if not controlConfigId or not str(controlConfigId).strip():
+            logger.error("getEvidenceSampleData error: controlConfigId is mandatory\n")
+            return {"success": False, "error": "controlConfigId is mandatory"}
+
+        try:
+            record_count = int(records)
+        except (TypeError, ValueError):
+            record_count = 3
+
+        if record_count < 1 or record_count > 10:
+            logger.warning(f"getEvidenceSampleData: records {record_count} out of bounds, defaulting to 3\n")
+            record_count = 3
+
+        payload = {
+            "controlID": str(controlConfigId).strip(),
+            "records": record_count
+        }
+        if evidenceNames:
+            payload["evidenceNames"] = evidenceNames
+
+        logger.debug("getEvidenceSampleData payload: {}\n".format(json.dumps(payload)))
+
+        resp_raw = await utils.make_API_call_to_CCow_and_get_response(
+            constants.URL_PLAN_CONTROLS_FETCH_SAMPLE_EVIDENCE_DATA,
+            "POST",
+            payload,
+            return_raw=True
+        )
+
+        resp = resp_raw.json()
+        logger.debug("getEvidenceSampleData output: {}\n".format(json.dumps(resp) if isinstance(resp, dict) else resp))
+
+        if isinstance(resp, str):
+            logger.error("getEvidenceSampleData error: {}\n".format(resp))
+            return {"success": False, "error": resp}
+
+        if isinstance(resp, dict):
+            if "error" in resp or "Message" in resp:
+                logger.error("getEvidenceSampleData error: {}\n".format(resp))
+                return {"success": False, "error": resp.get("error") or resp}
+
+            logger.info("getEvidenceSampleData: Received dict payload\n")
+
+        if isinstance(resp, list):
+            logger.info(f"getEvidenceSampleData: Retrieved samples for {len(resp)} control(s)\n")
+            return {
+                "success": True,
+                "controlId": payload["controlID"],
+                "evidences": resp,
+                "next_action": "create sql rule"
+            }
+
+        logger.error("getEvidenceSampleData error: Unexpected response type: {}\n".format(type(resp)))
+        return {
+            "success": False,
+            "error": f"Unexpected response type: {resp}",
+        }
+
+    except Exception as e:
+        logger.error(traceback.format_exc())
+        logger.error("getEvidenceSampleData error: {}\n".format(e))
+        return {"success": False, "error": f"Unexpected error fetching evidence samples: {e}"}
 
 @mcp.tool()
 async def get_assessment_context() -> dict:
