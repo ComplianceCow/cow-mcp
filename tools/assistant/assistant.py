@@ -14,7 +14,9 @@ from constants import constants
 import yaml
 
 from mcptypes import assessment_config_tool_types as assessment_vo
+from mcptypes import workflow_tools_type as workflow_vo
 from mcptypes.graph_tool_types import UniqueNodeDataVO
+from mcptypes.assistant_tool_types import ControlSourceSummaryResponseVO, ControlSourceSummaryVO
 
 @mcp.tool()
 async def create_assessment(yaml_content: str) -> dict:
@@ -901,7 +903,7 @@ async def create_sql_rule_and_attach(
         return {"success": False, "error": f"Unexpected error creating SQL rule: {e}"}
 
 @mcp.tool()
-async def fetch_control_source_summary(controlId: str) -> dict:
+async def fetch_control_source_summary(controlId: str) -> ControlSourceSummaryResponseVO:
     """
     Fetch aggregated source summary for a control config, including linked control configs, evidences (including schema), and lineage depth.
     this is a fallback to gather SQL rule context for a control config.
@@ -915,17 +917,18 @@ async def fetch_control_source_summary(controlId: str) -> dict:
         controlId (str): Plan control ID provided by the user (mandatory).
 
     Returns:
-        Dict containing:
+        ControlSourceSummaryResponseVO containing:
             - success (bool): API invocation status.
-            - data (dict, optional): Source summary (lineage, evidence, schema) on success.
+            - data (ControlSourceSummaryVO, optional): Source summary (lineage, evidence, schema) on success.
             - error (str, optional): Validation or API error details.
+            - next_action (str, optional): Recommended next action.
     """
     try:
         logger.info("fetch_control_source_summary: \n")
 
         if not controlId or not str(controlId).strip():
             logger.error("fetch_control_source_summary error: controlId is mandatory\n")
-            return {"success": False, "error": "controlId is mandatory"}
+            return ControlSourceSummaryResponseVO(success=False, error="controlId is mandatory")
 
         payload = {"controlID": str(controlId).strip()}
         logger.debug(
@@ -948,32 +951,50 @@ async def fetch_control_source_summary(controlId: str) -> dict:
 
         if isinstance(resp, str):
             logger.error("fetch_control_source_summary error: {}\n".format(resp))
-            return {"success": False, "error": resp}
+            return ControlSourceSummaryResponseVO(success=False, error=resp)
 
         if isinstance(resp, dict):
             if "Message" in resp:
                 logger.error("fetch_control_source_summary error: {}\n".format(resp))
-                return {"success": False, "error": resp}
+                return ControlSourceSummaryResponseVO(success=False, error=str(resp))
 
-            return {"success": True, "data": resp, "next_action": "get evidence sample data"}
+            try:
+                summary_data = ControlSourceSummaryVO(**resp)
+                logger.info("fetch_control_source_summary: Successfully parsed response into VO\n")
+                return ControlSourceSummaryResponseVO(
+                    success=True, 
+                    data=summary_data, 
+                    next_action="get evidence sample data"
+                )
+            except Exception as parse_error:
+                logger.error(f"fetch_control_source_summary error: Failed to parse response: {parse_error}\n")
+                logger.debug(traceback.format_exc())
+                return ControlSourceSummaryResponseVO(
+                    success=False, 
+                    error=f"Failed to parse response: {parse_error}"
+                )
 
         logger.error(
             "fetch_control_source_summary error: Unexpected response type: {}\n".format(
                 type(resp)
             )
         )
-        return {"success": False, "error": f"Unexpected response type: {resp}", "next_action": "create sql rule and attach"}
+        return ControlSourceSummaryResponseVO(
+            success=False, 
+            error=f"Unexpected response type: {resp}", 
+            next_action="create sql rule and attach"
+        )
 
     except Exception as e:
         logger.error(traceback.format_exc())
         logger.error("fetch_control_source_summary error: {}\n".format(e))
-        return {
-            "success": False,
-            "error": f"Unexpected error fetching control source summary: {e}",
-        }
+        return ControlSourceSummaryResponseVO(
+            success=False,
+            error=f"Unexpected error fetching control source summary: {e}",
+        )
 
 @mcp.tool()
-async def getEvidenceSampleData(controlConfigId: str, evidenceNames: List[str] | None = None, records: int = 3) -> dict:
+async def get_evidence_sample_data(controlConfigId: str, evidenceNames: List[str] | None = None, records: int = 3) -> dict:
     """
     Fetch concrete evidence samples for a control config.
 
@@ -999,10 +1020,10 @@ async def getEvidenceSampleData(controlConfigId: str, evidenceNames: List[str] |
             - error (str, optional): Validation or API error.
     """
     try:
-        logger.info("getEvidenceSampleData: \n")
+        logger.info("get_evidence_sample_data: \n")
 
         if not controlConfigId or not str(controlConfigId).strip():
-            logger.error("getEvidenceSampleData error: controlConfigId is mandatory\n")
+            logger.error("get_evidence_sample_data error: controlConfigId is mandatory\n")
             return {"success": False, "error": "controlConfigId is mandatory"}
 
         try:
@@ -1011,7 +1032,7 @@ async def getEvidenceSampleData(controlConfigId: str, evidenceNames: List[str] |
             record_count = 3
 
         if record_count < 1 or record_count > 10:
-            logger.warning(f"getEvidenceSampleData: records {record_count} out of bounds, defaulting to 3\n")
+            logger.warning(f"get_evidence_sample_data: records {record_count} out of bounds, defaulting to 3\n")
             record_count = 3
 
         payload = {
@@ -1021,7 +1042,7 @@ async def getEvidenceSampleData(controlConfigId: str, evidenceNames: List[str] |
         if evidenceNames:
             payload["evidenceNames"] = evidenceNames
 
-        logger.debug("getEvidenceSampleData payload: {}\n".format(json.dumps(payload)))
+        logger.debug("get_evidence_sample_data payload: {}\n".format(json.dumps(payload)))
 
         resp_raw = await utils.make_API_call_to_CCow_and_get_response(
             constants.URL_PLAN_CONTROLS_FETCH_SAMPLE_EVIDENCE_DATA,
@@ -1031,21 +1052,21 @@ async def getEvidenceSampleData(controlConfigId: str, evidenceNames: List[str] |
         )
 
         resp = resp_raw.json()
-        logger.debug("getEvidenceSampleData output: {}\n".format(json.dumps(resp) if isinstance(resp, dict) else resp))
+        logger.debug("get_evidence_sample_data output: {}\n".format(json.dumps(resp) if isinstance(resp, dict) else resp))
 
         if isinstance(resp, str):
-            logger.error("getEvidenceSampleData error: {}\n".format(resp))
+            logger.error("get_evidence_sample_data error: {}\n".format(resp))
             return {"success": False, "error": resp}
 
         if isinstance(resp, dict):
             if "error" in resp or "Message" in resp:
-                logger.error("getEvidenceSampleData error: {}\n".format(resp))
+                logger.error("get_evidence_sample_data error: {}\n".format(resp))
                 return {"success": False, "error": resp.get("error") or resp}
 
-            logger.info("getEvidenceSampleData: Received dict payload\n")
+            logger.info("get_evidence_sample_data: Received dict payload\n")
 
         if isinstance(resp, list):
-            logger.info(f"getEvidenceSampleData: Retrieved samples for {len(resp)} control(s)\n")
+            logger.info(f"get_evidence_sample_data: Retrieved samples for {len(resp)} control(s)\n")
             return {
                 "success": True,
                 "controlId": payload["controlID"],
@@ -1053,7 +1074,7 @@ async def getEvidenceSampleData(controlConfigId: str, evidenceNames: List[str] |
                 "next_action": "create sql rule"
             }
 
-        logger.error("getEvidenceSampleData error: Unexpected response type: {}\n".format(type(resp)))
+        logger.error("get_evidence_sample_data error: Unexpected response type: {}\n".format(type(resp)))
         return {
             "success": False,
             "error": f"Unexpected response type: {resp}",
@@ -1061,7 +1082,7 @@ async def getEvidenceSampleData(controlConfigId: str, evidenceNames: List[str] |
 
     except Exception as e:
         logger.error(traceback.format_exc())
-        logger.error("getEvidenceSampleData error: {}\n".format(e))
+        logger.error("get_evidence_sample_data error: {}\n".format(e))
         return {"success": False, "error": f"Unexpected error fetching evidence samples: {e}"}
 
 @mcp.tool()
@@ -1105,3 +1126,232 @@ async def get_assessment_context() -> dict:
         logger.error(traceback.format_exc())
         logger.error("get_assessment_context error: {}\n".format(e))
         return {"success": False, "error": f"Unexpected error fetching assessment context: {e}"}
+
+@mcp.tool()
+async def create_control_config_note(
+    controlConfigId: str,
+    assessmentId: str,
+    notes: str,
+    topic: str = "SQL Rule Documentation",
+) -> dict:
+    """
+    Create a note on a control config to document SQL query generation details and evidence considerations.
+    
+    This tool is used after successfully creating and attaching an SQL rule to a control config
+    (via `create_sql_rule_and_attach`). It documents the SQL query generation process, including:
+    - How the SQL query was generated
+    - What evidence sources were considered and used
+    - Any relevant context about the rule's purpose and implementation
+
+    AddtionalInfo : 
+    - If evidence is generated based on a rule, and the rule name is available, retrieve the README and include details about how the evidence is generated for that specific rule.
+    
+    This documentation helps maintain traceability and provides context for future reviews or modifications
+    of the SQL rule. The note is attached to the control config for easy reference.
+    
+    Args:
+        controlConfigId (str): The control config ID where the note will be attached (required).
+                              This is the same control config ID used in `create_sql_rule_and_attach`.
+        assessmentId (str): The assessment ID (plan ID) that contains the control config (required).
+                           Used for context and validation.
+        notes (str): The note content in markdown format documenting the SQL query generation process (required).
+                    Should include:
+                    - How the SQL query was generated
+                    - What evidence sources were considered and used
+                    - Any relevant context, design decisions, or implementation details
+                    Template : 
+                        # Control {CONTROL_NUMBER} - {CONTROL_NAME} SQL Automation Documentation
+                        ## Overview
+                        Automation for assessment {ASSESSMENT_NAME} ensuring {CONTROL_OBJECTIVE} aligned to {FRAMEWORK_NAME} {FRAMEWORK_CONTROL}.
+
+                        ## Assessment Context
+                        Assessment ID: {ASSESSMENT_ID}
+                        Control ID: {CONTROL_ID}
+                        Assets: {ASSET_LIST}
+
+                        ## Evidence Sources
+                        1. {EVIDENCE_TABLE_1} - {EVIDENCE_1_PURPOSE}
+                        2. {EVIDENCE_TABLE_2} - {EVIDENCE_2_PURPOSE}
+
+                        ## Query 1: {QUERY_1_NAME}
+                        Purpose: {QUERY_1_PURPOSE}
+                        Logic: Filters control assets + normalizes evidence.
+
+                        ## Query 2: {QUERY_2_NAME}
+                        Purpose: {QUERY_2_PURPOSE}
+                        Logic: Aggregates metrics + determines compliance.
+
+                        ## Outputs
+                        - {OUTPUT_1_NAME}: Operational evidence  
+                        - {OUTPUT_2_NAME}: Compliance summary
+
+        topic (str, optional): Topic or subject of the note. Defaults to "SQL Rule Documentation".
+        priority (str, optional): Note priority level. Valid values: "Low", "Medium", "High".
+                                 Defaults to "Medium".
+        dueDays (int, optional): Number of days until note is due for review or action. Defaults to 0
+                                (no due date).
+        sequence (int, optional): Display sequence/order for the note. Defaults to 0.
+        noteTags (dict, optional): Additional tags or metadata for the note. Defaults to empty dict.
+    
+    Returns:
+        Dict with success status and note data:
+        - success (bool): Whether the request was successful
+        - note (dict, optional): Created note object containing:
+            - id (str): Note ID
+            - topic (str): Note topic
+            - notes (str): Note content in markdown format
+            - controlConfigId (str): Control config ID the note is attached to
+            - assessmentId (str): Assessment ID
+        - error (str, optional): Error message if request failed
+        - next_action (str, optional): Recommended next action
+    """
+    try:
+        logger.info("create_control_config_note: \n")
+        
+        if not controlConfigId or not str(controlConfigId).strip():
+            logger.error("create_control_config_note error: controlConfigId is mandatory\n")
+            return {"success": False, "error": "controlConfigId is mandatory"}
+        
+        if not assessmentId or not str(assessmentId).strip():
+            logger.error("create_control_config_note error: assessmentId is mandatory\n")
+            return {"success": False, "error": "assessmentId is mandatory"}
+        
+        if not notes or not str(notes).strip():
+            logger.error("create_control_config_note error: notes content is mandatory\n")
+            return {"success": False, "error": "notes content is mandatory"}
+        
+        # Build payload
+        payload = {
+            "topic": str(topic).strip() if topic else "SQL Rule Documentation",
+            "notes": str(notes).strip(),
+            "planId": str(assessmentId).strip(),
+            "planControlID": str(controlConfigId).strip(),
+        }
+        
+        # Construct URL with control config ID
+        url = constants.URL_PLAN_CONTROL_NOTES.format(controlConfigId=str(controlConfigId).strip())
+        
+        logger.debug("create_control_config_note payload: {}\n".format(json.dumps(payload)))
+        logger.debug("create_control_config_note URL: {}\n".format(url))
+        
+        # Make API call
+        resp_raw = await utils.make_API_call_to_CCow_and_get_response(
+            url,
+            "POST",
+            payload,
+            return_raw=True
+        )
+        
+        if resp_raw.status_code == 201:
+            
+            logger.info(f"create_control_config_note: Successfully created note with status 201\n")
+            return {
+                "success": True,
+                "message": "Note created successfully",
+            }
+        else:
+            # Error - parse error response
+            error_resp = {}
+            try:
+                if resp_raw.content:
+                    error_resp = resp_raw.json()
+            except Exception:
+                error_resp = {"error": f"HTTP {resp_raw.status_code}"}
+            
+            logger.error("create_control_config_note error: Status {} - {}\n".format(resp_raw.status_code, error_resp))
+            
+            # Check for error fields in response
+            if isinstance(error_resp, dict):
+                if "Message" in error_resp:
+                    return {"success": False, "error": error_resp}
+                if "error" in error_resp:
+                    return {"success": False, "error": error_resp.get("error")}
+
+            return {"success": False, "error": f"Failed to create note: HTTP {resp_raw.status_code}"}
+        
+    except Exception as e:
+        logger.error(traceback.format_exc())
+        logger.error("create_control_config_note error: {}\n".format(e))
+        return {"success": False, "error": f"Unexpected error creating control config note: {e}"}
+    
+
+
+@mcp.tool()
+async def fetch_rule_readme(name: str) -> workflow_vo.RuleReadmeResponseVO:
+    """
+    Use this tool to get details about the rule to add in SQL rule control config notes.
+
+    Retrieve README documentation for a specific rule by name.
+    
+    Fetches the complete README documentation for a rule, providing 
+    detailed information about the rule's purpose, usage instructions, prerequisites, 
+    and implementation steps. This is useful for understanding how to properly use 
+    a rule in workflows.
+
+    Args:
+        name (str): The exact name of the rule to retrieve README for
+        
+    Returns:
+        - readmeText (str): Complete README documentation as readable text
+        - ruleName (str): Name of the rule for reference
+        - error (str): Error message if retrieval fails or README not available
+    """
+    try:
+        logger.info(f"fetch_rule_readme: searching for rule '{name}'\n")
+
+        output = await utils.make_GET_API_call_to_CCow(f"{constants.URL_FETCH_RULE_README}?name={name}")
+        logger.debug("rule readme output: {}\n".format(output))
+        
+        if isinstance(output, str) or "error" in output:
+            logger.error("rule readme error: {}\n".format(output))
+            return workflow_vo.RuleReadmeResponseVO(error="Facing internal error")
+        
+        if not output.get("items") or len(output["items"]) == 0:
+            logger.warning(f"No rule found with name: {name}")
+            return workflow_vo.RuleReadmeResponseVO(ruleName=name, error=f"Rule '{name}' not available")
+        
+        rule_item = output["items"][0]
+        rule_name = rule_item.get("name", name)
+        readme_hash = rule_item.get("readme", "")
+        
+        if not readme_hash:
+            logger.warning(f"No README hash found for rule: {name}")
+            return workflow_vo.RuleReadmeResponseVO(ruleName=rule_name, error=f"README not available for rule: {name}")
+        
+        try:
+            readme_response = await utils.make_GET_API_call_to_CCow(f"{constants.URL_FETCH_FILE_BY_HASH}/{readme_hash}")
+            logger.debug(f"README fetch response for rule {rule_name}: {readme_response}")
+            
+            if isinstance(readme_response, str) or "error" in readme_response:
+                logger.error(f"Failed to fetch README content for rule {name}: {readme_response}")
+                return workflow_vo.RuleReadmeResponseVO(ruleName=rule_name, error=f"Failed to fetch README content for rule: {name}")
+            
+            readme_text = ""
+            if isinstance(readme_response, dict):
+                file_content = readme_response.get("FileContent", "")
+                if file_content:
+                    try:
+                        readme_text = base64.b64decode(file_content).decode('utf-8')
+                    except Exception:
+                        readme_text = file_content
+                else:
+                    logger.warning(f"No FileContent found in response for rule: {name}")
+                    return workflow_vo.RuleReadmeResponseVO(ruleName=rule_name, error=f"README not available for rule: {name}")
+            elif isinstance(readme_response, str):
+                readme_text = readme_response
+            
+            if not readme_text:
+                logger.warning(f"No README content found for rule: {name}")
+                return workflow_vo.RuleReadmeResponseVO(ruleName=rule_name, error=f"README not available for rule: {name}")
+            
+            logger.debug(f"Successfully fetched README for rule: {rule_name}")
+            return workflow_vo.RuleReadmeResponseVO(readmeText=readme_text, ruleName=rule_name)
+            
+        except Exception as fetch_error:
+            logger.error(f"Failed to fetch README content for rule {name}: {fetch_error}")
+            return workflow_vo.RuleReadmeResponseVO(ruleName=rule_name, error=f"Failed to fetch README content for rule: {name}")
+
+    except Exception as e:
+        logger.error(traceback.format_exc())
+        logger.error("fetch_rule_readme error: {}\n".format(e))
+        return workflow_vo.RuleReadmeResponseVO(error="Facing internal error")

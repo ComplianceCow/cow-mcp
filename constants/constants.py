@@ -39,6 +39,7 @@ URL_PLAN_CONTROLS_FETCH_SAMPLE_EVIDENCE_DATA = "/v1/plan-controls/fetch-sample-e
 URL_GET_SIMILAR_CONTROLS = "/v1/llm/get-similar-controls"
 URL_PLAN_CONTROL_CITATIONS_BATCH = "/v1/plan-controls/assessment-control-citations/batch"
 URL_PLANS_SYNC_CCFID = "/v1/plans/sync-ccfid"
+URL_PLAN_CONTROL_NOTES = "/v1/plan-controls/{controlConfigId}/notes"
 
 # ASSESSMENT RUNS
 URL_PLAN_INSTANCES = "/v1/plan-instances"
