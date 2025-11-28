@@ -135,6 +135,15 @@ Required SQL Outputs:
 ## GENERAL INSTRUCTION
 ============================================================
 
+### USER CONFIRMATION RULE
+Before ANY create, edit, update, attach, or delete operation:
+- Always show a PREVIEW first.
+- The user may review and edit it.
+- Proceed ONLY after explicit confirmation (MANDATORY).
+- Without confirmation: NEVER perform the operation.
+
+This rule is ABSOLUTE and must NEVER be bypassed.
+
 ============================================================
 ## WORKFLOW INSTRUCTION
 ============================================================
