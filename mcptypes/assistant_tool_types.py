@@ -77,7 +77,7 @@ class ControlSourceSummaryResponseVO(BaseModel):
     data: Optional[ControlSourceSummaryVO] = None
     error: Optional[str] = None
     next_action: Optional[str] = None
-    
+    next_step: Optional[str] = None
     model_config = {
         "extra": "ignore"
     }

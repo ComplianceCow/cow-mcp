@@ -208,7 +208,7 @@ async def suggest_control_config_citations(
     If selecting existing control, get control name from user and resolve to controlId.
     If creating new control, controlId will be empty.
     
-    This function provides AI-powered suggestions for control citations based on control names or descriptions.
+    This function provides suggestions for control citations based on control names or descriptions.
     The user can select from the suggested controls to attach citations to their assessment controls.
     
     Args:
@@ -597,15 +597,23 @@ async def attach_citation_to_control_config(
     """
     Attach citation to a control in an assessment.
     
-    This tool attach citation from an authority document to a control.
+    This tool attaches ONE citation from an authority document to a specific control in an assessment.
     The citation details should come from the get similar control config suggestions.
+    A control config can have ONLY ONE citation.
     Use control config existing or create new control config on assessment.
     
-    🚨 CRITICAL: Assessment and control config MUST be user-selected and confirmed before execution.
-    - If confirm=False, returns assessment and control IDs for user confirmation.
-    - Only proceeds with attachment when confirm=True and user has explicitly confirmed.
-    - NEVER assume or auto-select assessment or control - they must be user-selected.
-    
+    ✅ CONFIRMATION-BASED SAFETY FLOW
+    - When confirm=False:
+        → The tool returns a PREVIEW of the citation details.
+        → The user may change the details before confirming.
+    - When confirm=True:
+        → The citation is permanently attached to the control config.
+        
+    ❌ IMPORTANT RESTRICTIONS
+    - NEVER auto-select an assessment or control or citation.
+    - NEVER call this tool with confirm=True in the same turn where the preview is first shown.
+    - Assessment, control and citation MUST be explicitly user-selected and user-confirmed.
+
     Args:
         assessmentId (str): The assessment ID (plan ID) - MUST be user-selected.
         controlId (str): The control ID to attach citations to - MUST be user-selected.
@@ -678,7 +686,8 @@ async def attach_citation_to_control_config(
                     "sortId": str(sortId).strip(),
                     "controlNames": controlNames
                 },
-                "next_step": "Review the assessment and control config ID above. If correct, re-run with confirm=True to attach the citation."
+                "next_step": "Review the assessment, control config ID and citation details above. If correct, re-run with confirm=True to attach the citation.",
+                "next_action": "Await for user confirmation",
             }
         
         # Build payload
@@ -785,15 +794,38 @@ async def create_sql_rule_and_attach(
     """
     Create a SQL rule with control and evidence mappings.
     
-    This tool creates a SQL rule and associates it with a control and evidence configs.
-    Important: The SQL query must always be shown to the user before calling this tool.
+    This tool creates a SQL-based rule and associates it with a specified control configuration.
+
+    ⚠️ IMPORTANT WORKFLOW (Two-Step Confirmation)
+    1. The SQL query MUST always be shown to the user in PREVIEW mode before execution.
+    2. The user can review, edit, or approve the SQL query.
+    3. Only after explicit confirmation (confirm=True) will the SQL rule be created and attached.
     
-    🚨 Confirmation required: It will first return a preview showing the SQL query.
-    The user can review the SQL query and optionally modify it before confirming. 
-    Only after the user confirms (confirm=True) will the SQL rule be created and attached.
-    The referedEvidenceNames are evidenceConfigNames which are used as table names in the SQL query.
-    A new evidence config will be created with the newEvidenceName.
-    Use graphdb to get the required details and evidence schema.
+    🔍 EVIDENCE & TABLE MAPPING
+    - The `referedEvidenceNames` represent existing evidenceConfigNames.
+    - These names MUST be used as table names inside the SQL query.
+    - A new evidence config will be created using `newEvidenceName` to store the output of the SQL rule.
+
+    ⚠️ EVIDENCE ASSUMPTION (MANDATORY)
+    - NEVER assume that an evidence config, its structure (schema), or its data exists.
+    - NEVER fabricate evidence config names, table structures, or sample data.
+    - If required evidence config details, schema, or data are NOT explicitly available:
+        → Clearly inform the user that this information is missing.
+        → Ask the user to provide:
+            - Evidence config name(s)
+            - Evidence schema / structure (e.g., columns and types)
+            - And/or sample data
+    - The tool MUST NOT proceed based on guessed or assumed evidence structures.
+
+    🧪 OPTIONAL QUERY EXECUTION & OUTPUT PREVIEW
+    - After showing the SQL preview, the user may optionally request to:
+        → Run the SQL query on sample data to preview the output.
+    - If sample data is available:
+        → The system will manually execute the query and display the result to the user.
+    - If sample data is NOT available and the user requests execution:
+        → The system must explicitly ask the user to provide sample data before execution.
+
+    Show the suggestion optional to run query to user to run query and see output, U manually perform the run on sample data and show output, If sample data is not available if user ask to run, ask user to provide the sample data.
     
     Args:
         controlConfigId (str): The control config ID where the rule is to be attached (required).
@@ -881,16 +913,18 @@ async def create_sql_rule_and_attach(
             if "error" in resp:
                 logger.error("create_sql_rule_and_attach error: {}\n".format(resp.get("error")))
                 return {"success": False, "error": resp.get("error")}
-            
-            # Extract rule ID and evidence config ID from response
-            rule_id = resp.get("id")
+
+            rule_id = resp.get("ruleId")
+            evidence_id = resp.get("evidenceId")
 
             if rule_id:
                 logger.info(f"create_sql_rule_and_attach: Successfully created SQL rule with ruleId: {rule_id}\n")
                 return {
                     "success": True,
                     "ruleId": rule_id,
+                    "evidenceId": evidence_id,
                     "message": "SQL rule and evidence config created successfully",
+                    "next_step": "Would you like to add documentation notes for this SQL rule on the control? This is optional but recommended for traceability."
                 }
         
         # Fallback: wrap unexpected response type
@@ -906,12 +940,10 @@ async def create_sql_rule_and_attach(
 async def fetch_control_source_summary(controlId: str) -> ControlSourceSummaryResponseVO:
     """
     Fetch aggregated source summary for a control config, including linked control configs, evidences (including schema), and lineage depth.
-    this is a fallback to gather SQL rule context for a control config.
+    This tool is the PRIMARY way to gather SQL rule context for a control config.
 
-    Primary flow: use graph schema + lineage to design SQL rules. When the graph lacks
-    evidence metadata, use this tool with a control config ID.
-    This will provide linked control configs, evidences (including schema), and lineage depth.
-    Use this to gather SQL rule context for a control config.
+    It returns how a control is connected to evidence configurations and what evidence
+    structures (schemas) are available.
 
     Args:
         controlId (str): Plan control ID provided by the user (mandatory).
@@ -961,11 +993,19 @@ async def fetch_control_source_summary(controlId: str) -> ControlSourceSummaryRe
             try:
                 summary_data = ControlSourceSummaryVO(**resp)
                 logger.info("fetch_control_source_summary: Successfully parsed response into VO\n")
-                return ControlSourceSummaryResponseVO(
+                response = ControlSourceSummaryResponseVO(
                     success=True, 
-                    data=summary_data, 
-                    next_action="get evidence sample data"
+                    data=summary_data,
                 )
+                if summary_data.lineage and len(summary_data.lineage)>0:
+                    response.next_action="get evidence sample data"
+                else:
+                    response.next_action="STOP_SQL_RULE_GENERATION_NO_EVIDENCE_CONFIGS_CITATION_ATTACHED"
+                    response.next_step = (
+                        "No evidence configurations are linked to this control. "
+                        "Since a citation is already attached, SQL rule automation cannot proceed. "
+                    )
+                return response
             except Exception as parse_error:
                 logger.error(f"fetch_control_source_summary error: Failed to parse response: {parse_error}\n")
                 logger.debug(traceback.format_exc())
@@ -1067,12 +1107,17 @@ async def get_evidence_sample_data(controlConfigId: str, evidenceNames: List[str
 
         if isinstance(resp, list):
             logger.info(f"get_evidence_sample_data: Retrieved samples for {len(resp)} control(s)\n")
-            return {
+            response = {
                 "success": True,
                 "controlId": payload["controlID"],
                 "evidences": resp,
-                "next_action": "create sql rule"
             }
+
+            if resp and len(resp)>0:
+                response["next_action"]="create sql rule"
+            else:
+                response["next_action"] = "CREATE_SQL_RULE_FROM_SCHEMA_OR_REQUEST_USER_SAMPLES"
+            return response
 
         logger.error("get_evidence_sample_data error: Unexpected response type: {}\n".format(type(resp)))
         return {
@@ -1133,33 +1178,49 @@ async def create_control_config_note(
     assessmentId: str,
     notes: str,
     topic: str = "SQL Rule Documentation",
+    confirm: bool = False,
 ) -> dict:
     """
-    Create a note on a control config to document SQL query generation details and evidence considerations.
+    Create a documentation note on a control configuration to record SQL rule logic, evidence generation strategy, and implementation context.
     
-    This tool is used after successfully creating and attaching an SQL rule to a control config
-    (via `create_sql_rule_and_attach`). It documents the SQL query generation process, including:
+    ✅ PURPOSE
+    This tool is used AFTER a SQL rule has been successfully created and attached
+    to a control config (via `create_sql_rule_and_attach`).
+    
+    It provides long-term traceability by documenting:
     - How the SQL query was generated
-    - What evidence sources were considered and used
-    - Any relevant context about the rule's purpose and implementation
+    - Which evidence sources were referenced
+    - Why specific filters, joins, and aggregations were chosen
+    - How the generated evidence supports the control objective
 
-    AddtionalInfo : 
-    - If evidence is generated based on a rule, and the rule name is available, retrieve the README and include details about how the evidence is generated for that specific rule.
+    ✅ OPTIONAL & USER-DRIVEN
+    This tool is OPTIONAL and should be offered only if the user chooses
+    to add documentation after SQL rule creation.
     
-    This documentation helps maintain traceability and provides context for future reviews or modifications
-    of the SQL rule. The note is attached to the control config for easy reference.
+    ✅ CONFIRMATION-BASED SAFETY FLOW
+    - When confirm=False:
+        → The tool returns a PREVIEW of the generated markdown note.
+        → The user may edit the note before confirming.
+    - When confirm=True:
+        → The note is permanently created and attached to the control config.
+
+    ✅ EVIDENCE TRACEABILITY ENHANCEMENT
+    If a rule name is provided and README documentation is available:
+    - The system should retrieve the README
+    - Extract how the evidence is generated
+    - Embed that explanation inside the note automatically
+
     
     Args:
         controlConfigId (str): The control config ID where the note will be attached (required).
                               This is the same control config ID used in `create_sql_rule_and_attach`.
-        assessmentId (str): The assessment ID (plan ID) that contains the control config (required).
-                           Used for context and validation.
-        notes (str): The note content in markdown format documenting the SQL query generation process (required).
-                    Should include:
-                    - How the SQL query was generated
-                    - What evidence sources were considered and used
-                    - Any relevant context, design decisions, or implementation details
-                    Template : 
+        assessmentId (str): The assessment ID that contains the control config (required).
+        notes (str): The documentation content in MARKDOWN format. (Required)
+                    Must include:
+                    - SQL logic explanation
+                    - Evidence source mapping
+                    - Rule intent and compliance purpose
+                    Recommended Template:
                         # Control {CONTROL_NUMBER} - {CONTROL_NAME} SQL Automation Documentation
                         ## Overview
                         Automation for assessment {ASSESSMENT_NAME} ensuring {CONTROL_OBJECTIVE} aligned to {FRAMEWORK_NAME} {FRAMEWORK_CONTROL}.
@@ -1186,12 +1247,9 @@ async def create_control_config_note(
                         - {OUTPUT_2_NAME}: Compliance summary
 
         topic (str, optional): Topic or subject of the note. Defaults to "SQL Rule Documentation".
-        priority (str, optional): Note priority level. Valid values: "Low", "Medium", "High".
-                                 Defaults to "Medium".
-        dueDays (int, optional): Number of days until note is due for review or action. Defaults to 0
-                                (no due date).
-        sequence (int, optional): Display sequence/order for the note. Defaults to 0.
-        noteTags (dict, optional): Additional tags or metadata for the note. Defaults to empty dict.
+        confirm (bool, optional):  
+            - False → Preview only (default, no persistence)
+            - True  → Create and permanently attach the note
     
     Returns:
         Dict with success status and note data:
@@ -1226,6 +1284,17 @@ async def create_control_config_note(
             "notes": str(notes).strip(),
             "planId": str(assessmentId).strip(),
             "planControlID": str(controlConfigId).strip(),
+        }
+
+        if not confirm:
+            logger.info("create_control_config_note: Returning confirmation preview\n")
+            return {
+                "success": True,
+                "message": "Confirmation required before creating note",
+                "controlConfigId": payload["planControlID"],
+                "topic": payload["topic"],
+                "notes": payload["notes"],
+                "next_step": "Review the Note above. If you need to modify it, provide the updated note parameter when calling with confirm=True. If correct, re-run with confirm=True to create note."
         }
         
         # Construct URL with control config ID
@@ -1274,8 +1343,6 @@ async def create_control_config_note(
         logger.error("create_control_config_note error: {}\n".format(e))
         return {"success": False, "error": f"Unexpected error creating control config note: {e}"}
     
-
-
 @mcp.tool()
 async def fetch_rule_readme(name: str) -> workflow_vo.RuleReadmeResponseVO:
     """
