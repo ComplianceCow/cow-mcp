@@ -785,27 +785,27 @@ async def attach_citation_to_control_config(
         return {"success": False, "error": f"Unexpected error attaching citation to control: {e}"}
 
 @mcp.tool()
-async def create_sql_rule_and_attach(
+async def create_sql_query_evidence(
     controlConfigId: str,
-    sqlrule: str,
+    sqlquery: str,
     referedEvidenceNames: List[str],
     newEvidenceName: str,
     confirm: bool = False,
 ) -> dict:
     """
-    Create a SQL rule with control and evidence mappings.
+    Create a SQL query evidence for a control configuration.
     
-    This tool creates a SQL-based rule and associates it with a specified control configuration.
+    This tool creates a SQL-based query and associates it with a specified control configuration.
 
     ⚠️ IMPORTANT WORKFLOW (Two-Step Confirmation)
     1. The SQL query MUST always be shown to the user in PREVIEW mode before execution.
     2. The user can review, edit, or approve the SQL query.
-    3. Only after explicit confirmation (confirm=True) will the SQL rule be created and attached.
+    3. Only after explicit confirmation (confirm=True) will the SQL query be created and attached.
     
     🔍 EVIDENCE & TABLE MAPPING
     - The `referedEvidenceNames` represent existing evidenceConfigNames.
     - These names MUST be used as table names inside the SQL query.
-    - A new evidence config will be created using `newEvidenceName` to store the output of the SQL rule.
+    - A new evidence config will be created using `newEvidenceName` to store the output of the SQL query.
 
     ⚠️ EVIDENCE ASSUMPTION (MANDATORY)
     - NEVER assume that an evidence config, its structure (schema), or its data exists.
@@ -829,65 +829,65 @@ async def create_sql_rule_and_attach(
     Show the suggestion optional to run query to user to run query and see output, U manually perform the run on sample data and show output, If sample data is not available if user ask to run, ask user to provide the sample data.
     
     Args:
-        controlConfigId (str): The control config ID where the rule is to be attached (required).
-        sqlrule (str): The SQL query/rule definition (required). The query should reference evidenceConfigNames as table names.
-                      When confirm=False, this will be displayed in the preview. When confirm=True, the SQL rule will be created and attached.
+        controlConfigId (str): The control config ID where the query is to be attached (required).
+        sqlquery (str): The SQL query definition (required). The query should reference evidenceConfigNames as table names.
+                      When confirm=False, this will be displayed in the preview. When confirm=True, the SQL query will be created and attached.
         referedEvidenceNames (List[str]): List of evidenceConfigNames that are referenced as table names in the SQL query (required, non-empty).
         newEvidenceName (str): Name of the new evidence config to be created (required).
         confirm (bool, optional): If False, returns preview with the SQL query displayed for review (and optional modification).
-                                 If True, proceeds with SQL rule creation using the provided sqlrule.
+                                 If True, proceeds with SQL query creation using the provided sqlquery.
 
     Returns:
-        Dict with success status and rule data:
+        Dict with success status and data:
         - success (bool): Whether the request was successful
         - ruleId (str, optional): Created rule ID
+        - evidenceId (str, optional): Created evidence Config,
         - message (str, optional): Success or error message
-        - sqlrule (str, optional): The SQL query shown in preview (when confirm=False)
+        - sqlquery (str, optional): The SQL query shown in preview (when confirm=False)
         - error (str, optional): Error message if request failed
     """
     try:
-        logger.info("create_sql_rule_and_attach: \n")
+        logger.info("create_sql_query_evidence: \n")
         
         if not controlConfigId or not str(controlConfigId).strip():
-            logger.error("create_sql_rule_and_attach error: controlConfigId is mandatory\n")
+            logger.error("create_sql_query_evidence error: controlConfigId is mandatory\n")
             return {"success": False, "error": "controlConfigId is mandatory"}
         
-        if not sqlrule or not str(sqlrule).strip():
-            logger.error("create_sql_rule_and_attach error: sqlrule is mandatory\n")
-            return {"success": False, "error": "sqlrule is mandatory"}
+        if not sqlquery or not str(sqlquery).strip():
+            logger.error("create_sql_query_evidence error: sqlquery is mandatory\n")
+            return {"success": False, "error": "sqlquery is mandatory"}
         
         if not referedEvidenceNames or not isinstance(referedEvidenceNames, list) or len(referedEvidenceNames) == 0:
-            logger.error("create_sql_rule_and_attach error: referedEvidenceNames must be a non-empty list\n")
+            logger.error("create_sql_query_evidence error: referedEvidenceNames must be a non-empty list\n")
             return {"success": False, "error": "referedEvidenceNames must be a non-empty list"}
         
         if not newEvidenceName or not str(newEvidenceName).strip():
-            logger.error("create_sql_rule_and_attach error: newEvidenceName is mandatory\n")
+            logger.error("create_sql_query_evidence error: newEvidenceName is mandatory\n")
             return {"success": False, "error": "newEvidenceName is mandatory"}
         
         # Build payload according to API specification
         payload = {
-            "sqlQuery": str(sqlrule).strip(),
+            "sqlQuery": str(sqlquery).strip(),
             "evidenceName": str(newEvidenceName).strip(),
             "referedEvidenceNames": [str(name).strip() for name in referedEvidenceNames if name and str(name).strip()]
         }
 
         if not confirm:
-            logger.info("create_sql_rule_and_attach: Returning confirmation preview\n")
+            logger.info("create_sql_query_evidence: Returning confirmation preview\n")
             return {
                 "success": True,
-                "message": "Confirmation required before creating SQL rule",
+                "message": "Confirmation required before creating SQL query",
                 "controlConfigId": str(controlConfigId).strip(),
                 "sqlQuery": payload["sqlQuery"],
                 "newEvidenceName": payload["evidenceName"],
                 "referedEvidenceNames": payload["referedEvidenceNames"],
-                "next_step": "Review the SQL rule above. If you need to modify it, provide the updated sqlrule parameter when calling with confirm=True. If correct, re-run with confirm=True to create and attach the rule."
+                "next_step": "Review the SQL query above. If you need to modify it, provide the updated sqlquery parameter when calling with confirm=True. If correct, re-run with confirm=True to create and attach the query."
             }
         
-        # Construct URL: /v1/plan-controls/{controlConfigId}/create-sql-rule-evidence
-        url = f"{constants.URL_PLAN_CONTROLS}/{str(controlConfigId).strip()}/create-sql-rule-evidence"
+        url = f"{constants.URL_PLAN_CONTROLS}/{str(controlConfigId).strip()}/sql-query-evidences"
         
-        logger.debug("create_sql_rule_and_attach payload: {}\n".format(json.dumps(payload)))
-        logger.debug("create_sql_rule_and_attach URL: {}\n".format(url))
+        logger.debug("create_sql_query_evidence payload: {}\n".format(json.dumps(payload)))
+        logger.debug("create_sql_query_evidence URL: {}\n".format(url))
         
         # Make API call
         resp_raw = await utils.make_API_call_to_CCow_and_get_response(
@@ -898,57 +898,251 @@ async def create_sql_rule_and_attach(
         )
         
         resp = resp_raw.json()
-        logger.debug("create_sql_rule_and_attach output: {}\n".format(json.dumps(resp) if isinstance(resp, dict) else resp))
+        logger.debug("create_sql_query_evidence output: {}\n".format(json.dumps(resp) if isinstance(resp, dict) else resp))
         
         # Handle error response
         if isinstance(resp, str):
-            logger.error("create_sql_rule_and_attach error: {}\n".format(resp))
+            logger.error("create_sql_query_evidence error: {}\n".format(resp))
             return {"success": False, "error": resp}
         
         if isinstance(resp, dict):
             # Check for error fields
             if "Message" in resp:
-                logger.error("create_sql_rule_and_attach error: {}\n".format(resp))
+                logger.error("create_sql_query_evidence error: {}\n".format(resp))
                 return {"success": False, "error": resp}
             
             if "error" in resp:
-                logger.error("create_sql_rule_and_attach error: {}\n".format(resp.get("error")))
+                logger.error("create_sql_query_evidence error: {}\n".format(resp.get("error")))
                 return {"success": False, "error": resp.get("error")}
 
             rule_id = resp.get("ruleId")
             evidence_id = resp.get("evidenceId")
 
             if rule_id:
-                logger.info(f"create_sql_rule_and_attach: Successfully created SQL rule with ruleId: {rule_id}\n")
+                logger.info(f"create_sql_query_evidence: Successfully created SQL query with ruleId: {rule_id}\n")
                 return {
                     "success": True,
-                    "ruleId": rule_id,
                     "evidenceId": evidence_id,
-                    "message": "SQL rule and evidence config created successfully",
-                    "next_step": "Would you like to add documentation notes for this SQL rule on the control? This is optional but recommended for traceability."
+                    "message": "SQL query and evidence config created successfully",
+                    "next_step": "Would you like to add documentation notes for this SQL query on the control? This is optional but recommended for traceability."
                 }
         
         # Fallback: wrap unexpected response type
-        logger.error("create_sql_rule_and_attach error: Unexpected response type: {}\n".format(type(resp)))
+        logger.error("create_sql_query_evidence error: Unexpected response type: {}\n".format(type(resp)))
         return {"success": False, "error": f"Unexpected response type: {resp}"}
         
     except Exception as e:
         logger.error(traceback.format_exc())
-        logger.error("create_sql_rule_and_attach error: {}\n".format(e))
-        return {"success": False, "error": f"Unexpected error creating SQL rule: {e}"}
+        logger.error("create_sql_query_evidence error: {}\n".format(e))
+        return {"success": False, "error": f"Unexpected error creating SQL query: {e}"}
+
+@mcp.tool()
+async def list_sql_query_evidence(
+    controlConfigId: str
+) -> dict:
+    """
+    List all SQL query evidences for a given control configuration.
+    
+    This tool retrieves all SQL query evidences associated with a control configuration.
+    
+    Args:
+        controlConfigId (str): The control config ID to list SQL query evidences for (required).
+    
+    Returns:
+        Dict with success status and evidences:
+        - success (bool): Whether the request was successful
+        - evidences (List[dict]): List of SQL query evidence objects, each containing:
+            - id (str): Evidence ID
+            - evidenceId (str): Evidence config ID
+            - ruleId (str): Rule ID
+            - sqlQuery (str): SQL query string
+            - evidenceName (str): Evidence config name
+            - referedEvidenceNames (List[str]): List of referenced evidence names
+        - totalCount (int): Total number of evidences found
+        - error (str, optional): Error message if request failed
+    """
+    try:
+        logger.info("list_sql_query_evidence: \n")
+        
+        if not controlConfigId or not str(controlConfigId).strip():
+            logger.error("list_sql_query_evidence error: controlConfigId is mandatory\n")
+            return {"success": False, "error": "controlConfigId is mandatory"}
+        
+        control_config_id = str(controlConfigId).strip()
+        url = f"{constants.URL_PLAN_CONTROLS}/{control_config_id}/sql-query-evidences"
+        
+        logger.debug("list_sql_query_evidence URL: {}\n".format(url))
+        
+        output = await utils.make_GET_API_call_to_CCow(url)
+        
+        if isinstance(output, str) or (isinstance(output, dict) and "error" in output):
+            logger.error("list_sql_query_evidence error: {}\n".format(output))
+            return {"success": False, "error": "Failed to fetch SQL query evidences"}
+        
+        if isinstance(output, dict):
+            if "Message" in output:
+                logger.error("list_sql_query_evidence error: {}\n".format(output))
+                return {"success": False, "error": output}
+            
+            items = output.get("items", [])
+            if not isinstance(items, list):
+                items = []
+            
+            logger.info(f"list_sql_query_evidence: Found {len(items)} SQL query evidence(s)\n")
+            return {"success": True, "evidences": items, "totalCount": len(items)}
+
+        logger.error("list_sql_query_evidence error: Unexpected response type: {}\n".format(type(output)))
+        return {"success": False, "error": f"Unexpected response type: {output}"}
+        
+    except Exception as e:
+        logger.error(traceback.format_exc())
+        logger.error("list_sql_query_evidence error: {}\n".format(e))
+        return {"success": False, "error": f"Unexpected error listing SQL query evidences: {e}"}
+
+@mcp.tool()
+async def update_sql_query_evidence(
+    controlConfigId: str,
+    evidenceId: str,
+    sqlquery: str,
+    referedEvidenceNames: List[str],
+    newEvidenceName: str,
+    confirm: bool = False,
+) -> dict:
+    """
+    Update an existing SQL query evidence for a control configuration.
+    
+    This tool updates an existing SQL query evidence with new SQL query, evidence mappings, or evidence name.
+
+    ⚠️ IMPORTANT WORKFLOW (Two-Step Confirmation)
+    1. The updated SQL query MUST always be shown to the user in PREVIEW mode before execution.
+    2. The user can review, edit, or approve the updated SQL query.
+    3. Only after explicit confirmation (confirm=True) will the SQL query evidence be updated.
+    
+    🔍 EVIDENCE & TABLE MAPPING
+    - The `referedEvidenceNames` represent existing evidenceConfigNames.
+    - These names MUST be used as table names inside the SQL query.
+    - The evidence config name can be updated using `newEvidenceName`.
+    
+    Args:
+        controlConfigId (str): The control config ID where the SQL query evidence exists (required).
+        evidenceId (str): The evidence ID of the SQL query evidence to update (required).
+        sqlquery (str): The updated SQL query definition (required). The query should reference evidenceConfigNames as table names.
+                      When confirm=False, this will be displayed in the preview. When confirm=True, the SQL query will be updated.
+        referedEvidenceNames (List[str]): List of evidenceConfigNames that are referenced as table names in the SQL query (required, non-empty).
+        newEvidenceName (str): Updated name of the evidence config (required).
+        confirm (bool, optional): If False, returns preview with the updated SQL query displayed for review (and optional modification).
+                                 If True, proceeds with SQL query evidence update using the provided sqlquery.
+
+    Returns:
+        Dict with success status and data:
+        - success (bool): Whether the request was successful
+        - evidenceId (str, optional): Updated evidence ID
+        - message (str, optional): Success or error message
+        - sqlquery (str, optional): The SQL query shown in preview (when confirm=False)
+        - error (str, optional): Error message if request failed
+    """
+    try:
+        logger.info("update_sql_query_evidence: \n")
+        
+        if not controlConfigId or not str(controlConfigId).strip():
+            logger.error("update_sql_query_evidence error: controlConfigId is mandatory\n")
+            return {"success": False, "error": "controlConfigId is mandatory"}
+        
+        if not evidenceId or not str(evidenceId).strip():
+            logger.error("update_sql_query_evidence error: evidenceId is mandatory\n")
+            return {"success": False, "error": "evidenceId is mandatory"}
+        
+        if not sqlquery or not str(sqlquery).strip():
+            logger.error("update_sql_query_evidence error: sqlquery is mandatory\n")
+            return {"success": False, "error": "sqlquery is mandatory"}
+        
+        if not referedEvidenceNames or not isinstance(referedEvidenceNames, list) or len(referedEvidenceNames) == 0:
+            logger.error("update_sql_query_evidence error: referedEvidenceNames must be a non-empty list\n")
+            return {"success": False, "error": "referedEvidenceNames must be a non-empty list"}
+        
+        if not newEvidenceName or not str(newEvidenceName).strip():
+            logger.error("update_sql_query_evidence error: newEvidenceName is mandatory\n")
+            return {"success": False, "error": "newEvidenceName is mandatory"}
+        
+        # Build payload according to API specification
+        payload = {
+            "sqlQuery": str(sqlquery).strip(),
+            "evidenceName": str(newEvidenceName).strip(),
+            "referedEvidenceNames": [str(name).strip() for name in referedEvidenceNames if name and str(name).strip()]
+        }
+
+        if not confirm:
+            logger.info("update_sql_query_evidence: Returning confirmation preview\n")
+            return {
+                "success": True,
+                "message": "Confirmation required before updating SQL query evidence",
+                "controlConfigId": str(controlConfigId).strip(),
+                "evidenceId": str(evidenceId).strip(),
+                "sqlQuery": payload["sqlQuery"],
+                "newEvidenceName": payload["evidenceName"],
+                "referedEvidenceNames": payload["referedEvidenceNames"],
+                "next_step": "Review the updated SQL query above. If you need to modify it, provide the updated sqlquery parameter when calling with confirm=True. If correct, re-run with confirm=True to update the SQL query evidence."
+            }
+        
+        url = f"{constants.URL_PLAN_CONTROLS}/{str(controlConfigId).strip()}/sql-query-evidences/{str(evidenceId).strip()}"
+        
+        logger.debug("update_sql_query_evidence payload: {}\n".format(json.dumps(payload)))
+        logger.debug("update_sql_query_evidence URL: {}\n".format(url))
+        
+        resp_raw = await utils.make_API_call_to_CCow_and_get_response(
+            url,
+            "PUT",
+            payload,
+            return_raw=True
+        )
+        
+        resp = resp_raw.json()
+        logger.debug("update_sql_query_evidence output: {}\n".format(json.dumps(resp) if isinstance(resp, dict) else resp))
+        
+        # Handle error response
+        if isinstance(resp, str):
+            logger.error("update_sql_query_evidence error: {}\n".format(resp))
+            return {"success": False, "error": resp}
+        
+        if isinstance(resp, dict):
+            # Check for error fields
+            if "Message" in resp:
+                logger.error("update_sql_query_evidence error: {}\n".format(resp))
+                return {"success": False, "error": resp}
+            
+            if "error" in resp:
+                logger.error("update_sql_query_evidence error: {}\n".format(resp.get("error")))
+                return {"success": False, "error": resp.get("error")}
+
+            updated_evidence_id = resp.get("evidenceId") or str(evidenceId).strip()
+
+            logger.info(f"update_sql_query_evidence: Successfully updated SQL query evidence with evidenceId: {updated_evidence_id}\n")
+            return {
+                "success": True,
+                "evidenceId": updated_evidence_id,
+                "message": "SQL query evidence updated successfully",
+            }
+        
+        logger.error("update_sql_query_evidence error: Unexpected response type: {}\n".format(type(resp)))
+        return {"success": False, "error": f"Unexpected response type: {resp}"}
+        
+    except Exception as e:
+        logger.error(traceback.format_exc())
+        logger.error("update_sql_query_evidence error: {}\n".format(e))
+        return {"success": False, "error": f"Unexpected error updating SQL query evidence: {e}"}
 
 @mcp.tool()
 async def fetch_control_source_summary(controlId: str) -> ControlSourceSummaryResponseVO:
     """
     Fetch aggregated source summary for a control config, including linked control configs, evidences (including schema), and lineage depth.
-    This tool is the PRIMARY way to gather SQL rule context for a control config.
+    This tool is the PRIMARY way to gather SQL query context for a control config.
 
     It returns how a control is connected to evidence configurations and what evidence
     structures (schemas) are available.
 
     ⚠️ IMPORTANT WORKFLOW 
-    If **no evidence configs** exist and a **citation is already attached**, SQL rule generation must STOP.  
-    If no evidence configs exist and a citation is already attached, SQL rule generation must stop immediately.
+    If **no evidence configs** exist and a **citation is already attached**, SQL query generation must STOP.  
+    If no evidence configs exist and a citation is already attached, SQL query generation must stop immediately.
     Do not proceed and do not provide any suggestions.
     No further actions or recommendations are allowed.
     
@@ -1007,10 +1201,10 @@ async def fetch_control_source_summary(controlId: str) -> ControlSourceSummaryRe
                 if summary_data.lineage and len(summary_data.lineage)>0:
                     response.next_action="get evidence sample data"
                 else:
-                    response.next_action="STOP_SQL_RULE_GENERATION_NO_EVIDENCE_CONFIGS_CITATION_ATTACHED"
+                    response.next_action="STOP_SQL_QUERY_GENERATION_NO_EVIDENCE_CONFIGS_CITATION_ATTACHED"
                     response.next_step = (
                         "No evidence configurations are linked to this control. "
-                        "Since a citation is already attached, SQL rule automation cannot proceed. "
+                        "Since a citation is already attached, SQL query automation cannot proceed. "
                     )
                 return response
             except Exception as parse_error:
@@ -1029,7 +1223,7 @@ async def fetch_control_source_summary(controlId: str) -> ControlSourceSummaryRe
         return ControlSourceSummaryResponseVO(
             success=False, 
             error=f"Unexpected response type: {resp}", 
-            next_action="create sql rule and attach"
+            next_action="create sql query evidence"
         )
 
     except Exception as e:
@@ -1047,11 +1241,11 @@ async def get_evidence_sample_data(controlConfigId: str, evidenceNames: List[str
 
     Usage guidance:
     1. Run `fetch_control_source_summary` first to understand schema/lineage.
-    2. Call this tool before drafting SQL rules to inspect real evidence rows.
+    2. Call this tool before drafting SQL query to inspect real evidence rows.
     3. Pass 1-10 records to keep payloads lightweight (defaults to 3).
 
     Args:
-        controlConfigId (str): Control config ID where the SQL rule will be attached (required).
+        controlConfigId (str): Control config ID where the SQL query will be attached (required).
         evidenceNames (List[str], optional): Specific evidence config names (table names) to sample.
             If omitted/empty, all evidences linked to the control are sampled.
         records (int, optional): Number of records per evidence (1-10, default 3).
@@ -1063,7 +1257,7 @@ async def get_evidence_sample_data(controlConfigId: str, evidenceNames: List[str
             - recordCount (int): Number of rows requested (after validation).
             - evidences (List[dict]): Evidence samples grouped by control/evidence. If an evidence
               is missing from the response, no records exist for it in the latest run.
-            - next_action (str): Recommended next step (typically "create sql rule").
+            - next_action (str): Recommended next step (typically "create sql query").
             - error (str, optional): Validation or API error.
     """
     try:
@@ -1121,9 +1315,9 @@ async def get_evidence_sample_data(controlConfigId: str, evidenceNames: List[str
             }
 
             if resp and len(resp)>0:
-                response["next_action"]="create sql rule"
+                response["next_action"]="create sql query"
             else:
-                response["next_action"] = "CREATE_SQL_RULE_FROM_SCHEMA_OR_REQUEST_USER_SAMPLES"
+                response["next_action"] = "CREATE_SQL_QUERY_FROM_SCHEMA_OR_REQUEST_USER_SAMPLES"
             return response
 
         logger.error("get_evidence_sample_data error: Unexpected response type: {}\n".format(type(resp)))
@@ -1141,7 +1335,7 @@ async def get_evidence_sample_data(controlConfigId: str, evidenceNames: List[str
 async def get_assessment_context() -> dict:
     """
     Use this tool when the user wants to automate control operations,
-    or before creating an SQL rule.
+    or before creating an SQL query.
     
     This tool retrieves assessment context information from ServiceNow entities endpoint.
     Returns:
@@ -1184,15 +1378,15 @@ async def create_control_config_note(
     controlConfigId: str,
     assessmentId: str,
     notes: str,
-    topic: str = "SQL Rule Documentation",
+    topic: str = "SQL Query Documentation",
     confirm: bool = False,
 ) -> dict:
     """
-    Create a documentation note on a control configuration to record SQL rule logic, evidence generation strategy, and implementation context.
+    Create a documentation note on a control configuration to record SQL query logic, evidence generation strategy, and implementation context.
     
     ✅ PURPOSE
-    This tool is used AFTER a SQL rule has been successfully created and attached
-    to a control config (via `create_sql_rule_and_attach`).
+    This tool is used AFTER a SQL query has been successfully created and attached
+    to a control config (via `create_sql_query_evidence`).
     
     It provides long-term traceability by documenting:
     - How the SQL query was generated
@@ -1202,7 +1396,7 @@ async def create_control_config_note(
 
     ✅ OPTIONAL & USER-DRIVEN
     This tool is OPTIONAL and should be offered only if the user chooses
-    to add documentation after SQL rule creation.
+    to add documentation after SQL query creation.
     
     ✅ CONFIRMATION-BASED SAFETY FLOW
     - When confirm=False:
@@ -1222,7 +1416,7 @@ async def create_control_config_note(
     
     Args:
         controlConfigId (str): The control config ID where the note will be attached (required).
-                              This is the same control config ID used in `create_sql_rule_and_attach`.
+                              This is the same control config ID used in `create_sql_query_evidence`.
         assessmentId (str): The assessment ID that contains the control config (required).
         notes (str): The documentation content in MARKDOWN format. (Required)
                     Must include:
@@ -1255,7 +1449,7 @@ async def create_control_config_note(
                         - {OUTPUT_1_NAME}: Operational evidence  
                         - {OUTPUT_2_NAME}: Compliance summary
 
-        topic (str, optional): Topic or subject of the note. Defaults to "SQL Rule Documentation".
+        topic (str, optional): Topic or subject of the note. Defaults to "SQL Query Documentation".
         confirm (bool, optional):  
             - False → Preview only (default, no persistence)
             - True  → Create and permanently attach the note
@@ -1289,7 +1483,7 @@ async def create_control_config_note(
         
         # Build payload
         payload = {
-            "topic": str(topic).strip() if topic else "SQL Rule Documentation",
+            "topic": str(topic).strip() if topic else "SQL Query Documentation",
             "notes": str(notes).strip(),
             "planId": str(assessmentId).strip(),
             "planControlID": str(controlConfigId).strip(),
@@ -1355,7 +1549,7 @@ async def create_control_config_note(
 @mcp.tool()
 async def fetch_rule_readme(name: str) -> workflow_vo.RuleReadmeResponseVO:
     """
-    Use this tool to get details about the rule to add in SQL rule control config notes.
+    Use this tool to get details about the rule to add in SQL query control config notes.
 
     Retrieve README documentation for a specific rule by name.
     

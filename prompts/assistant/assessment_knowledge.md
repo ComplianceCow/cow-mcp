@@ -103,7 +103,7 @@ spec:
 ## SQL QUERY GENERATION
 ============================================================
 
-To create an SQL rule based on a control configuration, follow this logic:
+To create an SQL query based on a control configuration, follow this logic:
 1. **Generate two SQL queries**, based on the requirement and the evidence configurations involved, also considering the context (control context and assessment context):
    - **Query 1: Select rows from evidence that match the control context.**
    - **Query 2: Produce a compliant summary for each control context.**
@@ -133,6 +133,10 @@ Required SQL Outputs:
    - Aggregate or compute a summary of compliance  
    - Produce results at the control-context level
 
+Naming Convention for New Evidence Configs:
+     - Query 1 → `{{query-purpose}}_details`
+     - Query 2 → `{{query-purpose}}_summary`
+
 ============================================================
 ## GENERAL INSTRUCTION
 ============================================================
@@ -151,7 +155,7 @@ This rule is ABSOLUTE and must NEVER be bypassed.
 ============================================================
 
 ### AUTOMATE CONTROL
-- Starts with **suggest citation** → **attach citation to control** → **fetch control source summary** → **generate and run SQL query on data** → **create and attach SQL rule**
+- Starts with **suggest citation** → **attach citation to control** → **fetch control source summary** → **generate and run SQL query on data** → **create SQL query evidence**
 
 ============================================================
 End of System Prompt
