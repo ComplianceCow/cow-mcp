@@ -1515,10 +1515,21 @@ async def create_control_config_note(
         )
         
         if resp_raw.status_code == 201:
+            resp = {}
+            try:
+                if resp_raw.content:
+                    resp = resp_raw.json()
+            except Exception:
+                resp = {"error": f"HTTP {resp_raw.status_code}"}
+
+            noteId = ""
+            if isinstance(resp, dict):
+                noteId = resp.get("id")
             
             logger.info(f"create_control_config_note: Successfully created note with status 201\n")
             return {
                 "success": True,
+                "noteId": noteId,
                 "message": "Note created successfully",
             }
         else:
@@ -1545,6 +1556,201 @@ async def create_control_config_note(
         logger.error(traceback.format_exc())
         logger.error("create_control_config_note error: {}\n".format(e))
         return {"success": False, "error": f"Unexpected error creating control config note: {e}"}
+
+@mcp.tool()
+async def list_control_config_notes(
+    controlConfigId: str
+) -> dict:
+    """
+    List all notes for a given control configuration.
+    
+    This tool retrieves all notes associated with a control configuration.
+    
+    Args:
+        controlConfigId (str): The control config ID to list notes for (required).
+    
+    Returns:
+        Dict with success status and notes:
+        - success (bool): Whether the request was successful
+        - notes (List[dict]): List of note objects, each containing:
+            - id (str): Note ID
+            - topic (str): Note topic
+            - notes (str): Note content
+        - totalCount (int): Total number of notes found
+        - error (str, optional): Error message if request failed
+    """
+    try:
+        logger.info("list_control_config_notes: \n")
+        
+        if not controlConfigId or not str(controlConfigId).strip():
+            logger.error("list_control_config_notes error: controlConfigId is mandatory\n")
+            return {"success": False, "error": "controlConfigId is mandatory"}
+        
+        control_config_id = str(controlConfigId).strip()
+        url = constants.URL_PLAN_CONTROL_NOTES.format(controlConfigId=control_config_id)
+        
+        logger.debug("list_control_config_notes URL: {}\n".format(url))
+        
+        output = await utils.make_GET_API_call_to_CCow(url)
+        
+        if isinstance(output, str) or (isinstance(output, dict) and "error" in output):
+            logger.error("list_control_config_notes error: {}\n".format(output))
+            return {"success": False, "error": "Failed to fetch control config notes"}
+        
+        if isinstance(output, dict):
+            if "Message" in output:
+                logger.error("list_control_config_notes error: {}\n".format(output))
+                return {"success": False, "error": output}
+            
+            items = output.get("items", [])
+            if not isinstance(items, list):
+                items = []
+
+            abstracted_items = []
+            for item in items:
+                if isinstance(item, dict):
+                    abstracted_item = {
+                        "id": item.get("id", ""),
+                        "topic": item.get("topic", ""),
+                        "notes": item.get("notes", ""),
+                    }
+                    abstracted_items.append(abstracted_item)
+            
+            logger.info(f"list_control_config_notes: {abstracted_items} \n Found {len(abstracted_items)} note(s)\n")
+            return {"success": True, "notes": abstracted_items, "totalCount": len(abstracted_items)}
+        
+        logger.error("list_control_config_notes error: Unexpected response type: {}\n".format(type(output)))
+        return {"success": False, "error": f"Unexpected response type: {output}"}
+        
+    except Exception as e:
+        logger.error(traceback.format_exc())
+        logger.error("list_control_config_notes error: {}\n".format(e))
+        return {"success": False, "error": f"Unexpected error listing control config notes: {e}"}
+
+@mcp.tool()
+async def update_control_config_note(
+    controlConfigId: str,
+    noteId: str,
+    assessmentId: str,
+    notes: str,
+    topic: str = "SQL Query Documentation",
+    confirm: bool = False,
+) -> dict:
+    """
+    Update an existing documentation note on a control configuration.
+    
+    ✅ PURPOSE
+    This tool updates an existing note that was previously created on a control config.
+    It allows modification of the note content, topic, or both.
+    
+    ✅ CONFIRMATION-BASED SAFETY FLOW
+    - When confirm=False:
+        → The tool returns a PREVIEW of the updated markdown note.
+        → The user may edit the note before confirming.
+    - When confirm=True:
+        → The note is permanently updated and saved.
+    
+    Args:
+        controlConfigId (str): The control config ID where the note exists (required).
+        noteId (str): The note ID to update (required).
+        assessmentId (str): The assessment ID that contains the control config (required).
+        notes (str): The updated documentation content in MARKDOWN format (required).
+        topic (str, optional): Updated topic or subject of the note. Defaults to "SQL Query Documentation".
+        confirm (bool, optional):  
+            - False → Preview only (default, no persistence)
+            - True  → Update and permanently save the note
+    
+    Returns:
+        Dict with success status and note data:
+        - success (bool): Whether the request was successful
+        - message (str, optional): Success or error message
+        - noteId (str, optional): Updated note ID
+        - error (str, optional): Error message if request failed
+    """
+    try:
+        logger.info("update_control_config_note: \n")
+        
+        if not controlConfigId or not str(controlConfigId).strip():
+            logger.error("update_control_config_note error: controlConfigId is mandatory\n")
+            return {"success": False, "error": "controlConfigId is mandatory"}
+        
+        if not noteId or not str(noteId).strip():
+            logger.error("update_control_config_note error: noteId is mandatory\n")
+            return {"success": False, "error": "noteId is mandatory"}
+        
+        if not assessmentId or not str(assessmentId).strip():
+            logger.error("update_control_config_note error: assessmentId is mandatory\n")
+            return {"success": False, "error": "assessmentId is mandatory"}
+        
+        if not notes or not str(notes).strip():
+            logger.error("update_control_config_note error: notes content is mandatory\n")
+            return {"success": False, "error": "notes content is mandatory"}
+        
+        # Build payload
+        payload = {
+            "topic": str(topic).strip() if topic else "SQL Query Documentation",
+            "notes": str(notes).strip(),
+            "planId": str(assessmentId).strip(),
+            "planControlID": str(controlConfigId).strip(),
+        }
+
+        if not confirm:
+            logger.info("update_control_config_note: Returning confirmation preview\n")
+            return {
+                "success": True,
+                "message": "Confirmation required before updating note",
+                "controlConfigId": payload["planControlID"],
+                "noteId": str(noteId).strip(),
+                "topic": payload["topic"],
+                "notes": payload["notes"],
+                "next_step": "Review the updated Note above. If you need to modify it, provide the updated notes or topic parameters when calling with confirm=True. If correct, re-run with confirm=True to update the note."
+            }
+        
+        # Construct URL with control config ID and note ID
+        url = f"{constants.URL_PLAN_CONTROL_NOTES.format(controlConfigId=str(controlConfigId).strip())}/{str(noteId).strip()}"
+        
+        logger.debug("update_control_config_note payload: {}\n".format(json.dumps(payload)))
+        logger.debug("update_control_config_note URL: {}\n".format(url))
+        
+        # Make API call
+        resp_raw = await utils.make_API_call_to_CCow_and_get_response(
+            url,
+            "PUT",
+            payload,
+            return_raw=True
+        )
+        
+        if resp_raw.status_code == 204:
+            logger.info(f"update_control_config_note: Successfully updated note with status 204\n")
+            return {
+                "success": True,
+                "noteId": str(noteId).strip(),
+                "message": "Note updated successfully",
+            }
+        else:
+            # Error - parse error response
+            error_resp = {}
+            try:
+                if resp_raw.content:
+                    error_resp = resp_raw.json()
+            except Exception:
+                error_resp = {"error": f"HTTP {resp_raw.status_code}"}
+            
+            logger.error("update_control_config_note error: Status {} - {}\n".format(resp_raw.status_code, error_resp))
+            
+            # Check for error fields in response
+            if isinstance(error_resp, dict):
+                if "Message" in error_resp:
+                    return {"success": False, "error": error_resp}
+                if "error" in error_resp:
+                    return {"success": False, "error": error_resp.get("error")}
+
+            return {"success": False, "error": f"Failed to update note: HTTP {resp_raw.status_code}"}
+        
+    except Exception as e:
+        logger.error(traceback.format_exc())
+        logger.error("update_control_config_note error: {}\n".format(e))
+        return {"success": False, "error": f"Unexpected error updating control config note: {e}"}
     
 @mcp.tool()
 async def fetch_rule_readme(name: str) -> workflow_vo.RuleReadmeResponseVO:
