@@ -464,6 +464,7 @@ async def list_assessment_control_configs(
                             "name": item.get("name", ""),
                             "alias": item.get("alias", ""),
                             "controlNumber": item.get("displayable", ""),
+                            "context": item.get("context", ""),
                             "additionalContext": item.get("additionalContext", "")
                         }
                         all_controls.append(abstracted_control)
