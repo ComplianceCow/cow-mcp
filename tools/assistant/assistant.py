@@ -4,7 +4,7 @@ import base64
 import asyncio
 from typing import List
 from typing import Tuple
-
+import constants.error_constants as error_constants
 
 from utils import utils
 from utils.debug import logger
@@ -73,7 +73,7 @@ async def create_assessment(yaml_content: str) -> dict:
 
         # Fetch all categories to check if category exists
         try:
-            categories_resp = await utils.make_GET_API_call_to_CCow(constants.URL_ASSESSMENT_CATEGORIES, ctx)
+            categories_resp = await utils.make_GET_API_call_to_CCow(constants.URL_ASSESSMENT_CATEGORIES)
             
             # Handle error response
             if isinstance(categories_resp, str):
@@ -101,8 +101,7 @@ async def create_assessment(yaml_content: str) -> dict:
             if not category_id:
                 logger.info(f"Category '{category_name}' not found, creating new category\n")
                 create_category_payload = {"name": category_name}
-                create_category_resp_raw = await utils.make_API_call_to_CCow_and_get_response(constants.URL_ASSESSMENT_CATEGORIES,"POST",create_category_payload,return_raw=True, ctx=ctx)
-                create_category_resp = create_category_resp_raw.json()
+                create_category_resp = await utils.make_API_call_to_CCow_and_get_response(constants.URL_ASSESSMENT_CATEGORIES,"POST",create_category_payload)
                 # Handle error response from category creation
                 if isinstance(create_category_resp, str):
                     logger.error(f"create_assessment error: Failed to create category: {create_category_resp}\n")
@@ -148,8 +147,7 @@ async def create_assessment(yaml_content: str) -> dict:
 
         logger.debug("create_assessment payload: {}\n".format(json.dumps({**payload, "fileContent": "<base64-encoded>"})))
         
-        resp_raw = await utils.make_API_call_to_CCow_and_get_response(constants.URL_ASSESSMENTS,"POST",payload,return_raw=True, ctx=ctx)
-        resp = resp_raw.json()
+        resp = await utils.make_API_call_to_CCow_and_get_response(constants.URL_ASSESSMENTS,"POST",payload)
         logger.debug("create_assessment output: {}\n".format(json.dumps(resp) if isinstance(resp, dict) else resp))
         
         # Ensure response is always a dict (utils can return string on error)
@@ -544,14 +542,12 @@ async def create_control_config(
         logger.debug("create_control_config payload: {}\n".format(json.dumps(payload)))
         
         # Make API call
-        resp_raw = await utils.make_API_call_to_CCow_and_get_response(
+        resp = await utils.make_API_call_to_CCow_and_get_response(
             constants.URL_PLAN_CONTROLS,
             "POST",
-            payload,
-            return_raw=True
+            payload
         )
         
-        resp = resp_raw.json()
         logger.debug("create_control_config output: {}\n".format(json.dumps(resp) if isinstance(resp, dict) else resp))
         
         # Handle error response
@@ -757,8 +753,7 @@ async def attach_citation_to_control_config(
                 sync_resp = await utils.make_API_call_to_CCow_and_get_response(
                     constants.URL_PLANS_SYNC_CCFID,
                     "POST",
-                    sync_payload,
-                    return_raw=False
+                    sync_payload
                 )
                 
                 # Log sync result but don't fail the citation attachment if sync fails
@@ -890,14 +885,12 @@ async def create_sql_query_evidence(
         logger.debug("create_sql_query_evidence URL: {}\n".format(url))
         
         # Make API call
-        resp_raw = await utils.make_API_call_to_CCow_and_get_response(
+        resp = await utils.make_API_call_to_CCow_and_get_response(
             url,
             "POST",
-            payload,
-            return_raw=True
+            payload
         )
         
-        resp = resp_raw.json()
         logger.debug("create_sql_query_evidence output: {}\n".format(json.dumps(resp) if isinstance(resp, dict) else resp))
         
         # Handle error response
@@ -1089,14 +1082,12 @@ async def update_sql_query_evidence(
         logger.debug("update_sql_query_evidence payload: {}\n".format(json.dumps(payload)))
         logger.debug("update_sql_query_evidence URL: {}\n".format(url))
         
-        resp_raw = await utils.make_API_call_to_CCow_and_get_response(
+        resp = await utils.make_API_call_to_CCow_and_get_response(
             url,
             "PUT",
-            payload,
-            return_raw=True
+            payload
         )
         
-        resp = resp_raw.json()
         logger.debug("update_sql_query_evidence output: {}\n".format(json.dumps(resp) if isinstance(resp, dict) else resp))
         
         # Handle error response
@@ -1168,14 +1159,12 @@ async def fetch_control_source_summary(controlId: str) -> ControlSourceSummaryRe
             "fetch_control_source_summary payload: {}\n".format(json.dumps(payload))
         )
 
-        resp_raw = await utils.make_API_call_to_CCow_and_get_response(
+        resp = await utils.make_API_call_to_CCow_and_get_response(
             constants.URL_PLAN_CONTROLS_FETCH_SOURCE_SUMMARY,
             "POST",
-            payload,
-            return_raw=True,
+            payload
         )
 
-        resp = resp_raw.json()
         logger.debug(
             "fetch_control_source_summary output: {}\n".format(
                 json.dumps(resp) if isinstance(resp, dict) else resp
@@ -1201,10 +1190,10 @@ async def fetch_control_source_summary(controlId: str) -> ControlSourceSummaryRe
                 if summary_data.lineage and len(summary_data.lineage)>0:
                     response.next_action="get evidence sample data"
                 else:
-                    response.next_action="STOP_SQL_QUERY_GENERATION_NO_EVIDENCE_CONFIGS_CITATION_ATTACHED"
+                    response.next_action="STOP_SQL_QUERY_GENERATION_NO_EVIDENCE_CONFIGS_ATTACHED"
                     response.next_step = (
                         "No evidence configurations are linked to this control. "
-                        "Since a citation is already attached, SQL query automation cannot proceed. "
+                        "SQL query automation cannot proceed. "
                     )
                 return response
             except Exception as parse_error:
@@ -1285,14 +1274,12 @@ async def get_evidence_sample_data(controlConfigId: str, evidenceNames: List[str
 
         logger.debug("get_evidence_sample_data payload: {}\n".format(json.dumps(payload)))
 
-        resp_raw = await utils.make_API_call_to_CCow_and_get_response(
+        resp = await utils.make_API_call_to_CCow_and_get_response(
             constants.URL_PLAN_CONTROLS_FETCH_SAMPLE_EVIDENCE_DATA,
             "POST",
-            payload,
-            return_raw=True
+            payload
         )
 
-        resp = resp_raw.json()
         logger.debug("get_evidence_sample_data output: {}\n".format(json.dumps(resp) if isinstance(resp, dict) else resp))
 
         if isinstance(resp, str):
@@ -1462,6 +1449,10 @@ async def create_control_config_note(
             payload,
             return_raw=True
         )
+
+        if resp_raw.status_code == 502:
+            return {"success": False, "error": error_constants.ERROR_BAD_GATEWAY}
+        
         
         if resp_raw.status_code == 201:
             resp = {}
@@ -1668,6 +1659,9 @@ async def update_control_config_note(
             payload,
             return_raw=True
         )
+
+        if resp_raw.status_code == 502:
+            return {"success": False, "error": error_constants.ERROR_BAD_GATEWAY}
         
         if resp_raw.status_code == 204:
             logger.info(f"update_control_config_note: Successfully updated note with status 204\n")
