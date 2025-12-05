@@ -194,7 +194,7 @@ async def create_assessment(yaml_content: str) -> dict:
 async def suggest_control_config_citations(
     controlName: str,
     assessmentId: str,
-    description: str = "",
+    description: str,
     controlId: str = ""
 ) -> dict:
     """
@@ -460,6 +460,7 @@ async def list_assessment_control_configs(
                         abstracted_control = {
                             "id": item.get("id", ""),
                             "name": item.get("name", ""),
+                            "description": item.get("description", ""),
                             "alias": item.get("alias", ""),
                             "controlNumber": item.get("displayable", ""),
                             "context": item.get("context", ""),
@@ -493,9 +494,9 @@ async def list_assessment_control_configs(
 async def create_control_config(
     assessmentId: str,
     name: str,
-    alias: str = "",
-    controlNumber: str = "",
-    description: str = ""
+    alias: str,
+    controlNumber: str,
+    description: str
 ) -> dict:
     """
     Create a new control config in an assessment.
@@ -1365,7 +1366,7 @@ async def create_control_config_note(
     controlConfigId: str,
     assessmentId: str,
     notes: str,
-    topic: str = "SQL Query Documentation",
+    topic: str,
     confirm: bool = False,
 ) -> dict:
     """
@@ -1419,7 +1420,7 @@ async def create_control_config_note(
         
         # Build payload
         payload = {
-            "topic": str(topic).strip() if topic else "SQL Query Documentation",
+            "topic": str(topic).strip(),
             "notes": str(notes).strip(),
             "planId": str(assessmentId).strip(),
             "planControlID": str(controlConfigId).strip(),
@@ -1462,6 +1463,7 @@ async def create_control_config_note(
             except Exception:
                 resp = {"error": f"HTTP {resp_raw.status_code}"}
 
+            logger.info(f"create_control_config_note: \n Response : {resp}\n")
             noteId = ""
             if isinstance(resp, dict):
                 noteId = resp.get("id")
@@ -1533,6 +1535,8 @@ async def list_control_config_notes(
         
         output = await utils.make_GET_API_call_to_CCow(url)
         
+        logger.info(f"create_control_config_note: \n Response : {output}\n")
+
         if isinstance(output, str) or (isinstance(output, dict) and "error" in output):
             logger.error("list_control_config_notes error: {}\n".format(output))
             return {"success": False, "error": "Failed to fetch control config notes"}
@@ -1573,7 +1577,7 @@ async def update_control_config_note(
     noteId: str,
     assessmentId: str,
     notes: str,
-    topic: str = "SQL Query Documentation",
+    topic: str,
     confirm: bool = False,
 ) -> dict:
     """
@@ -1628,7 +1632,7 @@ async def update_control_config_note(
         
         # Build payload
         payload = {
-            "topic": str(topic).strip() if topic else "SQL Query Documentation",
+            "topic": str(topic).strip(),
             "notes": str(notes).strip(),
             "planId": str(assessmentId).strip(),
             "planControlID": str(controlConfigId).strip(),

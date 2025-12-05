@@ -5,7 +5,7 @@
 ### SQL QUERY GENERATION – DUAL QUERY REQUIREMENT
 
 When generating SQL from a control configuration:
-1. **Always create TWO SQL QUERIES**:
+1. **Always create TWO SQL QUERIES**, based on the requirement and the evidence configurations involved, also considering the context (control context and assessment context):
    - **Query 1: Evidence Selection Query**
      - Select rows from evidence that match the control context or assessment context.
    - **Query 2: Compliance Summary Query**
@@ -39,6 +39,10 @@ When generating SQL from a control configuration:
   - All SQL queries **must still be presented to the user for review and explicit approval**.
   - Each query must be approved **one by one** 
 
+⚠️ **AUTOMATION COMPLETION RULE**
+- **A control is considered automated ONLY AFTER BOTH SQL QUERIES (Query 1 and Query 2) have been generated AND approved by the user (confirm=True for each).**
+- If both queries are not successfully created and approved, the control **must NOT** be marked or treated as automated.
+
 When a user wants to automate a control configuration:
 
 1. **GET ASSESSMENT AND CONTROL IDENTIFIERS**
@@ -51,6 +55,8 @@ When a user wants to automate a control configuration:
    - **AUTO-ATTACH** the top-scoring citation to the control using `attach_citation_to_control_config` with `confirm=True`
    - **NO PREVIEW OR USER CONFIRMATION REQUIRED** for citation attachment during automation
    - This allows the workflow to proceed automatically without user intervention for citation selection
+   - If `attach_citation_to_control_config` returns a message indicating  "citation already attached", Immediately check automation status and follow the process
+   - If `attach_citation_to_control_config` returns **"citation already attached"**, then **invoke the existing Control Automation Status Checking process**.
 
 3. **AUTOMATIC QUERY GENERATION**
    - After citation is attached, proceed to generate SQL queries automatically
@@ -70,6 +76,38 @@ When a user wants to automate a control configuration:
    - Query 2 must be created with `confirm=False` first to show preview
    - User must explicitly approve each query before final creation
    - Only after user approval (confirm=True) should queries be permanently created
+
+5. **ADDED — OPTIONAL NOTE CREATION SUGGESTION**
+   After the two queries are approved:
+   - Recommend:  
+     **“Would you like to add an automation note for this control?”**
+   - If yes → create with name:  **`control_automation_note`**
+
+============================================================
+
+### CONTROL AUTOMATION STATUS CHECKING
+
+When the user asks whether a control is automated:
+
+1. Use **`list_sql_query_evidence`** for the control.
+2. Determine automation using :
+   - If **any `_details` query exists** AND **any `_summary` query exists** →  
+     **Control is automated**
+   - Otherwise →  
+     **Control automation is partial/incomplete**
+
+3. If control is fully automated:
+   - Check for a note named:  
+     **`control_automation_note`**
+   - If missing, suggest:
+     > “This control is automated, but documentation is not available.  
+     > Would you like to add a control automation note?”
+
+4. If the control is partial/incomplete:
+   - Ask the user if they want to complete the automation.
+   - If the user agrees, continue from the missing automation steps (SQL query generation, preview, approval, etc.).
+
+============================================================
 
 ============================================================
 
