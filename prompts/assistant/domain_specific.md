@@ -27,6 +27,28 @@ When generating SQL from a control configuration:
    - Query 1 → `{{query-purpose}}_details`
    - Query 2 → `{{query-purpose}}_summary`
 
+5. **SQL QUERY VALIDATION (MANDATORY BEFORE CREATION)**
+   - **ALWAYS validate SQL queries using `validate_sql_query` BEFORE calling `create_sql_query_evidence`**
+   - This ensures the query syntax is correct and can execute against the provided evidence data
+   - Validation workflow:
+     a. Generate the SQL query
+     b. **Validate the query** using `validate_sql_query` with appropriate evidence data
+     c. If validation fails (`queryStatus: "fail"`):
+        - Review the error message, Fix the SQL query based on the error & Re-validate
+     d. If validation succeeds (`queryStatus: "success"`):
+        - Proceed to create the SQL query evidence using `create_sql_query_evidence`
+   - **Evidence data for validation:**
+     - **Preferred:** Use `id` (runEvidenceId) from `get_evidence_sample_data` response if available
+     - **Fallback:** If sample data is NOT available from `get_evidence_sample_data` (no `id` present):
+        - **MANDATORY:** Ask the user to provide evidence data - DO NOT automatically assume or create file content
+        - **DO NOT call `validate_sql_query` with file content without explicit user-provided data**
+        - **Request the user to provide evidence data** in normal format (CSV or JSON text)
+        - **ONLY after user provides the data:** LLM must convert the user-provided data to base64 before calling `validate_sql_query`
+        - Use the `file` parameter with `content` (base64 encoded) and `type` ("csv" or "json")
+        - **DO NOT ask the user to provide base64-encoded content** - always request normal text/data and convert it yourself
+   - **Validation is required for BOTH Query 1 and Query 2 separately**
+   - Do NOT proceed with `create_sql_query_evidence` if validation fails
+
 ============================================================
 
 ### CONTROL AUTOMATION WORKFLOW
@@ -70,17 +92,24 @@ When a user wants to automate a control configuration:
      - Use `get_evidence_sample_data` to understand evidence structure
      - Generate both Query 1 (details) and Query 2 (summary) automatically
 
-4. **MANDATORY USER APPROVAL FOR QUERIES**
+4. **SQL QUERY VALIDATION (BEFORE USER APPROVAL)**
+   - **For each generated query:**
+     - **MANDATORY:** Validate the query using `validate_sql_query` before showing to user
+     - **CRITICAL:** If `id` (runEvidenceId) is NOT available from `get_evidence_sample_data`, ask user for evidence data - DO NOT automatically assume/create file content
+     - If validation fails, fix the query and re-validate
+     - Only proceed to preview/approval step after successful validation
+
+5. **MANDATORY USER APPROVAL FOR QUERIES**
    - **BOTH queries MUST be shown to the user for approval**
    - Query 1 must be created with `confirm=False` first to show preview
    - Query 2 must be created with `confirm=False` first to show preview
    - User must explicitly approve each query before final creation
    - Only after user approval (confirm=True) should queries be permanently created
 
-5. **ADDED — OPTIONAL NOTE CREATION SUGGESTION**
+6. **ADDED — OPTIONAL NOTE CREATION SUGGESTION**
    After the two queries are approved:
    - Recommend:  
-     **“Would you like to add an automation note for this control?”**
+     **"Would you like to add an automation note for this control?"**
    - If yes → create with name:  **`control_automation_note`**
 
 ============================================================
