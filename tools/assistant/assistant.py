@@ -1808,9 +1808,10 @@ async def validate_sql_query(
             - Either `id` OR `file` must be provided for each evidence (not both).
     
     Returns:
-        Dict with validation status:
+        Dict with validation status and executed query data:
         - success (bool): Whether the request was successful
         - queryStatus (str): Query validation status - "success" or "fail"
+        - data (list, optional): Executed query results (rows returned by the query execution)
         - error (str, optional): Error message if validation failed or request failed
     """
     try:

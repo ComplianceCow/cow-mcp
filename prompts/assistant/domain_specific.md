@@ -36,7 +36,8 @@ When generating SQL from a control configuration:
      c. If validation fails (`queryStatus: "fail"`):
         - Review the error message, Fix the SQL query based on the error & Re-validate
      d. If validation succeeds (`queryStatus: "success"`):
-        - Proceed to create the SQL query evidence using `create_sql_query_evidence`
+        - **Show the executed query data** (from the `data` field in response) to the user as a table
+        - After user confirms the data looks correct, proceed to create the SQL query evidence using `create_sql_query_evidence`
    - **Evidence data for validation:**
      - **Preferred:** Use `id` (runEvidenceId) from `get_evidence_sample_data` response if available
      - **Fallback:** If sample data is NOT available from `get_evidence_sample_data` (no `id` present):
@@ -46,6 +47,13 @@ When generating SQL from a control configuration:
         - **ONLY after user provides the data:** LLM must convert the user-provided data to base64 before calling `validate_sql_query`
         - Use the `file` parameter with `content` (base64 encoded) and `type` ("csv" or "json")
         - **DO NOT ask the user to provide base64-encoded content** - always request normal text/data and convert it yourself
+   - **Displaying Executed Query Data:**
+     - When `validate_sql_query` returns `queryStatus: "success"` with a `data` field, format it as a table
+     - Create a table with:
+       - Header row using `data.column` array (all column names)
+       - Data rows using `data.data` array (each inner array is a row of values)
+       - Show all returned records (only a few sample records are returned)
+     - **DO NOT summarize or truncate the data** - show all returned records in table format
    - **Validation is required for BOTH Query 1 and Query 2 separately**
    - Do NOT proceed with `create_sql_query_evidence` if validation fails
 
@@ -96,8 +104,9 @@ When a user wants to automate a control configuration:
    - **For each generated query:**
      - **MANDATORY:** Validate the query using `validate_sql_query` before showing to user
      - **CRITICAL:** If `id` (runEvidenceId) is NOT available from `get_evidence_sample_data`, ask user for evidence data - DO NOT automatically assume/create file content
+     - **After successful validation:** Show the executed query data as a table
      - If validation fails, fix the query and re-validate
-     - Only proceed to preview/approval step after successful validation
+     - Only proceed to preview/approval step after successful validation and user review of executed data
 
 5. **MANDATORY USER APPROVAL FOR QUERIES**
    - **BOTH queries MUST be shown to the user for approval**
