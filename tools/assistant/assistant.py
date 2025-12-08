@@ -1778,3 +1778,148 @@ async def fetch_rule_readme(name: str) -> workflow_vo.RuleReadmeResponseVO:
         logger.error(traceback.format_exc())
         logger.error("fetch_rule_readme error: {}\n".format(e))
         return workflow_vo.RuleReadmeResponseVO(error="Facing internal error")
+
+@mcp.tool()
+async def validate_sql_query(
+    sqlQuery: str,
+    referenceEvidences: List[dict]
+) -> dict:
+    """
+    Validate a SQL query against reference evidence data.
+    
+    This tool validates a SQL query by executing it against provided evidence data.
+    The evidence data can be provided in two ways:
+    1. Using runEvidenceId (id) - obtained from `get_evidence_sample_data` response
+    2. Using file content - base64 encoded CSV or JSON file content
+    
+    ⚠️ IMPORTANT REQUIREMENTS
+    - For each evidence in referenceEvidences, either `id` OR `file` must be provided (not both).
+    - If using `file`, the content must be base64 encoded and type must be "csv" or "json".
+    - The evidence name should match the table name used in the SQL query.
+    
+    Args:
+        sqlQuery (str): The SQL query to validate (required).
+        referenceEvidences (List[dict]): List of evidence objects, each containing:
+            - name (str): Evidence config name (table name used in SQL query) (required).
+            - id (str, optional): runEvidenceId obtained from `get_evidence_sample_data` response.
+            - file (dict, optional): File object containing:
+                - content (str): Base64 encoded file content (required if using file).
+                - type (str): File type, either "csv" or "json" (required if using file).
+            - Either `id` OR `file` must be provided for each evidence (not both).
+    
+    Returns:
+        Dict with validation status:
+        - success (bool): Whether the request was successful
+        - queryStatus (str): Query validation status - "success" or "fail"
+        - error (str, optional): Error message if validation failed or request failed
+    """
+    try:
+        logger.info("validate_sql_query: \n")
+        
+        logger.info(f"validate_sql_query: sqlQuery: {sqlQuery}\n referenceEvidences: {referenceEvidences}\n")
+        
+        if not sqlQuery or not str(sqlQuery).strip():
+            logger.error("validate_sql_query error: sqlQuery is mandatory\n")
+            return {"success": False, "error": "sqlQuery is mandatory"}
+        
+        if not referenceEvidences or not isinstance(referenceEvidences, list) or len(referenceEvidences) == 0:
+            logger.error("validate_sql_query error: referenceEvidences must be a non-empty list\n")
+            return {"success": False, "error": "referenceEvidences must be a non-empty list"}
+        
+        # Validate and build reference evidences payload
+        validated_evidences = []
+        for idx, evidence in enumerate(referenceEvidences):
+            if not isinstance(evidence, dict):
+                logger.error(f"validate_sql_query error: referenceEvidences[{idx}] must be a dict\n")
+                return {"success": False, "error": f"referenceEvidences[{idx}] must be a dict"}
+            
+            evidence_name = evidence.get("name")
+            if not evidence_name or not str(evidence_name).strip():
+                logger.error(f"validate_sql_query error: referenceEvidences[{idx}].name is mandatory\n")
+                return {"success": False, "error": f"referenceEvidences[{idx}].name is mandatory"}
+            
+            evidence_id = evidence.get("id")
+            evidence_file = evidence.get("file")
+            
+            # Validate that either id or file is provided, but not both
+            if evidence_id and evidence_file:
+                logger.error(f"validate_sql_query error: referenceEvidences[{idx}] cannot have both 'id' and 'file'\n")
+                return {"success": False, "error": f"referenceEvidences[{idx}] cannot have both 'id' and 'file'. Provide either 'id' or 'file'."}
+            
+            if not evidence_id and not evidence_file:
+                logger.error(f"validate_sql_query error: referenceEvidences[{idx}] must have either 'id' or 'file'\n")
+                return {"success": False, "error": f"referenceEvidences[{idx}] must have either 'id' or 'file'"}
+            
+            evidence_payload = {
+                "name": str(evidence_name).strip()
+            }
+            
+            if evidence_id:
+                evidence_payload["id"] = str(evidence_id).strip()
+            elif evidence_file:
+                if not isinstance(evidence_file, dict):
+                    logger.error(f"validate_sql_query error: referenceEvidences[{idx}].file must be a dict\n")
+                    return {"success": False, "error": f"referenceEvidences[{idx}].file must be a dict"}
+                
+                file_content = evidence_file.get("content")
+                file_type = evidence_file.get("type")
+                
+                if not file_content or not str(file_content).strip():
+                    logger.error(f"validate_sql_query error: referenceEvidences[{idx}].file.content is mandatory\n")
+                    return {"success": False, "error": f"referenceEvidences[{idx}].file.content is mandatory"}
+                
+                if not file_type or str(file_type).strip().lower() not in ["csv", "json"]:
+                    logger.error(f"validate_sql_query error: referenceEvidences[{idx}].file.type must be 'csv' or 'json'\n")
+                    return {"success": False, "error": f"referenceEvidences[{idx}].file.type must be 'csv' or 'json'"}
+                
+                evidence_payload["file"] = {
+                    "content": str(file_content).strip(),
+                    "type": str(file_type).strip().lower()
+                }
+            
+            validated_evidences.append(evidence_payload)
+        
+        payload = {
+            "sqlQuery": str(sqlQuery).strip(),
+            "referenceEvidences": validated_evidences
+        }
+        
+        logger.debug("validate_sql_query payload: {}\n".format(json.dumps(payload)))
+
+        resp = await utils.make_API_call_to_CCow_and_get_response(
+            constants.URL_PLAN_CONTROLS_VALIDATE_SQL_QUERY,
+            "POST",
+            payload
+        )
+        
+        logger.debug("validate_sql_query output: {}\n".format(json.dumps(resp) if isinstance(resp, dict) else resp))
+        
+        # Handle error response
+        if isinstance(resp, str):
+            logger.error("validate_sql_query error: {}\n".format(resp))
+            return {"success": False, "error": resp}
+        
+        if isinstance(resp, dict):
+            # Check for error fields
+            if "Message" in resp:
+                logger.error("validate_sql_query error: {}\n".format(resp))
+                return {"success": False, "error": resp}
+            
+            if "error" in resp:
+                logger.error("validate_sql_query error: {}\n".format(resp.get("error")))
+                return {"success": False, "error": resp.get("error")}
+            
+            result = {
+                "success": True,
+                "resp": resp
+            }
+            return result
+        
+        # Fallback: wrap unexpected response type
+        logger.error("validate_sql_query error: Unexpected response type: {}\n".format(type(resp)))
+        return {"success": False, "error": f"Unexpected response type: {resp}"}
+        
+    except Exception as e:
+        logger.error(traceback.format_exc())
+        logger.error("validate_sql_query error: {}\n".format(e))
+        return {"success": False, "error": f"Unexpected error validating SQL query: {e}"}
