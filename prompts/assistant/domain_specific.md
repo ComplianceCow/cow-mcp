@@ -21,7 +21,7 @@ When generating SQL from a control configuration:
 
 3. **REQUIRED SQL OUTPUTS**
    - **Query 1 (Details Query):** return all matching evidence rows filtered by control or assessment context.
-   - **Query 2 (Summary Query):** return aggregated compliance results based on additional context or context. If control has additional context, result rows count should be same as additional context length. Explicitly create rows for missing contexts
+   - **Query 2 (Summary Query):** return aggregated compliance results based on additional context or context. If control has additional context, result rows count should be same as additional context length. Explicitly create rows for missing contexts .
 
 4. **NAMING CONVENTION FOR NEW EVIDENCE CONFIGS**
    - Query 1 → `{{query-purpose}}_details`
