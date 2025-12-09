@@ -25,6 +25,7 @@ When generating SQL from a control configuration:
      - Select rows from evidence that match the control additional context, context and assessment context.
    - **Query 2: Compliance Summary Query**
      - Produce a compliance rollup at the control additional context or context level.
+     - Add a column called 'ResourceName' with entity name as its value .
    - Both queries must be structurally independent.
    - Query 2 must NOT reference Query 1, its output, or intermediate data derived from Query 1.
    - Generate Query 1 first; generate Query 2 only after the user approves Query 1.
@@ -37,7 +38,7 @@ When generating SQL from a control configuration:
 
 3. **REQUIRED SQL OUTPUTS**
    - **Query 1 (Details Query):** return all matching evidence rows filtered by control or assessment context.
-   - **Query 2 (Summary Query):** return aggregated compliance results based on additional context or context. If control has additional context, result rows count should be same as additional context length. Explicitly create rows for missing contexts .
+   - **Query 2 (Summary Query):** return aggregated compliance results based on additional context or context. If control has additional context, result rows count should be same as additional context length. Explicitly create rows for missing contexts with ComplianceStatus 'NOT_DETERMINED'.
 
 4. **NAMING CONVENTION FOR NEW EVIDENCE CONFIGS**
    - Query 1 → `{{query-purpose}}_details`
