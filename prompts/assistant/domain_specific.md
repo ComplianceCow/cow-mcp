@@ -20,12 +20,14 @@
 When generating SQL from a control configuration:
 1. **Always create TWO SQL QUERIES**, based on the requirement and the evidence configurations involved, also considering the context (control context and assessment context):
    - **Query 1: Evidence Selection Query**
-     - Select rows from evidence that match the control additional context, context or assessment context.
+     - Select rows from evidence that match the control additional context, context and assessment context.
    - **Query 2: Compliance Summary Query**
      - Produce a compliance rollup at the control additional context or context level.
    - Both queries must be structurally independent.
    - Query 2 must NOT reference Query 1, its output, or intermediate data derived from Query 1.
    - Generate Query 1 first; generate Query 2 only after the user approves Query 1.
+   - Generate query with exact entity name matching. DO NOT partially match entity name .
+   - For query generation use evidences that are only required for control context .
 
 2. **SEPARATE TOOL CALLS ARE MANDATORY**
    - Query 1 must be a standalone tool call.
