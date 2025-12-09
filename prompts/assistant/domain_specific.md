@@ -4,6 +4,19 @@
 
 ### SQL QUERY GENERATION – DUAL QUERY REQUIREMENT
 
+**CONTROL CONTEXT DEFINITION:**
+- **Control Context = control context + control additional context + assessment context**
+- All three components (control context,control additional context, and assessment context) together form the complete control context
+- If the Control Additional Context and Assessment Context are overlapping, REQUIRE an inner join of those overlapping elements in the Final Control Context.
+- When generating SQL queries, use the complete control context for filtering and aggregation
+- Control description and context will have details of what to do. Additional context and assessent context will have details of what to filter.
+- Verify the SQL queries against the control context once before generating.
+
+**EVIDENCE SOURCE SELECTION:**
+- **ONLY include evidence sources that are needed for the control context**
+- Filter evidence sources based on what is required for the control context
+- Do NOT include evidence sources that are not relevant to the control context
+
 When generating SQL from a control configuration:
 1. **Always create TWO SQL QUERIES**, based on the requirement and the evidence configurations involved, also considering the context (control context and assessment context):
    - **Query 1: Evidence Selection Query**
@@ -12,6 +25,7 @@ When generating SQL from a control configuration:
      - Produce a compliance rollup at the control additional context or context level.
    - Both queries must be structurally independent.
    - Query 2 must NOT reference Query 1, its output, or intermediate data derived from Query 1.
+   - Generate Query 1 first; generate Query 2 only after the user approves Query 1.
 
 2. **SEPARATE TOOL CALLS ARE MANDATORY**
    - Query 1 must be a standalone tool call.
@@ -90,7 +104,7 @@ When a user wants to automate a control configuration:
 
 3. **AUTOMATIC QUERY GENERATION**
    - After citation is attached, proceed to generate SQL queries automatically
-   - Use `fetch_control_source_summary` to gather context
+   - Use `fetch_control_source_summary` to gather evidence configs
    - **IF `fetch_control_source_summary` returns NO lineages (empty lineage array):**
      - **DO NOT** proceed with SQL query creation
      - **DO NOT** show error messages about "No evidence configuration, so the SQL query generation can’t proceed"
@@ -98,7 +112,7 @@ When a user wants to automate a control configuration:
      - Stop the automation workflow for this control
    - **IF lineages exist:**
      - Use `get_evidence_sample_data` to understand evidence structure
-     - Generate both Query 1 (details) and Query 2 (summary) automatically
+     - Generate both Query 1 (details) and Query 2 (summary) automatically using only evidence sources relevant to the control context
 
 4. **SQL QUERY VALIDATION (BEFORE USER APPROVAL)**
    - **For each generated query:**
