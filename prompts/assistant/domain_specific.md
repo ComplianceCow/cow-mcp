@@ -11,6 +11,8 @@
 - When generating SQL queries, use the complete control context for filtering and aggregation
 - Control description and context will have details of what to do. Additional context and assessent context will have details of what to filter.
 - Verify the SQL queries against the control context once before generating.
+- Generate query with exact entity name matching. DO NOT partially match entity name . Use 'IN' in sql query, DO NOT use 'LIKE' .
+- For query generation use evidences that are only required for control context. The queries should be **context-specific** rather than pulling from all available evidence sources.
 
 **EVIDENCE SOURCE SELECTION:**
 - **ONLY include evidence sources that are needed for the control context**
@@ -26,8 +28,6 @@ When generating SQL from a control configuration:
    - Both queries must be structurally independent.
    - Query 2 must NOT reference Query 1, its output, or intermediate data derived from Query 1.
    - Generate Query 1 first; generate Query 2 only after the user approves Query 1.
-   - Generate query with exact entity name matching. DO NOT partially match entity name .
-   - For query generation use evidences that are only required for control context .
 
 2. **SEPARATE TOOL CALLS ARE MANDATORY**
    - Query 1 must be a standalone tool call.
@@ -114,6 +114,7 @@ When a user wants to automate a control configuration:
      - Stop the automation workflow for this control
    - **IF lineages exist:**
      - Use `get_evidence_sample_data` to understand evidence structure
+     - Filter evidences required for control based on context
      - Generate both Query 1 (details) and Query 2 (summary) automatically using only evidence sources relevant to the control context
 
 4. **SQL QUERY VALIDATION (BEFORE USER APPROVAL)**
