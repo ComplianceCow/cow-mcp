@@ -41,6 +41,7 @@ URL_GET_SIMILAR_CONTROLS = "/v1/llm/get-similar-controls"
 URL_PLAN_CONTROL_CITATIONS_BATCH = "/v1/plan-controls/assessment-control-citations/batch"
 URL_PLANS_SYNC_CCFID = "/v1/plans/sync-ccfid"
 URL_PLAN_CONTROL_NOTES = "/v1/plan-controls/{controlConfigId}/notes"
+URL_VALIDATE_AUTOMATE_CONTROL = "/v1/llm/automated-control-validation"
 
 # ASSESSMENT RUNS
 URL_PLAN_INSTANCES = "/v1/plan-instances"
