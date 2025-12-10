@@ -2,7 +2,7 @@ import json
 import traceback
 import base64
 import asyncio
-from typing import List
+from typing import Any, List
 from typing import Tuple
 import constants.error_constants as error_constants
 
@@ -1924,3 +1924,120 @@ async def validate_sql_query(
         logger.error(traceback.format_exc())
         logger.error("validate_sql_query error: {}\n".format(e))
         return {"success": False, "error": f"Unexpected error validating SQL query: {e}"}
+
+@mcp.tool()
+async def validate_sql_query_context(
+    control_name: str, 
+    control_description: str, 
+    control_context:str, 
+    control_additional_context: dict[str, Any],
+    evidence_details: List[dict],
+    assessment_context: dict,
+    filter_query: str,
+    summary_query: str)-> dict[str, Any]:
+    
+    """
+    Validate the filter query and summary query for the automated control.
+    IMPORTANT: **This must include **all evidence sources linked to the control**.
+    The evidence list must be fetched directly from the **source control summary**
+    (not from input context or filtering logic).**
+
+    Args:
+        control_name (str):
+            Name of the automated control.
+
+        control_description (str):
+            Detailed description of the control, used to understand the expected
+            behavior of the queries.
+
+        control_context (str):
+            Primary contextual information for the control (use cases, scope,
+            expected inputs, environment details, etc.).
+
+        control_additional_context (dict):
+            Additional supporting information not covered in control_context.
+
+        evidence_details (List[dict]): 
+            DO NOT use the input context to determine evidences.
+            DO NOT infer evidences from filter_query, control context, or additional context.
+            DO NOT limit or filter evidences by relevance.
+
+            You MUST fetch **every evidence source linked to the control** directly from the
+            "source control summary" (i.e., the output of fetch_control_source_summary).
+            This includes:
+                - directly linked evidences
+                - indirectly linked evidences (nested lineage, recursion-level links)
+                - ALL evidence sources, even if they appear unused or irrelevant
+
+            The tool must treat the source control summary as the **single source of truth**
+            for evidence discovery. Missing even one evidence source is considered an error.
+            Each evidence item must follow this structure:
+            {
+                "name": "<evidence name>",
+                "data": [
+                    {   # exactly one evidence sample
+                        <column>: <value>,
+                        ...
+                    }
+                ]
+            }
+            Requirements:
+                - "name" must match the evidence name exactly as provided in the source control summary.
+                - "data" must contain exactly one sample row of column/value pairs from that evidence.
+                - Include ALL evidences, even if:
+                    • they appear unused in queries  
+                    • they contain no useful columns  
+                    • they are from nested/linked controls  
+                    • they belong to deeper recursion levels  
+
+                The validation relies on evidence_details as the **authoritative schema source**
+                for query completeness and consistency checks.
+
+        assessment_context (dict):
+            Assessment-level metadata used to determine filtering levels and to
+            validate whether the filter_query aligns with the correct entity scope.
+
+        filter_query (str):
+            SQL-like filter query generated for evidence extraction.
+
+        summary_query (str):
+            Query defining how evidence contributes to the control summary.
+            
+    Returns:
+        dict:
+            ```json
+            {
+                "completeness_score": float,
+                "consistency_score": float,
+                "correctness_score": float,
+                "overall_score": float,
+                "issues_found": str,
+                "improvements": str,
+                "usefulness": str,
+                "final_validation": "valid" | "invalid"
+            }
+            ```
+    """
+    try:
+        req_payload = {
+            "control_name": control_name,
+            "control_description": control_description,
+            "control_context": control_context,
+            "control_additional_context": control_additional_context,
+            "evidence_details": evidence_details,
+            "assessment_context": assessment_context,
+            "filter_query": filter_query,
+            "summary_query": summary_query
+        }
+        logger.debug(f"req_payload ::: {req_payload}")
+        resp = await utils.make_API_call_to_CCow_and_get_response(
+            constants.URL_VALIDATE_AUTOMATE_CONTROL,
+            "POST",
+            req_payload
+        )
+        return resp
+    except Exception as e:
+        logger.error(traceback.format_exc())
+        logger.error("validate_sql_query error: {}\n".format(e))
+        return {"success": False, "error": f"Unexpected error validating SQL query: {e}"}
+    
