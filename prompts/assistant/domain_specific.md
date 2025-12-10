@@ -8,7 +8,7 @@
 - **Control Context = control context + control additional context + assessment context**
 - All three components (control context,control additional context, and assessment context) together form the complete control context
 - If the Control Additional Context and Assessment Context are overlapping, REQUIRE an inner join of those overlapping elements in the Final Control Context.
-- When generating SQL queries, use the complete control context for filtering and aggregation
+- When generating SQL queries, use the final control context for filtering and aggregation
 - Control description and context will have details of what to do. Additional context and assessent context will have details of what to filter.
 - Verify the SQL queries against the control context once before generating.
 - Generate query with exact entity name matching. DO NOT partially match entity name . Use 'IN' in sql query, DO NOT use 'LIKE' .
@@ -19,34 +19,35 @@
 - Filter evidence sources based on what is required for the control context
 - Do NOT include evidence sources that are not relevant to the control context
 
+**SQL SYNTAX REQUIREMENTS:**
+- Write SQL queries using SQLite SQL dialect.
+
 When generating SQL from a control configuration:
 1. **Always create TWO SQL QUERIES**, based on the requirement and the evidence configurations involved, also considering the context (control context and assessment context):
-   - **Query 1: Evidence Selection Query**
+   - **Query for supporting evidence**
      - Select rows from evidence that match the control additional context, context and assessment context.
-   - **Query 2: Compliance Summary Query**
+   - **Query for primary evidence**
      - Produce a compliance rollup at the control additional context or context level.
      - Add a column called 'ResourceName' with entity name as its value .
    - Both queries must be structurally independent.
-   - Query 2 must NOT reference Query 1, its output, or intermediate data derived from Query 1.
-   - Generate Query 1 first; generate Query 2 only after the user approves Query 1.
+   - The primary evidence query must NOT reference the supporting evidence query, its output, or intermediate data derived from it.
 
 2. **SEPARATE TOOL CALLS ARE MANDATORY**
-   - Query 1 must be a standalone tool call.
-   - Query 2 must be a separate standalone tool call.
+   - The supporting evidence query must be a standalone tool call.
+   - The primary evidence query must be a separate standalone tool call.
    - Never combine or embed multiple queries into a single tool call.
-   - Never reference any evidenceConfig created for Query 1 when generating Query 2.
+   - Never reference any evidenceConfig created for the supporting evidence query when generating the primary evidence query.
 
 3. **REQUIRED SQL OUTPUTS**
-   - **Query 1 (Details Query):** return all matching evidence rows filtered by control or assessment context.
-   - **Query 2 (Summary Query):** return aggregated compliance results based on additional context or context. If control has additional context, result rows count should be same as additional context length. Explicitly create rows for missing contexts with ComplianceStatus 'NOT_DETERMINED'.
+   - **supporting evidence query (Details Query):** return all matching evidence rows filtered by control or assessment context.
+   - **primary evidence query (Summary Query):** return aggregated compliance results based on additional context or context. If control has additional context, result rows count should be same as additional context length. Explicitly create rows for missing contexts with ComplianceStatus 'NOT_DETERMINED'.
 
 4. **NAMING CONVENTION FOR NEW EVIDENCE CONFIGS**
-   - Query 1 → `{{query-purpose}}_details`
-   - Query 2 → `{{query-purpose}}_summary`
+   - Query for supporting evidence → `{{query-purpose}}_supporting_evidence`
+   - Query for primary evidence → `{{query-purpose}}_primary_evidence`
 
 5. **SQL QUERY VALIDATION (MANDATORY BEFORE CREATION)**
    - **ALWAYS validate SQL queries using `validate_sql_query` BEFORE calling `create_sql_query_evidence`**
-   - This ensures the query syntax is correct and can execute against the provided evidence data
    - Validation workflow:
      a. Generate the SQL query
      b. **Validate the query** using `validate_sql_query` with appropriate evidence data
@@ -71,7 +72,7 @@ When generating SQL from a control configuration:
        - Data rows using `data.data` array (each inner array is a row of values)
        - Show all returned records (only a few sample records are returned)
      - **DO NOT summarize or truncate the data** - show all returned records in table format
-   - **Validation is required for BOTH Query 1 and Query 2 separately**
+   - **Validation is required for BOTH the supporting evidence query and the primary evidence query separately**
    - Do NOT proceed with `create_sql_query_evidence` if validation fails
 
 ============================================================
@@ -83,11 +84,10 @@ When generating SQL from a control configuration:
 - During control automation, citation selection and attachment can proceed **WITHOUT** preview/confirmation.
 - Citation attachment should use `confirm=True` directly to proceed automatically.
 - **SQL query creation is not overridden:**
-  - All SQL queries **must still be presented to the user for review and explicit approval**.
-  - Each query must be approved **one by one** 
+  - All SQL queries **must still be presented to the user for review and explicit approval** together with documentation notes.
 
 ⚠️ **AUTOMATION COMPLETION RULE**
-- **A control is considered automated ONLY AFTER BOTH SQL QUERIES (Query 1 and Query 2) have been generated AND approved by the user (confirm=True for each).**
+- **A control is considered automated ONLY AFTER BOTH SQL QUERIES (supporting evidence and primary evidence) have been generated AND approved by the user (confirm=True).**
 - If both queries are not successfully created and approved, the control **must NOT** be marked or treated as automated.
 
 When a user wants to automate a control configuration:
@@ -116,7 +116,7 @@ When a user wants to automate a control configuration:
    - **IF lineages exist:**
      - Use `get_evidence_sample_data` to understand evidence structure
      - Filter evidences required for control based on context
-     - Generate both Query 1 (details) and Query 2 (summary) automatically using only evidence sources relevant to the control context
+     - Generate both the supporting evidence query and the primary evidence query automatically using only evidence sources relevant to the control context
 
 4. **SQL QUERY VALIDATION (BEFORE USER APPROVAL)**
    - **For each generated query:**
@@ -126,18 +126,14 @@ When a user wants to automate a control configuration:
      - If validation fails, fix the query and re-validate
      - Only proceed to preview/approval step after successful validation and user review of executed data
 
-5. **MANDATORY USER APPROVAL FOR QUERIES**
-   - **BOTH queries MUST be shown to the user for approval**
-   - Query 1 must be created with `confirm=False` first to show preview
-   - Query 2 must be created with `confirm=False` first to show preview
-   - User must explicitly approve each query before final creation
-   - Only after user approval (confirm=True) should queries be permanently created
-
-6. **ADDED — OPTIONAL NOTE CREATION SUGGESTION**
-   After the two queries are approved:
-   - Recommend:  
-     **"Would you like to add an automation note for this control?"**
-   - If yes → create with name:  **`control_automation_note`**
+5. **MANDATORY USER APPROVAL FOR QUERIES AND NOTES**
+     - Generate the supporting evidence query and validate it silently (do not show)
+     - Generate the primary evidence query, validate it, then create control automation documentation notes
+     - Present the primary evidence query and the documentation notes together for user review
+     - User approval must occur once both queries and notes are shown together
+     - After approval, create both queries and the documentation notes with `confirm=True` as applicable
+   - Both queries MUST be created with `confirm=False` when previewed together; switch to `confirm=True` only after approval
+   - Documentation notes are **mandatory** and created as part of the approval flow
 
 ============================================================
 
@@ -147,7 +143,7 @@ When the user asks whether a control is automated:
 
 1. Use **`list_sql_query_evidence`** for the control.
 2. Determine automation using :
-   - If **any `_details` query exists** AND **any `_summary` query exists** →  
+   - If **any `_supporting_evidence` query exists** AND **any `_primary_evidence` query exists** →  
      **Control is automated**
    - Otherwise →  
      **Control automation is partial/incomplete**
@@ -178,8 +174,8 @@ It provides long-term traceability by documenting:
 - Why specific filters, joins, and aggregations were chosen
 - How the generated evidence supports the control objective
 
-#### OPTIONAL & USER-DRIVEN
-This tool is OPTIONAL and should be offered only if the user chooses to add documentation after SQL query creation.
+#### MANDATORY & FLOW-INTEGRATED
+This tool is MANDATORY and must be executed as part of the approval flow once both queries are validated and presented to the user. Create the documentation note alongside the queries when the user approves.
 
 #### RULE CONTEXT AUTO-ENRICHMENT
 If any evidence attached to the control config was generated by an existing rule:
@@ -207,12 +203,12 @@ Assets: {ASSET_LIST}
 1. {EVIDENCE_TABLE_1} - {EVIDENCE_1_PURPOSE} & {RULE_DETAILS_SUMMARY_IF_AVAILABLE}
 2. {EVIDENCE_TABLE_2} - {EVIDENCE_2_PURPOSE} & {RULE_DETAILS_SUMMARY_IF_AVAILABLE}
 
-## Query 1: {QUERY_1_NAME}
-Purpose: {QUERY_1_PURPOSE}
+## Query for supporting evidence: {QUERY_SUPPORTING_NAME}
+Purpose: {QUERY_SUPPORTING_PURPOSE}
 Logic: Filters control assets + normalizes evidence.
 
-## Query 2: {QUERY_2_NAME}
-Purpose: {QUERY_2_PURPOSE}
+## Query for primary evidence: {QUERY_PRIMARY_NAME}
+Purpose: {QUERY_PRIMARY_PURPOSE}
 Logic: Aggregates metrics + determines compliance.
 
 ## Outputs
