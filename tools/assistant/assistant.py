@@ -2,7 +2,7 @@ import json
 import traceback
 import base64
 import asyncio
-from typing import Any, List
+from typing import Any, List, Literal
 from typing import Tuple
 import constants.error_constants as error_constants
 
@@ -1925,17 +1925,16 @@ async def validate_sql_query(
         logger.error("validate_sql_query error: {}\n".format(e))
         return {"success": False, "error": f"Unexpected error validating SQL query: {e}"}
 
-@mcp.tool()
-async def validate_sql_query_context(
+# @mcp.tool()
+async def fetch_sql_query_feedback(
     control_name: str, 
     control_description: str, 
     control_context:str, 
     control_additional_context: dict[str, Any],
     evidence_details: List[dict],
     assessment_context: dict,
-    filter_query: str,
-    summary_query: str)-> dict[str, Any]:
-    
+    sql_query: str,
+    query_type: Literal["primary", "supporting"]):
     """
     Validate the filter query and summary query for the automated control.
     IMPORTANT: **This must include **all evidence sources linked to the control**.
@@ -2019,6 +2018,8 @@ async def validate_sql_query_context(
             ```
     """
     try:
+
+        logger.info("validate_sql_query_context: \n")
         req_payload = {
             "control_name": control_name,
             "control_description": control_description,
@@ -2026,15 +2027,19 @@ async def validate_sql_query_context(
             "control_additional_context": control_additional_context,
             "evidence_details": evidence_details,
             "assessment_context": assessment_context,
-            "filter_query": filter_query,
-            "summary_query": summary_query
         }
+
+        if query_type == "primary":
+            req_payload["summary_query"] = sql_query
+        elif query_type == "supporting":
+            req_payload["filter_query"] = sql_query
         logger.debug(f"req_payload ::: {req_payload}")
         resp = await utils.make_API_call_to_CCow_and_get_response(
             constants.URL_VALIDATE_AUTOMATE_CONTROL,
             "POST",
             req_payload
         )
+        logger.debug("validate_sql_query_context: resp:\n%s", json.dumps(resp, indent=2))
         return resp
     except Exception as e:
         logger.error(traceback.format_exc())
