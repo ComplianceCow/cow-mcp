@@ -1,3 +1,4 @@
+from mcptypes.exception import CCowExceptionVO
 import base64
 import csv
 import json
@@ -1083,6 +1084,21 @@ def execute_task_api(body: Dict[str, Any] = None, ctx: Optional[Context] = None 
     except Exception as e:
         return {"error": f"Failed to execute task: {e}"}
 
+
+def execute_task(body: Dict[str, Any] = None, ctx: Optional[Context] = None ) -> Dict[str, Any]:
+    headers = wsutils.create_header(ctx)
+    try:
+        execute_response = wsutils.post(
+            path=wsutils.build_api_url(endpoint=constants.URL_EXECUTE_TASK),
+            data=json.dumps(body),
+            header=headers
+        )
+        return execute_response
+    except CCowExceptionVO as e:
+        return {"error": f"Failed to execute task: {e.to_json_response()}"}
+    except Exception as e:
+        return {"error": f"Failed to execute task: {e}"}
+
   
 def generate_input_overview_presentation_with_validation_checkpoints(input_analysis: Dict) -> str:
     """
@@ -1096,11 +1112,27 @@ def generate_input_overview_presentation_with_validation_checkpoints(input_analy
     """
     
     presentation = []
-    presentation.append("=" * 80)
-    presentation.append("INPUT COLLECTION OVERVIEW WITH VALIDATION CHECKPOINTS")
-    presentation.append("=" * 80)
+    presentation.append("═" * 70)
+    presentation.append("INPUT COLLECTION OVERVIEW WITH EXECUTION CHECKPOINTS")
+    presentation.append("═" * 70)
     presentation.append("")
-    presentation.append("I've analyzed your selected tasks. Here's the complete workflow:")
+    
+    presentation.append("🚨 CRITICAL: READ THIS BEFORE PROCEEDING 🚨")
+    presentation.append("─" * 70)
+    presentation.append("")
+    presentation.append("This rule requires EXECUTION CHECKPOINTS between tasks.")
+    presentation.append("You MUST execute each task before collecting inputs for the next one.")
+    presentation.append("")
+    presentation.append("WORKFLOW FOR EACH TASK:")
+    presentation.append("  1. Collect ALL inputs for the task")
+    presentation.append("  2. ⚠️  EXECUTE the task immediately (MANDATORY)")
+    presentation.append("  3. Show execution results to user")
+    presentation.append("  4. Only then proceed to next task")
+    presentation.append("")
+    presentation.append("DO NOT skip step 2. DO NOT collect inputs for multiple tasks")
+    presentation.append("without executing them. This will cause rule creation to fail.")
+    presentation.append("")
+    presentation.append("═" * 70)
     presentation.append("")
     
     # Group inputs by task
@@ -1141,12 +1173,12 @@ def generate_input_overview_presentation_with_validation_checkpoints(input_analy
                     presentation.append(f"     Default: {inp['default_value']}")
                 presentation.append("")
         
-        # Add validation checkpoint notice
-        presentation.append("⚠️  VALIDATION CHECKPOINT:")
-        presentation.append(f"    After collecting all {len(task_inputs_list)} inputs for Task {task_number},")
-        presentation.append(f"    validate_task_inputs('{task_name}', collected_inputs) will be called.")
-        presentation.append("    ✓ Validation must pass before proceeding to next task")
-        presentation.append("    ✗ If validation fails, inputs must be corrected and re-validated")
+        presentation.append("")
+        presentation.append(f"⚠️  EXECUTION CHECKPOINT AFTER THIS TASK:")
+        presentation.append(f"    After collecting ALL inputs for '{task_alias}':")
+        presentation.append(f"    → MUST call execute_task('{task_alias}', inputs, app)")
+        presentation.append(f"    → MUST display results to user")
+        presentation.append(f"    → Only then proceed to next task")
         presentation.append("")
         
         task_number += 1
@@ -1170,10 +1202,10 @@ def generate_input_overview_presentation_with_validation_checkpoints(input_analy
     presentation.append(f"{len(task_groups) + 1}. Final rule completion and finalization")
     presentation.append("")
     
-    presentation.append("⚠️  CRITICAL: Validation is MANDATORY after each task's input collection.")
-    presentation.append("   No task can proceed without passing validation.")
+    presentation.append("⚠️  CRITICAL: Task Execution is MANDATORY after each task's input collection.")
+    presentation.append("   No task can proceed without executing.")
     presentation.append("")
-    presentation.append("Ready to start task-by-task input collection with validation checkpoints?")
+    presentation.append("Ready to start task-by-task input collection with task execution?")
     presentation.append("=" * 80)
     
     return "\n".join(presentation)
