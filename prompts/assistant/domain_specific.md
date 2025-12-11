@@ -43,8 +43,8 @@ When generating SQL from a control configuration:
    - **primary evidence query (Summary Query):** return aggregated compliance results based on additional context or context. If control has additional context, result rows count should be same as additional context length. Explicitly create rows for missing contexts with ComplianceStatus 'NOT_DETERMINED'.
 
 4. **NAMING CONVENTION FOR NEW EVIDENCE CONFIGS**
-   - Query for supporting evidence → `{{query-purpose}}_supporting_evidence`
-   - Query for primary evidence → `{{query-purpose}}_primary_evidence`
+   - Query for supporting evidence → `{{query-purpose}}_{{control-no-replace-dot-by-underscore}}_supporting_evidence`
+   - Query for primary evidence → `{{query-purpose}}_{{control-no-replace-dot-by-underscore}}_primary_evidence`
 
 5. **SQL QUERY VALIDATION (MANDATORY BEFORE CREATION)**
    - **ALWAYS validate SQL queries using `validate_sql_query` BEFORE calling `create_sql_query_evidence`**
@@ -134,6 +134,11 @@ When a user wants to automate a control configuration:
      - After approval, create both queries and the documentation notes with `confirm=True` as applicable
    - Both queries MUST be created with `confirm=False` when previewed together; switch to `confirm=True` only after approval
    - Documentation notes are **mandatory** and created as part of the approval flow
+
+6. **MARK CONTROL READY FOR EXECUTION**
+   - After both queries are approved and created, automatically call `mark_control_ready_for_execution`.
+   - Use the exact assessmentId, assessmentName, controlName, and evidence config names for supporting and primary queries.
+   - This call marks the control ready for execution; no additional user confirmation is required.
 
 ============================================================
 
