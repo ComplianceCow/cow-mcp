@@ -2045,4 +2045,103 @@ async def fetch_sql_query_feedback(
         logger.error(traceback.format_exc())
         logger.error("validate_sql_query error: {}\n".format(e))
         return {"success": False, "error": f"Unexpected error validating SQL query: {e}"}
+
+
+@mcp.tool()
+async def mark_control_ready_for_execution(
+    assessmentId: str,
+    assessmentName: str,
+    controlName: str,
+    primaryEvidenceName: str,
+    supportingEvidenceName: str,
+) -> dict:
+    """
+    Mark an automated control as ready for execution.
+
+    This tool should be invoked only AFTER automation is complete (both supporting
+    and primary SQL queries are approved and created).
+
+    Args:
+        assessmentId (str): Assessment (plan) ID containing the control (required).
+        assessmentName (str): assessment name (required).
+        controlName (str): Control name to be marked ready (required).
+        primaryEvidenceName (str): Evidence config name for the primary query (required).
+        supportingEvidenceName (str): Evidence config name for supporting query(required).
+
+    Returns:
+        Dict with success status and message:
+            - success (bool): Whether the control was marked ready
+            - message (str): Status message
+            - response (dict, optional): Raw API response on success
+            - error (str, optional): Error details on failure
+
+    """
+    try:
+        logger.info("mark_control_ready_for_execution: \n")
+
+        if not assessmentId or not str(assessmentId).strip():
+            logger.error("mark_control_ready_for_execution error: assessmentId is mandatory\n")
+            return {"success": False, "error": "assessmentId is mandatory"}
+
+        if not assessmentName or not str(assessmentName).strip():
+            logger.error("mark_control_ready_for_execution error: assessmentName is mandatory\n")
+            return {"success": False, "error": "assessmentName is mandatory"}
+
+        if not controlName or not str(controlName).strip():
+            logger.error("mark_control_ready_for_execution error: controlName is mandatory\n")
+            return {"success": False, "error": "controlName is mandatory"}
+
+        if not primaryEvidenceName or not str(primaryEvidenceName).strip():
+            logger.error("mark_control_ready_for_execution error: primaryEvidenceName is mandatory\n")
+            return {"success": False, "error": "primaryEvidenceName is mandatory"}
+
+        if not supportingEvidenceName or not str(supportingEvidenceName).strip():
+            logger.error("mark_control_ready_for_execution error: supportingEvidenceName is mandatory\n")
+            return {"success": False, "error": "supportingEvidenceName is mandatory"}
+
+        payload = {
+            "assessmentId": str(assessmentId).strip(),
+            "assessmentName": str(assessmentName).strip(),
+            "controlName": str(controlName).strip(),
+            "primaryEvidenceName": str(primaryEvidenceName).strip(),
+            "supportingEvidenceName": str(supportingEvidenceName).strip(),
+        }
+
+        logger.debug("mark_control_ready_for_execution payload: {}\n".format(json.dumps(payload)))
+
+        resp = await utils.make_API_call_to_CCow_and_get_response(
+            constants.URL_MARK_CONTROL_READY,
+            "POST",
+            payload,
+        )
+
+        logger.debug("mark_control_ready_for_execution output: {}\n".format(json.dumps(resp) if isinstance(resp, dict) else resp))
+
+        if isinstance(resp, str):
+            logger.error("mark_control_ready_for_execution error: {}\n".format(resp))
+            return {"success": False, "error": resp}
+
+        if isinstance(resp, dict):
+            if "Message" in resp:
+                logger.error("mark_control_ready_for_execution error: {}\n".format(resp))
+                return {"success": False, "error": resp}
+
+            if "error" in resp:
+                logger.error("mark_control_ready_for_execution error: {}\n".format(resp.get("error")))
+                return {"success": False, "error": resp.get("error")}
+
+            logger.info("mark_control_ready_for_execution: Control marked ready for execution\n")
+            return {
+                "success": True,
+                "message": "Control marked ready for execution",
+                "response": resp
+            }
+
+        logger.error("mark_control_ready_for_execution error: Unexpected response type: {}\n".format(type(resp)))
+        return {"success": False, "error": f"Unexpected response type: {resp}"}
+
+    except Exception as e:
+        logger.error(traceback.format_exc())
+        logger.error("mark_control_ready_for_execution error: {}\n".format(e))
+        return {"success": False, "error": f"Unexpected error marking control ready: {e}"}
     
