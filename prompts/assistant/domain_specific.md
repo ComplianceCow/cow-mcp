@@ -2,6 +2,10 @@
 ## DOMAIN SPECIFIC INSTRUCTION
 ============================================================
 
+**IMPORTANT:** When responding to users, always use the term "control objective" instead of "control" when referring to controls.
+
+============================================================
+
 ### SQL QUERY GENERATION – DUAL QUERY REQUIREMENT
 
 **CONTROL CONTEXT DEFINITION:**
