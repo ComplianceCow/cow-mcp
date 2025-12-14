@@ -787,6 +787,8 @@ async def create_sql_query_evidence(
     referedEvidenceNames: List[str],
     newEvidenceName: str,
     confirm: bool = False,
+    assessmentContextReferenceName: str = None,
+    additionalContextReferenceName: str = None,
 ) -> dict:
     """
     Create a SQL query evidence for a control configuration.
@@ -832,6 +834,8 @@ async def create_sql_query_evidence(
         newEvidenceName (str): Name of the new evidence config to be created (required).
         confirm (bool, optional): If False, returns preview with the SQL query displayed for review (and optional modification).
                                  If True, proceeds with SQL query creation using the provided sqlquery.
+        assessmentContextReferenceName (str, optional): Reference name for assessment context table.
+        additionalContextReferenceName (str, optional): Reference name for additional control context table.
 
     Returns:
         Dict with success status and data:
@@ -853,10 +857,6 @@ async def create_sql_query_evidence(
             logger.error("create_sql_query_evidence error: sqlquery is mandatory\n")
             return {"success": False, "error": "sqlquery is mandatory"}
         
-        if not referedEvidenceNames or not isinstance(referedEvidenceNames, list) or len(referedEvidenceNames) == 0:
-            logger.error("create_sql_query_evidence error: referedEvidenceNames must be a non-empty list\n")
-            return {"success": False, "error": "referedEvidenceNames must be a non-empty list"}
-        
         if not newEvidenceName or not str(newEvidenceName).strip():
             logger.error("create_sql_query_evidence error: newEvidenceName is mandatory\n")
             return {"success": False, "error": "newEvidenceName is mandatory"}
@@ -867,6 +867,13 @@ async def create_sql_query_evidence(
             "evidenceName": str(newEvidenceName).strip(),
             "referedEvidenceNames": [str(name).strip() for name in referedEvidenceNames if name and str(name).strip()]
         }
+        
+        # Add optional context reference names if provided
+        if assessmentContextReferenceName and str(assessmentContextReferenceName).strip():
+            payload["assessmentContextEvidenceName"] = str(assessmentContextReferenceName).strip()
+        
+        if additionalContextReferenceName and str(additionalContextReferenceName).strip():
+            payload["controlContextEvidenceName"] = str(additionalContextReferenceName).strip()
 
         if not confirm:
             logger.info("create_sql_query_evidence: Returning confirmation preview\n")
@@ -1001,6 +1008,8 @@ async def update_sql_query_evidence(
     referedEvidenceNames: List[str],
     newEvidenceName: str,
     confirm: bool = False,
+    assessmentContextReferenceName: str = None,
+    additionalContextReferenceName: str = None,
 ) -> dict:
     """
     Update an existing SQL query evidence for a control configuration.
@@ -1026,6 +1035,8 @@ async def update_sql_query_evidence(
         newEvidenceName (str): Updated name of the evidence config (required).
         confirm (bool, optional): If False, returns preview with the updated SQL query displayed for review (and optional modification).
                                  If True, proceeds with SQL query evidence update using the provided sqlquery.
+        assessmentContextReferenceName (str, optional): Reference name for assessment context table.
+        additionalContextReferenceName (str, optional): Reference name for additional control context table.
 
     Returns:
         Dict with success status and data:
@@ -1050,10 +1061,6 @@ async def update_sql_query_evidence(
             logger.error("update_sql_query_evidence error: sqlquery is mandatory\n")
             return {"success": False, "error": "sqlquery is mandatory"}
         
-        if not referedEvidenceNames or not isinstance(referedEvidenceNames, list) or len(referedEvidenceNames) == 0:
-            logger.error("update_sql_query_evidence error: referedEvidenceNames must be a non-empty list\n")
-            return {"success": False, "error": "referedEvidenceNames must be a non-empty list"}
-        
         if not newEvidenceName or not str(newEvidenceName).strip():
             logger.error("update_sql_query_evidence error: newEvidenceName is mandatory\n")
             return {"success": False, "error": "newEvidenceName is mandatory"}
@@ -1064,6 +1071,13 @@ async def update_sql_query_evidence(
             "evidenceName": str(newEvidenceName).strip(),
             "referedEvidenceNames": [str(name).strip() for name in referedEvidenceNames if name and str(name).strip()]
         }
+        
+        # Add optional context reference names if provided
+        if assessmentContextReferenceName and str(assessmentContextReferenceName).strip():
+            payload["assessmentContextEvidenceName"] = str(assessmentContextReferenceName).strip()
+        
+        if additionalContextReferenceName and str(additionalContextReferenceName).strip():
+            payload["controlContextEvidenceName"] = str(additionalContextReferenceName).strip()
 
         if not confirm:
             logger.info("update_sql_query_evidence: Returning confirmation preview\n")
@@ -1782,7 +1796,11 @@ async def fetch_rule_readme(name: str) -> workflow_vo.RuleReadmeResponseVO:
 @mcp.tool()
 async def validate_sql_query(
     sqlQuery: str,
-    referenceEvidences: List[dict]
+    referenceEvidences: List[dict],
+    assessmentId: str,
+    controlId :str,
+    assessmentContextReferenceName: str = None,
+    additionalContextReferenceName: str = None,
 ) -> dict:
     """
     Validate a SQL query against reference evidence data.
@@ -1806,6 +1824,10 @@ async def validate_sql_query(
                 - content (str): Base64 encoded file content (required if using file).
                 - type (str): File type, either "csv" or "json" (required if using file).
             - Either `id` OR `file` must be provided for each evidence (not both).
+        assessmentId (str): The assessment ID that contains the control config (required).
+        controlId (str): Control ID (required).
+        assessmentContextReferenceName (str, optional): Reference name for assessment context table.
+        additionalContextReferenceName (str, optional): Reference name for additional control context table.
     
     Returns:
         Dict with validation status and executed query data:
@@ -1822,11 +1844,15 @@ async def validate_sql_query(
         if not sqlQuery or not str(sqlQuery).strip():
             logger.error("validate_sql_query error: sqlQuery is mandatory\n")
             return {"success": False, "error": "sqlQuery is mandatory"}
+
+        if not assessmentId or not str(assessmentId).strip():
+            logger.error("validate_sql_query error: assessmentId is mandatory\n")
+            return {"success": False, "error": "assessmentId is mandatory"}
         
-        if not referenceEvidences or not isinstance(referenceEvidences, list) or len(referenceEvidences) == 0:
-            logger.error("validate_sql_query error: referenceEvidences must be a non-empty list\n")
-            return {"success": False, "error": "referenceEvidences must be a non-empty list"}
-        
+        if not controlId or not str(controlId).strip():
+            logger.error("validate_sql_query error: controlId is mandatory\n")
+            return {"success": False, "error": "controlId is mandatory"}
+
         # Validate and build reference evidences payload
         validated_evidences = []
         for idx, evidence in enumerate(referenceEvidences):
@@ -1882,8 +1908,17 @@ async def validate_sql_query(
         
         payload = {
             "sqlQuery": str(sqlQuery).strip(),
-            "referenceEvidences": validated_evidences
+            "referenceEvidences": validated_evidences,
+            "assessmentID": assessmentId,
+            "assessmentControlID": controlId
         }
+        
+        # Add optional context reference names if provided
+        if assessmentContextReferenceName and str(assessmentContextReferenceName).strip():
+            payload["assessmentContextEvidenceName"] = str(assessmentContextReferenceName).strip()
+        
+        if additionalContextReferenceName and str(additionalContextReferenceName).strip():
+            payload["controlContextEvidenceName"] = str(additionalContextReferenceName).strip()
         
         logger.debug("validate_sql_query payload: {}\n".format(json.dumps(payload)))
 
@@ -2145,3 +2180,154 @@ async def mark_control_ready_for_execution(
         logger.error("mark_control_ready_for_execution error: {}\n".format(e))
         return {"success": False, "error": f"Unexpected error marking control ready: {e}"}
     
+
+@mcp.tool()
+async def get_context_tables(controlId: str) -> dict:
+    """
+    Get flattened context tables for:
+    1. Assessment context
+    2. Control additional context (by controlId)
+
+    Args:
+        controlId (str): Control ID
+
+    Returns:
+        Dict with:
+        - success (bool)
+        - assessment_context (dict)
+        - control_additional_context (dict)
+        - error (str, optional)
+    """
+    try:
+        logger.info("get_context_tables started\n")
+
+        if not controlId or not str(controlId).strip():
+            return {
+                "success": False,
+                "error": "controlId is mandatory"
+            }
+
+        control_id = str(controlId).strip()
+        def flatten_context(data: dict) -> tuple[list[str], list[list[str]]]:
+            rows = []
+            columns = []
+
+            def collect_classes(entities):
+                for e in entities:
+                    cls = e.get("class")
+                    if cls and cls not in columns:
+                        columns.append(cls)
+                    collect_classes(e.get("entities", []))
+
+            def walk(entities, current_row):
+                for e in entities:
+                    row = current_row.copy()
+                    cls = e.get("class")
+                    name = e.get("name")
+
+                    if cls:
+                        row[cls] = name
+
+                    children = e.get("entities", [])
+                    if children:
+                        walk(children, row)
+                    else:
+                        rows.append(row)
+
+            entities = data.get("entities", [])
+            collect_classes(entities)
+
+            empty_row = {c: "" for c in columns}
+            walk(entities, empty_row)
+
+            data_rows = [
+                [row.get(col, "") for col in columns]
+                for row in rows
+            ]
+
+            return columns, data_rows
+
+        logger.info("Fetching assessment context\n")
+
+        assessment_ctx_resp = await utils.make_GET_API_call_to_CCow(
+            constants.URL_GET_ASSESSMENT_CONTEXT
+        )
+
+        if (
+            isinstance(assessment_ctx_resp, str)
+            or (isinstance(assessment_ctx_resp, dict) and "error" in assessment_ctx_resp)
+            or (isinstance(assessment_ctx_resp, dict) and "Message" in assessment_ctx_resp)
+        ):
+            logger.error(f"Assessment context fetch failed: {assessment_ctx_resp}\n")
+            return {
+                "success": False,
+                "error": "Failed to fetch assessment context"
+            }
+
+        if isinstance(assessment_ctx_resp, dict) and "entitiesTable" in assessment_ctx_resp:
+            assessment_context_table = assessment_ctx_resp.get("entitiesTable", {})
+        else:
+            headers, rows = flatten_context(assessment_ctx_resp)
+            assessment_context_table = {
+                "headerRow": headers,
+                "dataRows": rows
+            }
+
+        logger.info(f"Fetching control by id={control_id}\n")
+
+        query_params = (
+            f"?fields=basic"
+            f"&include_additional_context=true"
+        )
+
+        control_resp = await utils.make_GET_API_call_to_CCow(
+            f"{constants.URL_PLAN_CONTROLS}/{control_id}{query_params}"
+        )
+
+        if (
+            isinstance(control_resp, str)
+            or (isinstance(control_resp, dict) and "error" in control_resp)
+        ):
+            logger.error(f"Control fetch failed: {control_resp}\n")
+            return {
+                "success": False,
+                "error": "Failed to fetch control"
+            }
+
+        if not control_resp:
+            return {
+                "success": False,
+                "error": f"No control found for controlId={control_id}"
+            }
+
+        additional_context_raw = control_resp.get("additionalContext")
+        if isinstance(additional_context_raw, dict):
+            headers, rows = flatten_context(additional_context_raw)
+            control_additional_context_table = {
+                "headerRow": headers,
+                "dataRows": rows
+            }
+        else:
+            control_additional_context_table = {
+                "headerRow": [],
+                "dataRows": []
+            }
+
+        logger.info(
+            "get_context_tables completed successfully\n"
+            f"assessment_context:\n{assessment_context_table}\n\n"
+            f"control_additional_context:\n{control_additional_context_table}"
+        )
+
+        return {
+            "success": True,
+            "assessment_context": assessment_context_table,
+            "control_additional_context": control_additional_context_table
+        }
+
+    except Exception as e:
+        logger.error(traceback.format_exc())
+        return {
+            "success": False,
+            "error": f"Unexpected error fetching context tables: {e}"
+        }
