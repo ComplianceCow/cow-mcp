@@ -787,7 +787,7 @@ async def create_sql_query_evidence(
     referedEvidenceNames: List[str],
     newEvidenceName: str,
     confirm: bool = False,
-    assessmentContextReferenceName: str = None,
+    entityHierarchyReferenceName: str = None,
     additionalContextReferenceName: str = None,
 ) -> dict:
     """
@@ -834,7 +834,7 @@ async def create_sql_query_evidence(
         newEvidenceName (str): Name of the new evidence config to be created (required).
         confirm (bool, optional): If False, returns preview with the SQL query displayed for review (and optional modification).
                                  If True, proceeds with SQL query creation using the provided sqlquery.
-        assessmentContextReferenceName (str, optional): Reference name for assessment context table.
+        entityHierarchyReferenceName (str, optional): Reference name for entity hierarchy table.
         additionalContextReferenceName (str, optional): Reference name for additional control context table.
 
     Returns:
@@ -869,8 +869,8 @@ async def create_sql_query_evidence(
         }
         
         # Add optional context reference names if provided
-        if assessmentContextReferenceName and str(assessmentContextReferenceName).strip():
-            payload["assessmentContextEvidenceName"] = str(assessmentContextReferenceName).strip()
+        if entityHierarchyReferenceName and str(entityHierarchyReferenceName).strip():
+            payload["entityHierarchyEvidenceName"] = str(entityHierarchyReferenceName).strip()
         
         if additionalContextReferenceName and str(additionalContextReferenceName).strip():
             payload["controlContextEvidenceName"] = str(additionalContextReferenceName).strip()
@@ -1008,7 +1008,7 @@ async def update_sql_query_evidence(
     referedEvidenceNames: List[str],
     newEvidenceName: str,
     confirm: bool = False,
-    assessmentContextReferenceName: str = None,
+    entityHierarchyReferenceName: str = None,
     additionalContextReferenceName: str = None,
 ) -> dict:
     """
@@ -1035,7 +1035,7 @@ async def update_sql_query_evidence(
         newEvidenceName (str): Updated name of the evidence config (required).
         confirm (bool, optional): If False, returns preview with the updated SQL query displayed for review (and optional modification).
                                  If True, proceeds with SQL query evidence update using the provided sqlquery.
-        assessmentContextReferenceName (str, optional): Reference name for assessment context table.
+        entityHierarchyReferenceName (str, optional): Reference name for entity hierarchy table.
         additionalContextReferenceName (str, optional): Reference name for additional control context table.
 
     Returns:
@@ -1073,8 +1073,8 @@ async def update_sql_query_evidence(
         }
         
         # Add optional context reference names if provided
-        if assessmentContextReferenceName and str(assessmentContextReferenceName).strip():
-            payload["assessmentContextEvidenceName"] = str(assessmentContextReferenceName).strip()
+        if entityHierarchyReferenceName and str(entityHierarchyReferenceName).strip():
+            payload["entityHierarchyEvidenceName"] = str(entityHierarchyReferenceName).strip()
         
         if additionalContextReferenceName and str(additionalContextReferenceName).strip():
             payload["controlContextEvidenceName"] = str(additionalContextReferenceName).strip()
@@ -1334,46 +1334,46 @@ async def get_evidence_sample_data(controlConfigId: str, evidenceNames: List[str
         return {"success": False, "error": f"Unexpected error fetching evidence samples: {e}"}
 
 @mcp.tool()
-async def get_assessment_context() -> dict:
+async def get_entity_hierarchy() -> dict:
     """
     Use this tool when the user wants to automate control operations,
     or before creating an SQL query.
     
-    This tool retrieves assessment context information from ServiceNow entities endpoint.
+    This tool retrieves entity hierarchy information.
     Returns:
         Dict with success status and context data:
         - success (bool): Whether the request was successful
-        - data (dict, optional): Assessment context data containing ServiceNow entities
+        - data (dict, optional): Entity hierarchy data containing entities
         - error (str, optional): Error message if request failed
     """
     try:
-        logger.info("get_assessment_context: \n")
+        logger.info("get_entity_hierarchy: \n")
         
         # Make GET API call to ServiceNow entities endpoint
-        output = await utils.make_GET_API_call_to_CCow(constants.URL_GET_ASSESSMENT_CONTEXT)
+        output = await utils.make_GET_API_call_to_CCow(constants.URL_GET_ENTITY_HIERARCHY)
         
         # Handle error response
         if isinstance(output, str) or (isinstance(output, dict) and "error" in output):
-            logger.error("get_assessment_context error: {}\n".format(output))
-            return {"success": False, "error": "Failed to fetch assessment context"}
+            logger.error("get_entity_hierarchy error: {}\n".format(output))
+            return {"success": False, "error": "Failed to fetch entity hierarchy"}
         
         # Check for error fields in response
         if isinstance(output, dict):
             if "Message" in output:
-                logger.error("get_assessment_context error: {}\n".format(output))
+                logger.error("get_entity_hierarchy error: {}\n".format(output))
                 return {"success": False, "error": output}
             
-            logger.info(f"get_assessment_context: Successfully retrieved assessment context\n")
+            logger.info(f"get_entity_hierarchy: Successfully retrieved entity hierarchy\n")
             return {"success": True, "data": output}
         
         # Fallback: wrap unexpected response type
-        logger.error("get_assessment_context error: Unexpected response type: {}\n".format(type(output)))
+        logger.error("get_entity_hierarchy error: Unexpected response type: {}\n".format(type(output)))
         return {"success": False, "error": f"Unexpected response type: {output}"}
         
     except Exception as e:
         logger.error(traceback.format_exc())
-        logger.error("get_assessment_context error: {}\n".format(e))
-        return {"success": False, "error": f"Unexpected error fetching assessment context: {e}"}
+        logger.error("get_entity_hierarchy error: {}\n".format(e))
+        return {"success": False, "error": f"Unexpected error fetching entity hierarchy: {e}"}
 
 @mcp.tool()
 async def create_control_config_note(
@@ -1799,7 +1799,7 @@ async def validate_sql_query(
     referenceEvidences: List[dict],
     assessmentId: str,
     controlId :str,
-    assessmentContextReferenceName: str = None,
+    entityHierarchyReferenceName: str = None,
     additionalContextReferenceName: str = None,
 ) -> dict:
     """
@@ -1826,7 +1826,7 @@ async def validate_sql_query(
             - Either `id` OR `file` must be provided for each evidence (not both).
         assessmentId (str): The assessment ID that contains the control config (required).
         controlId (str): Control ID (required).
-        assessmentContextReferenceName (str, optional): Reference name for assessment context table.
+        entityHierarchyReferenceName (str, optional): Reference name for entity hierarchy table.
         additionalContextReferenceName (str, optional): Reference name for additional control context table.
     
     Returns:
@@ -1914,8 +1914,8 @@ async def validate_sql_query(
         }
         
         # Add optional context reference names if provided
-        if assessmentContextReferenceName and str(assessmentContextReferenceName).strip():
-            payload["assessmentContextEvidenceName"] = str(assessmentContextReferenceName).strip()
+        if entityHierarchyReferenceName and str(entityHierarchyReferenceName).strip():
+            payload["entityHierarchyEvidenceName"] = str(entityHierarchyReferenceName).strip()
         
         if additionalContextReferenceName and str(additionalContextReferenceName).strip():
             payload["controlContextEvidenceName"] = str(additionalContextReferenceName).strip()
@@ -2185,7 +2185,7 @@ async def mark_control_ready_for_execution(
 async def get_context_tables(controlId: str) -> dict:
     """
     Get flattened context tables for:
-    1. Assessment context
+    1. Entity hierarchy
     2. Control additional context (by controlId)
 
     Args:
@@ -2194,7 +2194,7 @@ async def get_context_tables(controlId: str) -> dict:
     Returns:
         Dict with:
         - success (bool)
-        - assessment_context (dict)
+        - entity_hierarchy (dict)
         - control_additional_context (dict)
         - error (str, optional)
     """
@@ -2247,28 +2247,28 @@ async def get_context_tables(controlId: str) -> dict:
 
             return columns, data_rows
 
-        logger.info("Fetching assessment context\n")
+        logger.info("Fetching entity hierarchy\n")
 
-        assessment_ctx_resp = await utils.make_GET_API_call_to_CCow(
-            constants.URL_GET_ASSESSMENT_CONTEXT
+        entity_hierarchy_resp = await utils.make_GET_API_call_to_CCow(
+            constants.URL_GET_ENTITY_HIERARCHY
         )
 
         if (
-            isinstance(assessment_ctx_resp, str)
-            or (isinstance(assessment_ctx_resp, dict) and "error" in assessment_ctx_resp)
-            or (isinstance(assessment_ctx_resp, dict) and "Message" in assessment_ctx_resp)
+            isinstance(entity_hierarchy_resp, str)
+            or (isinstance(entity_hierarchy_resp, dict) and "error" in entity_hierarchy_resp)
+            or (isinstance(entity_hierarchy_resp, dict) and "Message" in entity_hierarchy_resp)
         ):
-            logger.error(f"Assessment context fetch failed: {assessment_ctx_resp}\n")
+            logger.error(f"Entity hierarchy fetch failed: {entity_hierarchy_resp}\n")
             return {
                 "success": False,
-                "error": "Failed to fetch assessment context"
+                "error": "Failed to fetch entity hierarchy"
             }
 
-        if isinstance(assessment_ctx_resp, dict) and "entitiesTable" in assessment_ctx_resp:
-            assessment_context_table = assessment_ctx_resp.get("entitiesTable", {})
+        if isinstance(entity_hierarchy_resp, dict) and "entitiesTable" in entity_hierarchy_resp:
+            entity_hierarchy_table = entity_hierarchy_resp.get("entitiesTable", {})
         else:
-            headers, rows = flatten_context(assessment_ctx_resp)
-            assessment_context_table = {
+            headers, rows = flatten_context(entity_hierarchy_resp)
+            entity_hierarchy_table = {
                 "headerRow": headers,
                 "dataRows": rows
             }
@@ -2315,13 +2315,13 @@ async def get_context_tables(controlId: str) -> dict:
 
         logger.info(
             "get_context_tables completed successfully\n"
-            f"assessment_context:\n{assessment_context_table}\n\n"
+            f"entity_hierarchy:\n{entity_hierarchy_table}\n\n"
             f"control_additional_context:\n{control_additional_context_table}"
         )
 
         return {
             "success": True,
-            "assessment_context": assessment_context_table,
+            "entity_hierarchy": entity_hierarchy_table,
             "control_additional_context": control_additional_context_table
         }
 

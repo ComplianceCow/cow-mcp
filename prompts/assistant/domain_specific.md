@@ -9,10 +9,10 @@
 ### SQL QUERY GENERATION – DUAL QUERY REQUIREMENT
 
 **CONTROL CONTEXT DEFINITION:**
-- **Control Context = control context + control additional context + assessment context**
-- All three components (control context,control additional context, and assessment context) together form the complete control context
+- **Control Context = control context + control additional context + entity hierarchy**
+- All three components (control context, control additional context, and entity hierarchy) together form the complete control context
 - When generating SQL queries, use the complete control context for filtering and aggregation
-- Control description and context will have details of what to do. Additional context and assessent context will have details of what to filter.
+- Control description and context will have details of what to do. Additional context and entity hierarchy will have details of what to filter.
 - Verify the SQL queries against the control context once before generating.
 - Generate query with exact entity name matching. DO NOT partially match entity name . Use 'IN' in sql query, DO NOT use 'LIKE' .
 - For query generation use evidences that are only required for control context. The queries should be **context-specific** rather than pulling from all available evidence sources.
@@ -26,7 +26,7 @@
 - Write SQL queries using SQLite SQL dialect.
 
 When generating SQL from a control configuration:
-1. **Always create FOUR SQL QUERIES in this exact order:**, based on the requirement and the evidence configurations involved, also considering the context (control context and assessment context):
+1. **Always create FOUR SQL QUERIES in this exact order:**, based on the requirement and the evidence configurations involved, also considering the context (control context and entity hierarchy):
    - Step 2: Two context evidence queries
    - Step 3: Supporting evidence query
    - Step 4: Primary evidence query
@@ -34,39 +34,37 @@ When generating SQL from a control configuration:
    **STEP-BY-STEP QUERY GENERATION PROCESS:**
    
    **Step 1: Analyze Control Context and Prepare Data Tables**
-   - Identify control context, control additional context, and assessment context (call tool `get_assessment_context`)
+   - Identify control context, control additional context, and entity hierarchy (call tool `get_entity_hierarchy`)
    - Determine which evidence sources are required for the control context
    - **Context Tables in SQL Queries:**
-     - `assessment_context` and `control_additional_context` tables are dynamically created and available in the evidence source
+     - `entity_hierarchy` and `control_additional_context` tables are dynamically created and available in the evidence source
      - **CRITICAL: Do NOT create these tables in SQL** - Do NOT use WITH clauses, CTEs, UNION ALL, or any table creation syntax
-     - Simply reference them directly by their exact names: `assessment_context` and `control_additional_context` in FROM/JOIN clauses
-     - Example: `FROM assessment_context ac LEFT JOIN control_additional_context cac ON ...` (NOT `WITH assessment_context AS (...)` )
-     - **CRITICAL: Assume table structure from JSON** - Assessment and control additional contexts are JSON (flattened to tables). **DO NOT ask for sample data** - these tables are internally available and NOT in sample data. Assume structure when creating queries.
+     - Simply reference them directly by their exact names: `entity_hierarchy` and `control_additional_context` in FROM/JOIN clauses
+     - Example: `FROM entity_hierarchy eh LEFT JOIN control_additional_context cac ON ...` (NOT `WITH entity_hierarchy AS (...)` )
+     - **CRITICAL: Assume table structure from JSON** - Entity hierarchy and control additional contexts are JSON (flattened to tables). **DO NOT ask for sample data** - these tables are internally available and NOT in sample data. (call tool `get_context_tables`) to get structure when creating queries.
    
    **Step 2: Generate Context Evidence Queries (MANDATORY - MUST BE DONE FIRST)**
    - **CRITICAL: This step is MANDATORY and must ALWAYS be executed before Steps 3 and 4**
    - **Generate two context evidence queries FIRST (before any other queries):**
-     - **Query for matching assessment context:** `assessment_context LEFT JOIN control_additional_context`
+     - **Query for matching entity hierarchy:** `entity_hierarchy LEFT JOIN control_additional_context`
      - **Query for control additional context:** `control_additional_context`
    - **DO NOT skip this step - it is required for all control configurations**
    
    **Step 3: Generate Supporting Evidence Query (Details Query)**
-   - Use the `assessment_context` and `control_additional_context` tables in the query
+   - Use the `entity_hierarchy` and `control_additional_context` tables in the query
    - **Step 3a: Create Context Filtered Table**
-     - Perform a LEFT JOIN: `assessment_context` LEFT JOIN `control_additional_context` (reference directly, do NOT define them)
+     - Perform a LEFT JOIN: `entity_hierarchy` LEFT JOIN `control_additional_context` (reference directly, do NOT define them)
      - Apply all control context specific filters on this joined table
      - This filtered result is called `context_filtered_table`
    - **Step 3b: Join with Evidence Data**
      - Perform a LEFT JOIN between `context_filtered_table` and actual evidence data
-     - **CRITICAL: ResourceName must be unique - MANDATORY** - After LEFT JOIN, wrap result in: SELECT * FROM (SELECT *, ROW_NUMBER() OVER (PARTITION BY ResourceName ORDER BY ...) rn FROM joined_result) WHERE rn = 1. Final result: exactly one row per ResourceName, length equals `context_filtered_table`.
-   - Include ALL columns from 'context_filtered_table' (ignore columns where all rows are empty/null) & Also Include ALL columns from evidence data
+   - Include ALL columns from 'context_filtered_table' - if a column has all rows empty or null, ignore that column on 'context_filtered_table'. Also Include ALL columns from evidence data
    - Add a column called 'ResourceName' with leaf level entity name as its value. This column must always be present
    - Add missing rows with 'NOT_DETERMINED' as ComplianceStatus for entries without matching evidence
 
    **Step 4: Generate Primary Evidence Query (Summary Query)**
    - Use the extract query generated for supporting evidence query as the base - recreate the query inline (do NOT reference supporting evidence query table name)
    - On top of the supporting evidence query result, apply GROUP BY filters
-   - Apply GROUP BY on control additional context and compliance status 
    - **CRITICAL: Must Include ALL columns:**
      - Required columns: ResourceName, CompliantStatus, Total, Compliant, NonCompliant, NotDetermined, CompliantReason
      - **PLUS ALL control summary aggregated fields** - Do not limit to only the 7 required columns. Include every aggregated field from the control summary configuration
@@ -78,8 +76,8 @@ When generating SQL from a control configuration:
    **Step 5: Query Structure and Tool Calls**
    - All queries are created in separate tool calls
    - **CRITICAL: Each query must be INDEPENDENT** - Queries must NOT reference other queries or their table names. Each query must be self-contained and executable independently.
-   - **If query references `assessment_context`/`control_additional_context`, pass `assessmentContextReferenceName`/`additionalContextReferenceName` in tool call (mandatory)**
-   - **CRITICAL: Do NOT include `assessment_context` or `control_additional_context` in `referedEvidenceNames`** - These are internal tables. Only use `assessmentContextReferenceName`/`additionalContextReferenceName` parameters.
+   - **If query references `entity_hierarchy`/`control_additional_context`, pass `entityHierarchyReferenceName`/`additionalContextReferenceName` in tool call (mandatory)**
+   - **CRITICAL: Do NOT include `entity_hierarchy` or `control_additional_context` in `referedEvidenceNames`** - These are internal tables. Only use `entityHierarchyReferenceName`/`additionalContextReferenceName` parameters.
 
 2. **SEPARATE TOOL CALLS ARE MANDATORY**
    - The supporting evidence query must be a standalone tool call.
@@ -88,7 +86,7 @@ When generating SQL from a control configuration:
    - Never reference any evidenceConfig created for the supporting evidence query when generating the primary evidence query.
 
 3. **NAMING CONVENTION FOR NEW EVIDENCE CONFIGS**
-   - Query for matching assessment context → `{{query-purpose}}_1_1_matching_assessment_context`
+   - Query for matching entity hierarchy → `{{query-purpose}}_1_1_matching_entity_hierarchy`
    - Query for control additional context → `{{query-purpose}}_1_1_control_additional_context`
    - Query for supporting evidence → `{{query-purpose}}_{{control-no-replace-dot-by-underscore}}_supporting_evidence`
    - Query for primary evidence → `{{query-purpose}}_{{control-no-replace-dot-by-underscore}}_primary_evidence`
