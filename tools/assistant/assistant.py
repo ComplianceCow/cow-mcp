@@ -20,7 +20,7 @@ from mcptypes.assistant_tool_types import ControlSourceSummaryResponseVO, Contro
 from fastmcp import Context
 
 @mcp.tool()
-async def create_assessment(yaml_content: str) -> dict:
+async def create_assessment(yaml_content: str, ctx: Context | None = None) -> dict:
     """
     Create a new assessment from YAML definition.
     
@@ -74,7 +74,7 @@ async def create_assessment(yaml_content: str) -> dict:
 
         # Fetch all categories to check if category exists
         try:
-            categories_resp = await utils.make_GET_API_call_to_CCow(constants.URL_ASSESSMENT_CATEGORIES)
+            categories_resp = await utils.make_GET_API_call_to_CCow(constants.URL_ASSESSMENT_CATEGORIES, ctx=ctx)
             
             # Handle error response
             if isinstance(categories_resp, str):
@@ -102,7 +102,7 @@ async def create_assessment(yaml_content: str) -> dict:
             if not category_id:
                 logger.info(f"Category '{category_name}' not found, creating new category\n")
                 create_category_payload = {"name": category_name}
-                create_category_resp = await utils.make_API_call_to_CCow_and_get_response(constants.URL_ASSESSMENT_CATEGORIES,"POST",create_category_payload)
+                create_category_resp = await utils.make_API_call_to_CCow_and_get_response(constants.URL_ASSESSMENT_CATEGORIES,"POST",create_category_payload, ctx=ctx)
                 # Handle error response from category creation
                 if isinstance(create_category_resp, str):
                     logger.error(f"create_assessment error: Failed to create category: {create_category_resp}\n")
@@ -148,7 +148,7 @@ async def create_assessment(yaml_content: str) -> dict:
 
         logger.debug("create_assessment payload: {}\n".format(json.dumps({**payload, "fileContent": "<base64-encoded>"})))
         
-        resp = await utils.make_API_call_to_CCow_and_get_response(constants.URL_ASSESSMENTS,"POST",payload)
+        resp = await utils.make_API_call_to_CCow_and_get_response(constants.URL_ASSESSMENTS,"POST",payload, ctx=ctx)
         logger.debug("create_assessment output: {}\n".format(json.dumps(resp) if isinstance(resp, dict) else resp))
         
         # Ensure response is always a dict (utils can return string on error)
@@ -196,7 +196,8 @@ async def suggest_control_config_citations(
     controlName: str,
     assessmentId: str,
     description: str,
-    controlId: str = ""
+    controlId: str = "",
+    ctx: Context | None = None
 ) -> dict:
     """
     Suggest control citations for a given control name or description.
@@ -271,7 +272,7 @@ async def suggest_control_config_citations(
         logger.debug("suggest_control_config_citations payload: {}\n".format(json.dumps(payload)))
         
         # Make API call
-        resp = await utils.make_API_call_to_CCow(payload, constants.URL_GET_SIMILAR_CONTROLS)
+        resp = await utils.make_API_call_to_CCow(payload, constants.URL_GET_SIMILAR_CONTROLS, ctx=ctx)
         logger.debug("suggest_control_config_citations output: {}\n".format(json.dumps(resp) if isinstance(resp, dict) else resp))
         
         # Handle error response
@@ -333,7 +334,8 @@ async def suggest_control_config_citations(
 async def list_assessments(
     categoryId: str = "",
     categoryName: str = "",
-    assessmentName: str = ""
+    assessmentName: str = "",
+    ctx: Context | None = None
 ) -> assessment_vo.AssessmentListVO:
     """
     Get all assessments with optional filtering.
@@ -356,7 +358,7 @@ async def list_assessments(
     try:
         logger.info("list_assessments: \n")
         
-        output=await utils.make_GET_API_call_to_CCow(constants.URL_PLANS+"?fields=basic&category_id="+categoryId+"&category_name_contains="+categoryName+"&name_contains="+assessmentName)
+        output=await utils.make_GET_API_call_to_CCow(constants.URL_PLANS+"?fields=basic&category_id="+categoryId+"&category_name_contains="+categoryName+"&name_contains="+assessmentName, ctx=ctx)
 
         if isinstance(output, str) or "error" in output:
             logger.error("list_assessments error: {}\n".format(output))
@@ -392,7 +394,8 @@ async def list_assessments(
 
 @mcp.tool()
 async def list_assessment_control_configs(
-    assessmentId: str
+    assessmentId: str,
+    ctx: Context | None = None
 ) -> dict:
     """
     List all control configs for a given assessment id
@@ -432,7 +435,7 @@ async def list_assessment_control_configs(
             query_params = f"?page={cur_page}&page_size={page_size}&plan_id={assessment_id}&fields=basic&is_leaf_control=true&include_additional_context=true"
             logger.debug(f"list_assessment_control_configs fetching page {cur_page}: {query_params}\n")
             
-            output = await utils.make_GET_API_call_to_CCow(constants.URL_PLAN_CONTROLS + query_params)
+            output = await utils.make_GET_API_call_to_CCow(constants.URL_PLAN_CONTROLS + query_params, ctx=ctx)
             
             logger.error("list_assessment_control_configs page: {}\noutput: {}\n".format(cur_page, output))
 
@@ -497,7 +500,8 @@ async def create_control_config(
     name: str,
     alias: str,
     controlNumber: str,
-    description: str
+    description: str,
+    ctx: Context | None = None
 ) -> dict:
     """
     Create a new control config in an assessment.
@@ -547,7 +551,8 @@ async def create_control_config(
         resp = await utils.make_API_call_to_CCow_and_get_response(
             constants.URL_PLAN_CONTROLS,
             "POST",
-            payload
+            payload,
+            ctx=ctx
         )
         
         logger.debug("create_control_config output: {}\n".format(json.dumps(resp) if isinstance(resp, dict) else resp))
@@ -591,7 +596,8 @@ async def attach_citation_to_control_config(
     controlIdsInAuthorityDocument: List[str],
     sortId: str,
     controlNames: List[str],
-    confirm: bool = False
+    confirm: bool = False,
+    ctx: Context | None = None
 ) -> dict:
     """
     Attach citation to a control in an assessment.
@@ -708,7 +714,8 @@ async def attach_citation_to_control_config(
         resp = await utils.make_API_call_to_CCow_and_get_response(
             constants.URL_PLAN_CONTROL_CITATIONS_BATCH,
             "POST",
-            payload
+            payload,
+            ctx=ctx
         )
         logger.debug("attach_citation_to_control_config output: {}\n".format(json.dumps(resp) if isinstance(resp, dict) else resp))
         
@@ -755,7 +762,8 @@ async def attach_citation_to_control_config(
                 sync_resp = await utils.make_API_call_to_CCow_and_get_response(
                     constants.URL_PLANS_SYNC_CCFID,
                     "POST",
-                    sync_payload
+                    sync_payload,
+                    ctx=ctx
                 )
                 
                 # Log sync result but don't fail the citation attachment if sync fails
@@ -790,6 +798,7 @@ async def create_sql_query_evidence(
     confirm: bool = False,
     entityHierarchyReferenceName: str = None,
     additionalContextReferenceName: str = None,
+    ctx: Context | None = None,
 ) -> dict:
     """
     Create a SQL query evidence for a control configuration.
@@ -897,7 +906,8 @@ async def create_sql_query_evidence(
         resp = await utils.make_API_call_to_CCow_and_get_response(
             url,
             "POST",
-            payload
+            payload,
+            ctx=ctx
         )
         
         logger.debug("create_sql_query_evidence output: {}\n".format(json.dumps(resp) if isinstance(resp, dict) else resp))
@@ -940,7 +950,8 @@ async def create_sql_query_evidence(
 
 @mcp.tool()
 async def list_sql_query_evidence(
-    controlConfigId: str
+    controlConfigId: str,
+    ctx: Context | None = None
 ) -> dict:
     """
     List all SQL query evidences for a given control configuration.
@@ -975,7 +986,7 @@ async def list_sql_query_evidence(
         
         logger.debug("list_sql_query_evidence URL: {}\n".format(url))
         
-        output = await utils.make_GET_API_call_to_CCow(url)
+        output = await utils.make_GET_API_call_to_CCow(url, ctx=ctx)
         
         if isinstance(output, str) or (isinstance(output, dict) and "error" in output):
             logger.error("list_sql_query_evidence error: {}\n".format(output))
@@ -1011,6 +1022,7 @@ async def update_sql_query_evidence(
     confirm: bool = False,
     entityHierarchyReferenceName: str = None,
     additionalContextReferenceName: str = None,
+    ctx: Context | None = None,
 ) -> dict:
     """
     Update an existing SQL query evidence for a control configuration.
@@ -1101,7 +1113,8 @@ async def update_sql_query_evidence(
         resp = await utils.make_API_call_to_CCow_and_get_response(
             url,
             "PUT",
-            payload
+            payload,
+            ctx=ctx
         )
         
         logger.debug("update_sql_query_evidence output: {}\n".format(json.dumps(resp) if isinstance(resp, dict) else resp))
@@ -1139,7 +1152,7 @@ async def update_sql_query_evidence(
         return {"success": False, "error": f"Unexpected error updating SQL query evidence: {e}"}
 
 @mcp.tool()
-async def fetch_control_source_summary(controlId: str) -> ControlSourceSummaryResponseVO:
+async def fetch_control_source_summary(controlId: str, ctx: Context | None = None) -> ControlSourceSummaryResponseVO:
     """
     Fetch aggregated source summary for a control config, including linked control configs, evidences (including schema), and lineage depth.
     This tool is the PRIMARY way to gather SQL query context for a control config.
@@ -1178,7 +1191,8 @@ async def fetch_control_source_summary(controlId: str) -> ControlSourceSummaryRe
         resp = await utils.make_API_call_to_CCow_and_get_response(
             constants.URL_PLAN_CONTROLS_FETCH_SOURCE_SUMMARY,
             "POST",
-            payload
+            payload,
+            ctx=ctx
         )
 
         logger.debug(
@@ -1240,7 +1254,7 @@ async def fetch_control_source_summary(controlId: str) -> ControlSourceSummaryRe
         )
 
 @mcp.tool()
-async def get_evidence_sample_data(controlConfigId: str, evidenceNames: List[str] | None = None, records: int = 3) -> dict:
+async def get_evidence_sample_data(controlConfigId: str, evidenceNames: List[str] | None = None, records: int = 3, ctx: Context | None = None) -> dict:
     """
     Fetch concrete evidence samples for a control config.
 
@@ -1293,7 +1307,8 @@ async def get_evidence_sample_data(controlConfigId: str, evidenceNames: List[str
         resp = await utils.make_API_call_to_CCow_and_get_response(
             constants.URL_PLAN_CONTROLS_FETCH_SAMPLE_EVIDENCE_DATA,
             "POST",
-            payload
+            payload,
+            ctx=ctx
         )
 
         logger.debug("get_evidence_sample_data output: {}\n".format(json.dumps(resp) if isinstance(resp, dict) else resp))
@@ -1335,7 +1350,7 @@ async def get_evidence_sample_data(controlConfigId: str, evidenceNames: List[str
         return {"success": False, "error": f"Unexpected error fetching evidence samples: {e}"}
 
 @mcp.tool()
-async def get_entity_hierarchy() -> dict:
+async def get_entity_hierarchy(ctx: Context | None = None) -> dict:
     """
     Use this tool when the user wants to automate control operations,
     or before creating an SQL query.
@@ -1351,7 +1366,7 @@ async def get_entity_hierarchy() -> dict:
         logger.info("get_entity_hierarchy: \n")
         
         # Make GET API call to ServiceNow entities endpoint
-        output = await utils.make_GET_API_call_to_CCow(constants.URL_GET_ENTITY_HIERARCHY)
+        output = await utils.make_GET_API_call_to_CCow(constants.URL_GET_ENTITY_HIERARCHY, ctx=ctx)
         
         # Handle error response
         if isinstance(output, str) or (isinstance(output, dict) and "error" in output):
@@ -1383,6 +1398,7 @@ async def create_control_config_note(
     notes: str,
     topic: str,
     confirm: bool = False,
+    ctx: Context | None = None,
 ) -> dict:
     """
     Create a documentation note on a control configuration to record SQL query logic, evidence generation strategy, and implementation context.
@@ -1463,7 +1479,8 @@ async def create_control_config_note(
             url,
             "POST",
             payload,
-            return_raw=True
+            return_raw=True,
+            ctx=ctx
         )
 
         if resp_raw.status_code == 502:
@@ -1516,7 +1533,8 @@ async def create_control_config_note(
 
 @mcp.tool()
 async def list_control_config_notes(
-    controlConfigId: str
+    controlConfigId: str,
+    ctx: Context | None = None
 ) -> dict:
     """
     List all notes for a given control configuration.
@@ -1548,7 +1566,7 @@ async def list_control_config_notes(
         
         logger.debug("list_control_config_notes URL: {}\n".format(url))
         
-        output = await utils.make_GET_API_call_to_CCow(url)
+        output = await utils.make_GET_API_call_to_CCow(url, ctx=ctx)
         
         logger.info(f"create_control_config_note: \n Response : {output}\n")
 
@@ -1594,6 +1612,7 @@ async def update_control_config_note(
     notes: str,
     topic: str,
     confirm: bool = False,
+    ctx: Context | None = None,
 ) -> dict:
     """
     Update an existing documentation note on a control configuration.
@@ -1676,7 +1695,8 @@ async def update_control_config_note(
             url,
             "PUT",
             payload,
-            return_raw=True
+            return_raw=True,
+            ctx=ctx
         )
 
         if resp_raw.status_code == 502:
@@ -1715,7 +1735,7 @@ async def update_control_config_note(
         return {"success": False, "error": f"Unexpected error updating control config note: {e}"}
     
 @mcp.tool()
-async def fetch_rule_readme(name: str) -> workflow_vo.RuleReadmeResponseVO:
+async def fetch_rule_readme(name: str, ctx: Context | None = None) -> workflow_vo.RuleReadmeResponseVO:
     """
     Use this tool to get details about the rule to add in SQL query control config notes.
 
@@ -1737,7 +1757,7 @@ async def fetch_rule_readme(name: str) -> workflow_vo.RuleReadmeResponseVO:
     try:
         logger.info(f"fetch_rule_readme: searching for rule '{name}'\n")
 
-        output = await utils.make_GET_API_call_to_CCow(f"{constants.URL_FETCH_RULE_README}?name={name}")
+        output = await utils.make_GET_API_call_to_CCow(f"{constants.URL_FETCH_RULE_README}?name={name}", ctx=ctx)
         logger.debug("rule readme output: {}\n".format(output))
         
         if isinstance(output, str) or "error" in output:
@@ -1757,7 +1777,7 @@ async def fetch_rule_readme(name: str) -> workflow_vo.RuleReadmeResponseVO:
             return workflow_vo.RuleReadmeResponseVO(ruleName=rule_name, error=f"README not available for rule: {name}")
         
         try:
-            readme_response = await utils.make_GET_API_call_to_CCow(f"{constants.URL_FETCH_FILE_BY_HASH}/{readme_hash}")
+            readme_response = await utils.make_GET_API_call_to_CCow(f"{constants.URL_FETCH_FILE_BY_HASH}/{readme_hash}", ctx=ctx)
             logger.debug(f"README fetch response for rule {rule_name}: {readme_response}")
             
             if isinstance(readme_response, str) or "error" in readme_response:
@@ -1802,6 +1822,7 @@ async def validate_sql_query(
     controlId :str,
     entityHierarchyReferenceName: str = None,
     additionalContextReferenceName: str = None,
+    ctx: Context | None = None,
 ) -> dict:
     """
     Validate a SQL query against reference evidence data.
@@ -1926,7 +1947,8 @@ async def validate_sql_query(
         resp = await utils.make_API_call_to_CCow_and_get_response(
             constants.URL_PLAN_CONTROLS_VALIDATE_SQL_QUERY,
             "POST",
-            payload
+            payload,
+            ctx=ctx
         )
         
         logger.debug("validate_sql_query output: {}\n".format(json.dumps(resp) if isinstance(resp, dict) else resp))
@@ -1970,7 +1992,8 @@ async def fetch_sql_query_feedback(
     evidence_details: List[dict],
     assessment_context: dict,
     sql_query: str,
-    query_type: Literal["primary", "supporting"]):
+    query_type: Literal["primary", "supporting"],
+    ctx: Context | None = None):
     """
     Validate the filter query and summary query for the automated control.
     IMPORTANT: **This must include **all evidence sources linked to the control**.
@@ -2073,7 +2096,8 @@ async def fetch_sql_query_feedback(
         resp = await utils.make_API_call_to_CCow_and_get_response(
             constants.URL_VALIDATE_AUTOMATE_CONTROL,
             "POST",
-            req_payload
+            req_payload,
+            ctx=ctx
         )
         logger.debug("validate_sql_query_context: resp:\n%s", json.dumps(resp, indent=2))
         return resp
@@ -2090,6 +2114,7 @@ async def mark_control_ready_for_execution(
     controlName: str,
     primaryEvidenceName: str,
     supportingEvidenceName: str,
+    ctx: Context | None = None,
 ) -> dict:
     """
     Mark an automated control as ready for execution.
@@ -2149,6 +2174,7 @@ async def mark_control_ready_for_execution(
             constants.URL_MARK_CONTROL_READY,
             "POST",
             payload,
+            ctx=ctx
         )
 
         logger.debug("mark_control_ready_for_execution output: {}\n".format(json.dumps(resp) if isinstance(resp, dict) else resp))
@@ -2183,7 +2209,7 @@ async def mark_control_ready_for_execution(
     
 
 @mcp.tool()
-async def get_context_tables(controlId: str) -> dict:
+async def get_context_tables(controlId: str, ctx: Context | None = None) -> dict:
     """
     Get flattened context tables for:
     1. Entity hierarchy
@@ -2251,7 +2277,8 @@ async def get_context_tables(controlId: str) -> dict:
         logger.info("Fetching entity hierarchy\n")
 
         entity_hierarchy_resp = await utils.make_GET_API_call_to_CCow(
-            constants.URL_GET_ENTITY_HIERARCHY
+            constants.URL_GET_ENTITY_HIERARCHY,
+            ctx=ctx
         )
 
         if (
@@ -2282,7 +2309,8 @@ async def get_context_tables(controlId: str) -> dict:
         )
 
         control_resp = await utils.make_GET_API_call_to_CCow(
-            f"{constants.URL_PLAN_CONTROLS}/{control_id}{query_params}"
+            f"{constants.URL_PLAN_CONTROLS}/{control_id}{query_params}",
+            ctx=ctx
         )
 
         if (
