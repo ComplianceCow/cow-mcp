@@ -14,11 +14,11 @@ else:
     basic_auth_flow = True
     headers["Authorization"]= "Basic " + base64.b64encode((cid + ":" + cs).encode("ascii")).decode("ascii")
 
-host = os.environ.get("CCOW_HOST", "https://dev.compliancecow.live")
-if not host.endswith("/api"):
-    host += "/api"
+host = os.environ.get("CCOW_HOST", "http://cowapiservice:80")
 
 ENABLE_CONTEXTUAL_VECTOR_SEARCH = os.environ.get("ENABLE_CONTEXTUAL_VECTOR_SEARCH", "false").lower() == "true"
+ENABLE_CCOW_API_TOOLS = os.environ.get("ENABLE_CCOW_API_TOOLS", "true").lower() == "true"
+ENABLE_RULE_CREATION_TASK_CHAIN_PROCESS = os.environ.get("ENABLE_RULE_CREATION_TASK_CHAIN_PROCESS", "false").lower() == "true"
 
 # DASHBOARD
 URL_CCF_DASHBOARD_CONTROL_DETAILS = "/v2/aggregator/ccf-dashboard-control-details"
@@ -99,9 +99,10 @@ URL_FETCH_FILE_BY_HASH = "/url-hash/download"
 
 # RULES
 MCP_GET_RULES_TAG = "MCP"
-URL_FETCH_RULES = "/v5/partner/pc/rules"
+URL_FETCH_RULES = "/pc-api/v1/rules"
 URL_FETCH_TASKS = "/pc-api/v1/tasks"
 URL_CREATE_RULE = "/pc-api/v2/rules"
+URL_UPDATE_RULE = "/pc-api/v2/rules/update"
 URL_EXECUTE_RULE = "/pc-api/v2/rules/execute-rule"
 URL_FETCH_EXECUTION_PROGRESS = "/pc-api/v2/rules/fetch-execution-progress"
 URL_FETCH_FILE = "/pc-api/v1/storage/fetch-file"
@@ -144,3 +145,11 @@ URL_AUTH_TOKEN_GENERATION = "/v1/oauth2/token"
 # cache support added
 mcp_cache_ttl_in_seconds = int(os.getenv("MCP_CACHE_TTL_IN_SECONDS", "82800"))
 cow_cache = TTLCache(maxsize=300, ttl=mcp_cache_ttl_in_seconds)
+
+# MCP Upload
+URL_STORAGE_UPLOAD = "/v1/mcp-upload"
+
+AUTH_HEADER_KEY = 'Authorization'
+
+X_COW_SECURITY_CONTEXT = 'X-Cow-Security-Context'
+

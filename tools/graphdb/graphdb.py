@@ -10,10 +10,11 @@ from utils.debug import logger
 from mcptypes.graph_tool_types import UniqueNodeDataVO , CypherQueryVO
 from mcpconfig.config import mcp
 from constants import constants
+from fastmcp import Context
 
 
 @mcp.tool(name="fetch_unique_node_data_and_schema",description="Fetch unique node data and schema")
-async def fetch_unique_node_data_and_schema(question: str) -> UniqueNodeDataVO:
+async def fetch_unique_node_data_and_schema(question: str, ctx: Context | None = None) -> UniqueNodeDataVO:
 
     """
     Fetch unique node data and corresponding schema for a given question.
@@ -32,7 +33,7 @@ async def fetch_unique_node_data_and_schema(question: str) -> UniqueNodeDataVO:
         logger.info("\nget_unique_node_data_and_schema: \n")
         logger.debug("question: {}".format(question))
 
-        output=await utils.make_API_call_to_CCow({"user_question":question},constants.URL_RETRIEVE_UNIQUE_NODE_DATA_AND_SCHEMA)
+        output=await utils.make_API_call_to_CCow({"user_question":question},constants.URL_RETRIEVE_UNIQUE_NODE_DATA_AND_SCHEMA, ctx=ctx)
         logger.debug("output: {}\n".format(output))
         
         if isinstance(output, str) or  "error" in output:
@@ -53,7 +54,7 @@ async def fetch_unique_node_data_and_schema(question: str) -> UniqueNodeDataVO:
 
 
 @mcp.tool() 
-async def execute_cypher_query(query: str) -> CypherQueryVO: 
+async def execute_cypher_query(query: str, ctx: Context | None = None) -> CypherQueryVO: 
     """
     Given a question and query, execute a cypher query and transform result to human readable format.
         
@@ -98,7 +99,7 @@ async def execute_cypher_query(query: str) -> CypherQueryVO:
 
         output=await utils.make_API_call_to_CCow({
             "query": query,
-        },constants.URL_EXECUTE_CYPHER_QUERY)
+        },constants.URL_EXECUTE_CYPHER_QUERY, ctx=ctx)
         logger.debug("output: {}\n".format(output))
         
         if isinstance(output, str) or  "error" in output:
