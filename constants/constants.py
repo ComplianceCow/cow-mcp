@@ -30,9 +30,19 @@ URL_CCF_DASHBOARD_REVIEW_PERIODS = "/v2/aggregator/fetch-ccf-dashboard-review-pe
 URL_ASSESSMENT_CATEGORIES = "/v1/assessment-categories"
 URL_PLANS = "/v1/plans"
 URL_ASSESSMENTS = "/v1/assessments"
+URL_GET_ENTITY_HIERARCHY = "/v1/servicenow/entities"
 
 # ASSESSMENT CONTROLS
 URL_PLAN_CONTROLS = "/v1/plan-controls"
+URL_PLAN_CONTROLS_FETCH_SOURCE_SUMMARY = "/v1/plan-controls/fetch-source-summary"
+URL_PLAN_CONTROLS_FETCH_SAMPLE_EVIDENCE_DATA = "/v1/plan-controls/fetch-sample-evidence-data"
+URL_PLAN_CONTROLS_VALIDATE_SQL_QUERY = "/v1/plan-controls/validate-sql-query"
+URL_GET_SIMILAR_CONTROLS = "/v1/llm/get-similar-controls"
+URL_PLAN_CONTROL_CITATIONS_BATCH = "/v1/plan-controls/assessment-control-citations/batch"
+URL_PLANS_SYNC_CCFID = "/v1/plans/sync-ccfid"
+URL_PLAN_CONTROL_NOTES = "/v1/plan-controls/{controlConfigId}/notes"
+URL_VALIDATE_AUTOMATE_CONTROL = "/v1/llm/automated-control-validation"
+URL_MARK_CONTROL_READY = "/v1/plans/mark-control-ready"
 
 # ASSESSMENT RUNS
 URL_PLAN_INSTANCES = "/v1/plan-instances"

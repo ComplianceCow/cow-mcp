@@ -16,6 +16,7 @@ from mcptypes import workflow_tools_type as vo
 import yaml
 from fastmcp import Context
 
+import constants.error_constants as error_constants
 
 @mcp.tool()
 async def list_workflow_event_categories(ctx: Context | None = None) -> vo.WorkflowEventCategoryListVO:
@@ -957,6 +958,9 @@ async def modify_workflow(workflow_yaml: str, workflow_id: str, ctx: Context | N
 
         response =await utils.make_API_call_to_CCow_and_get_response(f"{constants.URL_WORKFLOW_CREATE}/{workflow_id}","PUT",workflow_yaml,type="yaml",return_raw=True, ctx=ctx)
         logger.debug("create workflow output: {}\n".format(response))
+
+        if response.status_code == 502:
+            return error_constants.ERROR_BAD_GATEWAY
 
         if response.status_code == 204:
             logger.info("Workflow updated successfully")

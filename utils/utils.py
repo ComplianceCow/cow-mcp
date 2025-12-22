@@ -3,8 +3,7 @@ import httpx
 import traceback
 from utils.debug import logger
 from constants.constants import headers, host
-from fastmcp import Context
-from mcpconfig.config import get_cc_headers
+import constants.error_constants as error_constants
 
 # from mcpconfig import get_access_token
 from mcp.server.auth.middleware.auth_context import get_access_token
@@ -37,7 +36,11 @@ async def make_API_call_to_CCow_and_get_response(uriSuffix: str,method: str,requ
 
             response = await client.request(method, **request_args)
             if return_raw:
+                if response.status_code == 502:
+                    return error_constants.ERROR_BAD_GATEWAY
                 return response
+            if response.status_code == 502:
+                return error_constants.ERROR_BAD_GATEWAY
             if response.status_code < 200 or response.status_code > 299:
                 error = response.json()
                 logger.error("make_API_call_to_CCow_and_get_response unexpected error: {}\n".format(error))
@@ -74,6 +77,8 @@ async def make_API_call_to_CCow(request_body: dict | str,uriSuffix: str, type: s
             else:
             # response = await client.post("http://localhost:14600/v1/llm/"+uriSuffix,json=request_body, headers={"Authorization": "db4f39f2-45b1-445c-9b05-5cd4d5f04990"}, timeout=300.0)
                 response = await client.post(host+uriSuffix,json=request_body, headers=requestHeader, timeout=60.0)
+            if response.status_code == 502:
+                return error_constants.ERROR_BAD_GATEWAY
             if response.status_code < 200 or response.status_code > 299:
                 error = response.json()
                 logger.error("make_API_call_to_CCow unexpected status code: error: {}\n".format(error))
@@ -97,6 +102,8 @@ async def make_GET_API_call_to_CCow(uriSuffix: str,ctx: Context | None = None) -
             requestHeader = get_cc_headers(ctx)
             # response = await client.post("http://localhost:14600/v1/llm/"+uriSuffix,json=request_body, headers={"Authorization": "db4f39f2-45b1-445c-9b05-5cd4d5f04990"}, timeout=300.0)
             response = await client.get(host+uriSuffix, headers=requestHeader, timeout=60.0)
+            if response.status_code == 502:
+                return error_constants.ERROR_BAD_GATEWAY
             if response.status_code < 200 or response.status_code > 299:
                 logger.error("make_GET_API_call_to_CCow unexpected status code: error: {}\n".format(response.json()))
                 return ErrorVO(error=f"Unexpected response status: {response.status_code}").model_dump()
