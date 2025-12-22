@@ -19,6 +19,10 @@ from mcptypes.rule_type import TaskVO
 from utils import rule, wsutils
 from utils.debug import logger
 from fastmcp import Context
+from utils import utils
+
+from mcptypes import assets_tools_type as assets_vo
+
 
 # Phase 1: Lightweight task summary resource
 
@@ -955,7 +959,7 @@ if constants.ENABLE_CCOW_API_TOOLS:
                 "successful_apps": [],
                 "failed_apps": []
             }
-        
+
 
 @mcp.tool()
 def get_tasks_summary(ctx: Context | None = None) -> str:
@@ -1034,9 +1038,6 @@ def get_tasks_summary(ctx: Context | None = None) -> str:
         return json.dumps({"total_tasks": len(tasks_summary), "tasks": tasks_summary, "message": f"Found {len(tasks_summary)} available tasks - use tasks://details/{{task_name}} for full details", "categories": rule.categorize_tasks_by_tags(tasks_summary)}, indent=2)
     except Exception as e:
         return json.dumps({"error": f"An error occurred while fetching the task summary: {e}", "tasks": []})
-
-
-
 
 
 @mcp.tool()
@@ -1599,7 +1600,7 @@ def upload_file(rule_name: str, file_name: str, content: Any, content_encoding: 
             "filename": file_name,
             "exception_type": type(e).__name__
         }
-    
+
 
 @mcp.tool()
 def collect_parameter_input(task_name: str, input_name: str, user_value: str = None, use_default: bool = False, ctx: Context | None = None) -> Dict[str, Any]:
@@ -2261,7 +2262,7 @@ def prepare_input_collection_overview(selected_tasks: List[Dict[str, str]], ctx:
 
     except Exception as e:
         return {"success": False, "error": f"Failed to prepare input overview: {e}"}
-    
+
 @mcp.tool()
 def verify_collected_inputs(collected_inputs: Dict[str, Any], ctx: Context | None = None) -> Dict[str, Any]:
     """Verify all collected inputs with user before rule creation.
@@ -2489,7 +2490,7 @@ def verify_collected_inputs(collected_inputs: Dict[str, Any], ctx: Context | Non
 
     except Exception as e:
         return {"success": False, "error": f"Failed to verify collected inputs: {e}"}
-    
+
 
 @mcp.tool()
 def execute_task(task_name: str, task_inputs: Dict[str, Any], application: Dict[str, Any] = None, ctx: Context | None = None) -> Dict[str, Any]:
@@ -2818,7 +2819,7 @@ def add_rule_tag(rule_name: str, ctx: Context | None = None) -> Dict[str, Any]:
             "rule_name": rule_name,
             "message": f"Error: {e}"
         }
-    
+
 
 @mcp.tool()
 def generate_design_notes_preview(rule_name: str, ctx: Context | None = None) -> Dict[str, Any]:
@@ -7064,7 +7065,7 @@ else:
             "message": "Proceeding to user selection: Standard schema, Extended schema, or Standard + Extended.",
             "next_step":"Generates a JS chart (Mermaid/D3) to visualize the rule's I/O fields and task structure. The chart must be shown in this chat immediately after user input. NOTE: No further processing should occur before this step."
         }
-        
+
 @mcp.prompt()
 def rule_input_collection():
     return """
@@ -7142,3 +7143,363 @@ def rule_input_collection():
     Think of it as a pipeline: water must flow through valve 1 before you can open valve 2.
     **Execution is not optional. It happens NOW, not later.**
     """
+
+@mcp.tool()
+async def list_assets(ctx: Context | None = None) -> dict:
+    """
+        Retrieve all available assets (integration plans).
+        
+        Returns:
+            - success (bool): Indicates if the operation completed successfully.
+            - assets (List[dict]): A list of assets.
+                - id (str): Asset id.
+                - name (str): Name of the asset.
+            - error (Optional[str]): An error message if any issues occurred during retrieval. 
+    """
+    try:
+        logger.info("list_assets: \n")
+
+        output=await utils.make_GET_API_call_to_CCow(constants.URL_ASSETS, ctx)
+        logger.debug("assets output: {}\n".format(output))
+        
+        if isinstance(output, str) or  "error" in output:
+            logger.error("list_assets error: {}\n".format(output))
+            return {"success": False, "error": "Facing internal error", "assets": []}
+        
+        assets: List[vo.AssetVO]=[]
+        for item in output["items"]:
+            if "name" in item:
+                assets.append(assets_vo.AssetVO.model_validate(item))
+        
+        logger.debug("modified assets: {}\n".format([asset.model_dump() for asset in assets]))
+
+        return {"success": True, "assets": [asset.model_dump() for asset in assets]}
+    except Exception as e:
+        logger.error("list_assets error: {}\n".format(e))
+        return {"success": False, "error": "Facing internal error", "assets": []}
+
+
+@mcp.tool()
+async def list_checks(assetId: str, ctx: Context | None = None) -> dict:
+    """
+        Retrieve all checks associated with an asset.
+        
+        Args:
+            - assetId (str): Asset id (plan id).
+        
+        Returns:
+            - success (bool): Indicates if the operation completed successfully.
+            - checks (List[dict]): A list of checks.
+                - id (str): Check id.
+                - name (str): Name of the check.
+            - error (Optional[str]): An error message if any issues occurred during retrieval. 
+    """
+    try:
+        logger.info("list_checks: assetId: {}\n".format(assetId))
+
+        # output=await utils.make_GET_API_call_to_CCow(f"{constants.URL_ASSETS}/{assetId}/checks", ctx)
+        # logger.debug("checks output: {}\n".format(output))
+        
+        # if isinstance(output, str) or  "error" in output:
+        #     logger.error("list_checks error: {}\n".format(output))
+        #     return {"success": False, "error": "Facing internal error", "checks": []}
+        
+        return {"success": True, "checks": []}
+    except Exception as e:
+        logger.error("list_checks error: {}\n".format(e))
+        return {"success": False, "error": "Facing internal error", "checks": []}
+
+
+@mcp.tool()
+async def get_asset_control_hierarchy(assetId: str, ctx: Context | None = None) -> dict:
+    """
+        Retrieve the complete control hierarchy for an asset with nested plan controls.
+        Returns only id and name for each control while preserving the full hierarchical structure.
+        
+        Args:
+            - assetId (str): Asset/Plan id.
+        
+        Returns:
+            - success (bool): Indicates if the operation completed successfully.
+            - planControls (List[dict]): Nested hierarchy of controls with only id and name.
+                Each control contains:
+                - id (str): Control id.
+                - name (str): Name of the control.
+                - planControls (List[dict]): Nested child controls (
+            - error (Optional[str]): An error message if any issues occurred during retrieval. 
+    """
+    def extract_control_hierarchy(control: dict) -> dict:
+        """
+        Recursively extract only id and name from a control and its nested planControls.
+        Preserves the hierarchy structure.
+        """
+        result = {
+            "id": control.get("id", ""),
+            "name": control.get("name", "")
+        }
+        
+        if "planControls" in control and isinstance(control["planControls"], list) and len(control["planControls"]) > 0:
+            result["planControls"] = [extract_control_hierarchy(child) for child in control["planControls"]]
+        
+        return result
+    
+    try:
+        logger.info("get_asset_control_hierarchy: assetId: {}\n".format(assetId))
+
+        output = await utils.make_GET_API_call_to_CCow(f"{constants.URL_PLANS}/{assetId}", ctx)
+        logger.debug("plan output: {}\n".format(output))
+        
+        if isinstance(output, str) or "error" in output:
+            logger.error("get_asset_control_hierarchy error: {}\n".format(output))
+            return {"success": False, "error": "Facing internal error", "planControls": []}
+        
+        plan_controls = []
+        if "planControls" in output and isinstance(output["planControls"], list):
+            for control in output["planControls"]:
+                plan_controls.append(extract_control_hierarchy(control))
+        
+        logger.debug("modified plan controls hierarchy: {}\n".format(json.dumps(plan_controls, indent=2)))
+
+        return {"success": True, "planControls": plan_controls}
+    except Exception as e:
+        logger.error("get_asset_control_hierarchy error: {}\n".format(e))
+        return {"success": False, "error": "Facing internal error", "planControls": []}
+
+
+@mcp.tool()
+async def add_check_to_asset(assetId: str, parentControlId: str, checkName: str, checkDescription: str, ctx: Context | None = None) -> dict:
+    """
+        Add a new check (plan control) to an asset under a specified parent control.
+        
+        Args:
+            - assetId (str): Asset/Plan id.
+            - parentControlId (str): Parent control id under which the check will be added.
+            - checkName (str): Name of the check to be added.
+            - checkDescription (str): Description of the check to be added.
+        
+        Returns:
+            - success (bool): Indicates if the check was added successfully.
+            - error (Optional[str]): An error message if any issues occurred during the addition. 
+    """
+    try:
+        logger.info("add_check_to_asset: assetId: {}, parentControlId: {}, checkName: {}\n".format(assetId, parentControlId, checkName))
+
+        # output=await utils.make_POST_API_call_to_CCow()
+        # logger.debug("add_check_to_asset output: {}\n".format(output))
+        
+        # if isinstance(output, str) or  "error" in output:
+        #     logger.error("add_check_to_asset error: {}\n".format(output))
+        #     return {"success": False, "error": "Facing internal error"}
+        
+        return {"success": True}
+    except Exception as e:
+        logger.error("add_check_to_asset error: {}\n".format(e))
+        return {"success": False, "error": "Facing internal error"}
+
+
+@mcp.tool()
+async def create_asset_and_check(assetName: str, controlName: str, checkName: str, checkDescription: str, ctx: Context | None = None) -> dict:
+    """
+        Create a new asse with an initial control and check structure.
+        The asset will be created with a hierarchical structure: asset -> control -> check.
+    
+        Args:
+            - assetName (str): Name of the asset to be created.
+            - controlName (str): Name of the initial control to be created within the asset.
+            - checkName (str): Name of the initial check to be created under the control.
+            - checkDescription (str): Description of the initial check.
+        
+        Returns:
+            - success (bool): Indicates if the asset was created successfully.
+            - assetId (str): ID of the created asset (only present if successful).
+            - error (Optional[str]): An error message if any issues occurred during creation. 
+    """
+    try:
+        logger.info("create_asset: assetName: {}, controlName: {}, checkName: {}\n".format(assetName, controlName, checkName))
+
+        payload = {
+            "name": assetName,
+            "type": "integration",
+            "status": "active",
+            "planControls": [
+                {
+                    "displayable": 1,
+                    "alias": 1,
+                    "name": controlName,
+                    "description": "",
+                    "planControls": [
+                        {
+                            "displayable": "1.1",
+                            "alias": "1.1",
+                            "name": checkName,
+                            "description": checkDescription,
+                            "evidences": [
+                                {
+                                    "name": checkName,
+                                    "description": checkDescription
+                                }
+                            ]
+                        }
+                    ],
+                },
+            ],
+        }
+
+        output=await utils.make_POST_API_call_to_CCow(constants.URL_PLANS, ctx, payload)
+        logger.debug("create_asset output: {}\n".format(output))
+
+        if isinstance(output, str) or  "error" in output:
+            logger.error("create_asset error: {}\n".format(output))
+            return {"success": False, "error": output if isinstance(output, str) else str(output)}
+
+        asset_id = output.get("id", "")
+
+        logger.debug("created asset id: {}\n".format(asset_id))
+
+        return {"success": True, "assetId": asset_id}
+
+    except Exception as e:
+        logger.error("create_asset error: {}\n".format(e))
+        return {"success": False, "error": "Facing internal error"}
+
+def verify_control_automation(control_id: str, ctx: Optional[Context] = None) -> Dict[str, Any]:
+    """
+    Verify if a control is automated or not based on the presence of ruleId.
+    If ruleId exists, fetch and return basic rule information.
+    
+    Args:
+        control_id: The ID of the control to verify
+        ctx: Optional context for authentication
+        
+    Returns:
+        Dictionary containing automation status and rule details if automated
+    """
+    headers = wsutils.create_header(ctx)
+    
+    try:
+        # Fetch control details
+        control_response = wsutils.get(
+            path=wsutils.build_api_url(endpoint=f"{constants.URL_PLAN_CONTROLS}/{control_id}"),
+            header=headers
+        )
+        
+        if isinstance(control_response, str) or (isinstance(control_response, dict) and "error" in control_response):
+            return {
+                "error": "Unable to retrieve control details",
+                "control_id": control_id,
+                "automated": False
+            }
+        
+        # Check if ruleId exists
+        rule_id = control_response.get("ruleId")
+        
+        if not rule_id:
+            return {
+                "control_id": control_id,
+                "control_name": control_response.get("name", "Unknown"),
+                "automated": False,
+                "message": "This control is not automated. No rule is associated with it."
+            }
+        
+        # Control is automated, fetch rule details
+        try:
+            rule_details = fetch_cc_rule_by_id(rule_id, ctx)
+            
+            if isinstance(rule_details, dict) and "error" not in rule_details:
+                return {
+                    "control_id": control_id,
+                    "control_name": control_response.get("name", "Unknown"),
+                    "automated": True,
+                    "rule_id": rule_id,
+                    "rule_info": {
+                        "name": rule_details.get("name", "Unknown"),
+                        "type": rule_details.get("type", "Unknown"),
+                        "description": rule_details.get("meta", {}).get("description", "No description available"),
+                    },
+                    "message": "This control is automated with the rule details provided above."
+                }
+            else:
+                return {
+                    "control_id": control_id,
+                    "control_name": control_response.get("name", "Unknown"),
+                    "automated": True,
+                    "rule_id": rule_id,
+                    "message": "Control is automated but unable to fetch rule details.",
+                    "error": rule_details.get("error", "Unknown error")
+                }
+                
+        except Exception as e:
+            return {
+                "control_id": control_id,
+                "control_name": control_response.get("name", "Unknown"),
+                "automated": True,
+                "rule_id": rule_id,
+                "message": "Control is automated but error occurred while fetching rule details.",
+                "error": str(e)
+            }
+            
+    except Exception as e:
+        return {
+            "error": f"Failed to verify control automation: {str(e)}",
+            "control_id": control_id,
+            "automated": False
+        }
+
+
+def fetch_cc_rules_list(params: Dict[str, Any] = None, ctx: Optional[Context] = None) -> List[vo.SimplifiedRuleVO]:
+    """
+    Fetch list of CC rules with only name, description, and id.
+    This tool should ONLY be used for attaching rules to control flows.
+    
+    Args:
+        params: Optional query parameters for filtering/pagination
+        ctx: Optional context for authentication
+        
+    Returns:
+        List of simplified rule objects containing only name, description, and id
+    """
+    if params is None:
+        params = {}
+    
+    if not rule.is_valid_key(params, "page_size"):
+        params["page_size"] = 100
+    
+    headers = wsutils.create_header(ctx)
+    cur_page = 1
+    has_next = True
+    combined_rules = []
+    
+    while has_next:
+        paginated_params = {**params, "page": cur_page}
+        
+        try:
+            response = wsutils.get(
+                path=wsutils.build_api_url(endpoint=constants.URL_GET_CC_RULE),
+                params=paginated_params,
+                header=headers
+            )
+            
+            if rule.is_valid_key(response, "items", array_check=True):
+                rules = response["items"]
+                
+                for rule_data in rules:
+                    # Extract only name, description, and id
+                    simplified_rule = {
+                        "id": rule_data.get("id"),
+                        "name": rule_data.get("name"),
+                        "description": rule_data.get("meta", {}).get("description", "No description available")
+                    }
+                    combined_rules.append(simplified_rule)
+                
+                total_pages = int(response.get("totalPage", 0)) or 1
+                cur_page += 1
+                has_next = cur_page <= total_pages
+            else:
+                has_next = False
+                
+        except Exception as e:
+            return [{
+                "error": f"Failed to fetch CC rules list: {str(e)}"
+            }]
+    
+    return combined_rules
