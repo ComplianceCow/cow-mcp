@@ -284,7 +284,7 @@ if constants.ENABLE_CCOW_API_TOOLS:
             }
 
     @mcp.tool()
-    def attach_rule_to_control(rule_id: str, assessment_name: str, control_alias: str, control_id: str,create_evidence: bool = True, ctx: Context | None = None ) -> Dict[str, Any]:
+    def attach_rule_to_control(rule_id: str, assessment_name: str, control_id: str,create_evidence: bool = True, ctx: Context | None = None ) -> Dict[str, Any]:
 
         """
         Attach a rule to a specific control in an assessment.
@@ -342,7 +342,6 @@ if constants.ENABLE_CCOW_API_TOOLS:
             rule_id: ID of the rule to attach (UUID). If an alphabetic string is provided, 
                     it MUST be resolved to a UUID using `fetch_cc_rule_by_name()` before the tool proceeds.
             assessment_name: Name of the assessment.
-            control_alias: Alias of the control.
             control_id: ID of the control.
             create_evidence: Whether to create auto-generated evidence from the rule output (default: True).
                             ⚠️ MUST be confirmed by user acknowledgment before execution.
@@ -365,11 +364,10 @@ if constants.ENABLE_CCOW_API_TOOLS:
                     "success": True,
                     "rule_id": rule_id,
                     "assessment_name": assessment_name,
-                    "control_alias": control_alias,
                     "control_id": control_id,
                     "attachment_status": "attached",
                     "evidence_created": create_evidence,
-                    "message": f"Rule '{rule_id}' successfully attached to control '{control_alias}' in assessment '{assessment_name}'"
+                    "message": f"Rule '{rule_id}' successfully attached to control '{control_id}' in assessment '{assessment_name}'"
                 }
                 
                 if create_evidence:
@@ -382,9 +380,8 @@ if constants.ENABLE_CCOW_API_TOOLS:
                     "success": False,
                     "rule_id": rule_id,
                     "assessment_name": assessment_name,
-                    "control_alias": control_alias,
                     "error": response.get("error", "Failed to attach rule to control"),
-                    "message": f"Failed to attach rule '{rule_id}' to control '{control_alias}'"
+                    "message": f"Failed to attach rule '{rule_id}' to control '{control_id}'"
                 }
                 
         except Exception as e:
@@ -392,7 +389,6 @@ if constants.ENABLE_CCOW_API_TOOLS:
                 "success": False,
                 "rule_name": rule_id,
                 "assessment_name": assessment_name,
-                "control_alias": control_alias,
                 "error": f"Failed to attach rule to control: {str(e)}",
                 "message": f"Error occurred while attaching rule to control"
             }
@@ -7232,7 +7228,7 @@ async def list_checks(assetId: str, ctx: Context | None = None) -> dict:
         if isinstance(output, dict) and "items" in output:
             for item in output["items"]:
                 if "name" in item and "id" in item:
-                    checks.append({"name": item["name"], "id": item["id"]})
+                    checks.append({"name": item["name"], "id": item["id"], "controlId": item["planControlId"]})
         
         return {"success": True, "checks": checks}
     except Exception as e:
@@ -7310,8 +7306,8 @@ async def get_asset_control_hierarchy(assetId: str, ctx: Context | None = None) 
 @mcp.tool()
 async def add_check_to_asset(assetId: str, parentControlId: str, checkName: str, checkDescription: str, ctx: Context | None = None) -> dict:
     """
-        Add a new check (plan control) to an asset under a specified parent control.
-        The check will be added as a child of the parent control.
+        Add a new control and a new check to an asset under a specified parent control.
+        The check will be attached to newly created control beneath the parent control.
 
         Args:
             - assetId (str): Asset id.
@@ -7349,7 +7345,9 @@ async def add_check_to_asset(assetId: str, parentControlId: str, checkName: str,
                 logger.error("add_check_to_asset error: {}\n".format(output.get("error")))
                 return {"success": False, "error": output.get("error")}
         
-        return {"success": True}
+        controlId = output.get("id","")
+
+        return {"success": True, "controlId": controlId}
     except Exception as e:
         logger.error(traceback.format_exc())
         logger.error("add_check_to_asset error: {}\n".format(e))
@@ -7365,7 +7363,7 @@ async def create_asset_and_check(assetName: str, controlName: str, checkName: st
         Args:
             - assetName (str): Name of the asset to be created.
             - controlName (str): Name of the initial control to be created within the asset.
-            - checkName (str): Name of the initial check to be created under the control.
+            - checkName (str): Name of the initial check to be created under the control. (letters and numbers only, no spaces)
             - checkDescription (str): Description of the initial check.
         
         Returns:
