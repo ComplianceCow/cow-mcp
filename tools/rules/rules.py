@@ -7650,7 +7650,6 @@ def verify_control_automation(control_id: str, ctx: Optional[Context] = None) ->
     
     Args:
         control_id: The ID of the control to verify
-        ctx: Optional context for authentication
         
     Returns:
         Dictionary containing automation status and rule details if automated
@@ -7734,7 +7733,8 @@ def fetch_cc_rules_list(params: Dict[str, Any] = None, ctx: Optional[Context] = 
     
     Args:
         params: Optional query parameters for filtering/pagination
-        ctx: Optional context for authentication
+            - name_contains: Filter rules by name containing this string
+            - page_size: Number of items to be returned (default 100)
         
     Returns:
         List of simplified rule objects containing only name, description, and id
