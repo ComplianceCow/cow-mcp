@@ -21,6 +21,7 @@ from utils import rule, wsutils
 from utils.debug import logger
 from fastmcp import Context
 from utils import utils
+import re
 
 from mcptypes import assets_tools_type as assets_vo
 
@@ -7375,6 +7376,11 @@ async def create_asset_and_check(assetName: str, controlName: str, checkName: st
     try:
         logger.info("create_asset: assetName: {}, controlName: {}, checkName: {}\n".format(assetName, controlName, checkName))
 
+        pattern = r"^[A-Za-z0-9]+$"
+        match = re.search(pattern, checkName)
+        if not match:
+            return {"success": False, "error": "check name should match regex `^[A-Za-z0-9]+$`"}
+
         payload = {
             "name": assetName,
             "categoryName":"Integrations",
@@ -7391,7 +7397,7 @@ async def create_asset_and_check(assetName: str, controlName: str, checkName: st
                         {
                             "displayable": "1.1",
                             "alias": "1.1",
-                            "name": checkName,
+                            "name": checkDescription,
                             "description": checkDescription,
                             "evidences": [
                                 {
