@@ -145,7 +145,7 @@ Think of it as a pipeline: water must flow through valve 1 before you can open v
 
 **Step 4: Rule Automation Process**
 
-Rules are attached to **controls**, not directly to checks. The control contains the check, and automation applies to the control level.
+Rules are attached to **controls**, not directly to checks. The control contains the check, and automation applies to the control level. Rule Output name should match check name exactly. 
 
 1. **Search for Existing Rule**
    - Call `fetch_cc_rules_list` for rules matching the check requirement
