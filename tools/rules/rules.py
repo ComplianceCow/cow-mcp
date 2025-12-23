@@ -7197,7 +7197,7 @@ async def list_checks(assetId: str, ctx: Context | None = None) -> dict:
     try:
         logger.info("list_checks: assetId: {}\n".format(assetId))
 
-        output=await utils.make_GET_API_call_to_CCow(f"{constants.URL_ASSETS}/{assetId}/fetch-all-evidences", ctx)
+        output=await utils.make_API_call_to_CCow(f"{constants.URL_PLANS}/{assetId}/fetch-all-evidences", ctx=ctx)
         logger.debug("checks output: {}\n".format(output))
         
         if isinstance(output, str) or  "error" in output:
@@ -7222,7 +7222,7 @@ async def get_asset_control_hierarchy(assetId: str, ctx: Context | None = None) 
         Returns only id and name for each control while preserving the full hierarchical structure.
         
         Args:
-            - assetId (str): Asset/Plan id.
+            - assetId (str): Asset id.
         
         Returns:
             - success (bool): Indicates if the operation completed successfully.
@@ -7277,7 +7277,7 @@ async def add_check_to_asset(assetId: str, parentControlId: str, checkName: str,
         Add a new check (plan control) to an asset under a specified parent control.
         
         Args:
-            - assetId (str): Asset/Plan id.
+            - assetId (str): Asset id.
             - parentControlId (str): Parent control id under which the check will be added.
             - checkName (str): Name of the check to be added.
             - checkDescription (str): Description of the check to be added.
@@ -7295,7 +7295,7 @@ async def add_check_to_asset(assetId: str, parentControlId: str, checkName: str,
             "checkName": checkName,
             "checkDescription": checkDescription
         }
-        output=await utils.make_POST_API_call_to_CCow(constants.URL_PLAN_CONTROLS+"/add-control-and-check",ctx,payload)
+        output=await utils.make_API_call_to_CCow(payload, constants.URL_PLAN_CONTROLS+"/add-control-and-check",ctx=ctx)
         logger.debug("add_check_to_asset output: {}\n".format(output))
         
         if isinstance(output, str) or  "error" in output:
@@ -7330,13 +7330,14 @@ async def create_asset_and_check(assetName: str, controlName: str, checkName: st
 
         payload = {
             "name": assetName,
+            "categoryName":"Integrations",
             "type": "integration",
             "status": "active",
             "linkToDefaultCCFPlan": {},
             "planControls": [
                 {
-                    "displayable": 1,
-                    "alias": 1,
+                    "displayable": "1",
+                    "alias": "1",
                     "name": controlName,
                     "description": "",
                     "planControls": [
@@ -7357,7 +7358,7 @@ async def create_asset_and_check(assetName: str, controlName: str, checkName: st
             ],
         }
 
-        output=await utils.make_POST_API_call_to_CCow(constants.URL_PLANS, ctx, payload)
+        output=await utils.make_API_call_to_CCow(payload, constants.URL_PLANS, ctx=ctx)
         logger.debug("create_asset output: {}\n".format(output))
 
         if isinstance(output, str) or  "error" in output:
@@ -7366,14 +7367,47 @@ async def create_asset_and_check(assetName: str, controlName: str, checkName: st
 
         asset_id = output.get("id", "")
 
-        logger.debug("created asset id: {}\n".format(asset_id))
+        parent_control_id = ""
+        control_id = ""
+        check_id = ""
 
-        return {"success": True, "assetId": asset_id}
+        if asset_id:
+            assets_output = await utils.make_GET_API_call_to_CCow(f"{constants.URL_PLANS}/{asset_id}", ctx=ctx)
+            logger.debug("created asset details: {}\n".format(assets_output))
+            if isinstance(assets_output, str) or  "error" in assets_output:
+                logger.error("create_asset error while fetching created asset details: {}\n".format(assets_output))
+            else:
+                plan_controls = assets_output.get("planControls", [])
+                if plan_controls:
+                    parent_control = plan_controls[0]
+                    parent_control_id = parent_control.get("id", "")
+
+                    child_controls = parent_control.get("planControls", [])
+                    if child_controls:
+                        leaf_control = child_controls[0]
+                        control_id = leaf_control.get("id", "")
+
+                        evidences = leaf_control.get("evidences", [])
+                        if evidences:
+                            check_id = evidences[0].get("id", "")
+
+        response = {
+            "success": True,
+            "assetId": asset_id,
+            "parentControlId": parent_control_id,
+            "controlId": control_id,
+            "checkId": check_id,
+        }
+
+        logger.debug("created response: {}\n".format(response))
+
+        return {"success": True, "response": response}
 
     except Exception as e:
         logger.error("create_asset error: {}\n".format(e))
         return {"success": False, "error": "Facing internal error"}
 
+@mcp.tool()
 def verify_control_automation(control_id: str, ctx: Optional[Context] = None) -> Dict[str, Any]:
     """
     Verify if a control is automated or not based on the presence of ruleId.
@@ -7457,7 +7491,6 @@ def verify_control_automation(control_id: str, ctx: Optional[Context] = None) ->
             "automated": False
         }
 
-
 @mcp.tool()
 async def add_citation_to_asset_control(assetControlId: str, authorityDocument: str, authorityDocumentControlId: str, ctx: Context | None = None) -> dict:
     """
@@ -7482,7 +7515,7 @@ async def add_citation_to_asset_control(assetControlId: str, authorityDocument: 
                 "controlsInAuthorityDocument": [authorityDocumentControlId]
             }
         }
-        output=await utils.make_POST_API_call_to_CCow(constants.URL_PLAN_CONTROLS+"/"+assetControlId+"/link-source-control", ctx, payload)
+        output=await utils.make_API_call_to_CCow(payload, constants.URL_PLAN_CONTROLS+"/"+assetControlId+"/link-source-control", ctx=ctx)
         logger.debug("add_citation_to_asset_control output: {}\n".format(output))
 
         if isinstance(output, str) or  "error" in output:
@@ -7495,6 +7528,7 @@ async def add_citation_to_asset_control(assetControlId: str, authorityDocument: 
         logger.error("create_asset error: {}\n".format(e))
         return {"success": False, "error": "Facing internal error"}
 
+@mcp.tool()
 def fetch_cc_rules_list(params: Dict[str, Any] = None, ctx: Optional[Context] = None) -> List[vo.SimplifiedRuleVO]:
     """
     Fetch list of CC rules with only name, description, and id.
