@@ -7476,6 +7476,111 @@ async def create_asset_and_check(assetName: str, controlName: str, checkName: st
 
 
 @mcp.tool()
+async def schedule_asset_execution(assetId: str, runPrefixName: str, description: str, cronTab: str, ctx: Context | None = None) -> dict:
+    """
+        Schedule automated execution for a asset.
+
+        IMPORTANT WORKFLOW & SAFETY RULES:
+        - **User inputs (runPrefixName, cronTab) are mandatory and cannot be bypassed or assumed.**
+        - The `cronTab` string **MUST** be constructed explicitly from the user's schedule instructions
+          (e.g., frequency, time-of-day, timezone). Never auto-generate it without user confirmation.
+
+        Args:
+            - assetId (str): Id of the asset to be scheduled.
+            - runPrefixName (str): Human-readable name/prefix for this scheduled run.
+            - description (str): Description for the scheduled run.
+            - cronTab (str): Full cron expression including timezone (e.g. `TZ=Asia/Calcutta 0 0 * * *`),
+              explicitly provided/confirmed by the user. **Must not be assumed or defaulted.**
+
+        Returns:
+            - success (bool): Indicates if the schedule was created successfully.
+            - scheduleId (str): ID of the created schedule (only present if successful).
+            - error (Optional[str]): An error message if any issues occurred during creation.
+    """
+    try:
+        logger.info(
+            "schedule_asset_execution: assetId: %s, runPrefixName: %s, cronTab: %s\n",
+            assetId,
+            runPrefixName,
+            cronTab,
+        )
+
+        if not assetId or not str(assetId).strip():
+            return {"success": False, "error": "assetId is mandatory and cannot be empty"}
+
+        if not runPrefixName or not str(runPrefixName).strip():
+            return {
+                "success": False,
+                "error": "runPrefixName is mandatory and must be explicitly provided by the user",
+            }
+
+        if not description or not str(description).strip():
+            return {
+                "success": False,
+                "error": "description is mandatory and must be explicitly provided by the user",
+            }
+
+        if not cronTab or not str(cronTab).strip():
+            return {
+                "success": False,
+                "error": "cronTab is mandatory and must be explicitly constructed from the user's schedule",
+            }
+
+        payload = {
+            "name": str(runPrefixName).strip(),
+            "description": str(description).strip(),
+            "assessmentId": str(assetId).strip(),
+            "appScopeId": None,
+            "appScopeName": "",
+            "controlPeriod": {
+                "schema": 1,
+                "period": "DAY",
+                "duration": 1,
+            },
+            "cronTab": str(cronTab).strip(),
+            "status": "ACTIVE",
+            "tag": {},
+        }
+
+        output = await utils.make_API_call_to_CCow_and_get_response(
+            constants.URL_ASSESSMENT_SCHEDULE, "POST", payload, ctx=ctx
+        )
+        logger.debug(
+            "schedule_asset_execution output: %s\n",
+            json.dumps(output) if isinstance(output, dict) else output,
+        )
+
+        if isinstance(output, str):
+            logger.error("schedule_asset_execution error: %s\n", output)
+            return {"success": False, "error": output}
+
+        if isinstance(output, dict):
+            if "Message" in output:
+                logger.error("schedule_asset_execution error: %s\n", output)
+                return {"success": False, "error": output}
+
+            if "error" in output:
+                logger.error(
+                    "schedule_asset_execution error: %s\n", output.get("error")
+                )
+                return {"success": False, "error": output.get("error")}
+
+        schedule_id = output.get("id", "") if isinstance(output, dict) else ""
+
+        return {
+            "success": True,
+            "scheduleId": schedule_id,
+        }
+
+    except Exception as e:
+        logger.error(traceback.format_exc())
+        logger.error("schedule_asset_execution error: %s\n", e)
+        return {
+            "success": False,
+            "error": f"Unexpected error scheduling asset execution: {e}",
+        }
+
+@mcp.tool()
 async def suggest_control_config_citations(
     controlName: str,
     description: str,
