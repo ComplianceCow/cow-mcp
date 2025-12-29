@@ -117,7 +117,8 @@ Think of it as a pipeline: water must flow through valve 1 before you can open v
 - **IF asset not found:**
   - Call `create_asset_and_check()`. This function creates a new asset with a parent control, a control, and a check nested within that control.
       - If the response indicates that the asset name already exists, it means an assessment with the same name is present. Retry creation with a new unique asset name until successful.
-  - Proceed to the citation suggestion and attachment step.
+  - **If new asset created:** Get `runPrefixName` and `schedule` from user (mandatory, cannot assume). Build cronTab from user's schedule. Call `schedule_asset_execution`.
+  - Proceed to citation suggestion and attachment steps.
 
 **Step 2: Discover Check**
 - Retrieve all checks within asset
@@ -145,7 +146,7 @@ Think of it as a pipeline: water must flow through valve 1 before you can open v
 
 **Step 4: Rule Automation Process**
 
-Rules are attached to **controls**, not directly to checks. The control contains the check, and automation applies to the control level. Rule Output name should match check name exactly. 
+Rules are attached to **controls**, not directly to checks. The control contains the check, and automation applies to the control level. Rule Output name should match check name exactly. Rule output schema format should be Standard schema.
 
 1. **Search for Existing Rule**
    - Call `fetch_cc_rules_list` to retrieve the list of published rules, then check for any rule that matches the check requirements.
