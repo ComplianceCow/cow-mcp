@@ -7477,7 +7477,7 @@ async def create_asset_and_check(assetName: str, controlName: str, checkName: st
 
 
 @mcp.tool()
-async def schedule_asset_execution(assetId: str, runPrefixName: str, description: str, cronTab: str, ctx: Context | None = None) -> dict:
+async def schedule_asset_execution(assetId: str, runPrefixName: str, description: str, cronTab: str,controlPeriod: str,controlDuration: int, ctx: Context | None = None) -> dict:
     """
         Schedule automated execution for a asset.
 
@@ -7485,14 +7485,22 @@ async def schedule_asset_execution(assetId: str, runPrefixName: str, description
         - **User inputs (runPrefixName, cronTab) are mandatory and cannot be bypassed or assumed.**
         - The `cronTab` string **MUST** be constructed explicitly from the user's schedule instructions
           (e.g., frequency, time-of-day, timezone). Never auto-generate it without user confirmation.
-
+        - `controlPeriod` **MUST** be one of the supported values.
+        - `controlDuration` **MUST** be a positive integer provided by the user.
         Args:
             - assetId (str): Id of the asset to be scheduled.
             - runPrefixName (str): Human-readable name/prefix for this scheduled run.
             - description (str): Description for the scheduled run.
             - cronTab (str): Full cron expression including timezone (e.g. `TZ=Asia/Calcutta 0 0 * * *`),
               explicitly provided/confirmed by the user. **Must not be assumed or defaulted.**
-
+            - controlPeriod (str): Control period for the assessment run, type selected by the user.
+                Allowed values:
+                    - DAY        → Last few days
+                    - WEEK       → Last few weeks
+                    - MONTH      → Last few months
+                    - CAL_WEEK   → Last few calendar weeks
+                    - CAL_MONTH  → Last few calendar months
+            - controlDuration (int): Duration count for the selected control period 
         Returns:
             - success (bool): Indicates if the schedule was created successfully.
             - scheduleId (str): ID of the created schedule (only present if successful).
@@ -7535,8 +7543,8 @@ async def schedule_asset_execution(assetId: str, runPrefixName: str, description
             "appScopeName": "",
             "controlPeriod": {
                 "schema": 1,
-                "period": "DAY",
-                "duration": 1,
+                "period": controlPeriod,
+                "duration": controlDuration,
             },
             "cronTab": str(cronTab).strip(),
             "status": "ACTIVE",
