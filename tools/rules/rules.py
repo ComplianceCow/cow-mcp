@@ -7535,12 +7535,49 @@ async def schedule_asset_execution(assetId: str, runPrefixName: str, description
                 "error": "cronTab is mandatory and must be explicitly constructed from the user's schedule",
             }
 
+        appScopeId = ""
+        appScopeName = ""
+
+        try:
+            plan_resp = await utils.make_API_call_to_CCow_and_get_response(f"{constants.URL_PLANS}/{assetId}?fields=basic","GET",ctx=ctx)
+
+            logger.debug(
+                    "plan_resp output: %s\n",
+                    json.dumps(plan_resp) if isinstance(plan_resp, dict) else plan_resp,
+                )
+            config_id = (
+                plan_resp.get("configId")
+                if isinstance(plan_resp, dict)
+                else None
+            )
+
+            if config_id:
+                appScopeId = config_id
+
+                config_resp = await utils.make_API_call_to_CCow_and_get_response(f"{constants.URL_CONFIGURATION}?id={config_id}","GET",ctx=ctx)
+
+                logger.debug(
+                    "config_resp output: %s\n",
+                    json.dumps(config_resp) if isinstance(config_resp, dict) else config_resp,
+                )
+
+                if (isinstance(config_resp, dict) and config_resp.get("items") and isinstance(config_resp["items"], list)):
+                    appScopeName = (
+                        config_resp["items"][0].get("name", "")
+                    )
+
+        except Exception:
+            logger.warning(
+                "Unable to resolve appScopeId/appScopeName, continuing with empty values"
+            )
+
+
         payload = {
             "name": str(runPrefixName).strip(),
             "description": str(description).strip(),
             "assessmentId": str(assetId).strip(),
-            "appScopeId": None,
-            "appScopeName": "",
+            "appScopeId": appScopeId,
+            "appScopeName": appScopeName,
             "controlPeriod": {
                 "schema": 1,
                 "period": controlPeriod,
@@ -7550,6 +7587,10 @@ async def schedule_asset_execution(assetId: str, runPrefixName: str, description
             "status": "ACTIVE",
             "tag": {},
         }
+
+        logger.debug(
+            "schedule_asset_execution payload: %s\n", json.dumps(payload)
+        )
 
         output = await utils.make_API_call_to_CCow_and_get_response(
             constants.URL_ASSESSMENT_SCHEDULE, "POST", payload, ctx=ctx
