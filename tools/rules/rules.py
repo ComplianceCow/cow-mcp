@@ -7400,7 +7400,8 @@ async def create_asset_and_check(assetName: str, controlName: str, checkName: st
                             "evidences": [
                                 {
                                     "name": checkName,
-                                    "description": checkDescription
+                                    "description": checkDescription,
+                                    "userDefinedSynthesizerName": "rule_default_synthesizer_card"
                                 }
                             ]
                         }
