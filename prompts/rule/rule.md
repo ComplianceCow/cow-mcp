@@ -117,7 +117,7 @@ Think of it as a pipeline: water must flow through valve 1 before you can open v
 - **IF asset not found:**
   - Call `create_asset_and_check()`. This function creates a new asset with a parent control, a control, and a check nested within that control.
       - If the response indicates that the asset name already exists, it means an assessment with the same name is present. Retry creation with a new unique asset name until successful.
-  - **If new asset created:** Get `runPrefixName` and `schedule` from user (mandatory, cannot assume). Build cronTab from user's schedule. Call `schedule_asset_execution`.
+  - **If new asset created:** Get `runPrefixName`, `schedule` and `controlPeriod` from user (mandatory, cannot assume). Build cronTab from user's schedule. Call `schedule_asset_execution`.
   - Proceed to citation suggestion and attachment steps.
 
 **Step 2: Discover Check**
