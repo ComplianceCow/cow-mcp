@@ -110,6 +110,16 @@ Think of it as a pipeline: water must flow through valve 1 before you can open v
 - **Leaf Control** = Parent container for checks
 - **Hierarchy:** Asset → Control → Control → Check
 
+------------------------------------------------------------
+SCHEDULING RULE
+------------------------------------------------------------
+- If the user wants to update, change, or reschedule execution:
+  1. List existing schedules for the asset.
+  2. Delete the existing schedule(s).
+  3. Create a new schedule with user-provided inputs.
+- Schedule inputs (runPrefixName, cronTab, controlPeriod, controlDuration)
+  are mandatory and must never be assumed or auto-generated.
+
 ### Workflow
 
 **Step 1: Discover Asset**
