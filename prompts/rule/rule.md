@@ -110,6 +110,16 @@ Think of it as a pipeline: water must flow through valve 1 before you can open v
 - **Leaf Control** = Parent container for checks
 - **Hierarchy:** Asset → Control → Control → Check
 
+------------------------------------------------------------
+SCHEDULING RULE
+------------------------------------------------------------
+- If the user wants to update, change, or reschedule execution:
+  1. List existing schedules for the asset.
+  2. Delete the existing schedule(s).
+  3. Create a new schedule with user-provided inputs.
+- Schedule inputs (runPrefixName, cronTab, controlPeriod, controlDuration)
+  are mandatory and must never be assumed or auto-generated.
+
 ### Workflow
 
 **Step 1: Discover Asset**
@@ -117,7 +127,7 @@ Think of it as a pipeline: water must flow through valve 1 before you can open v
 - **IF asset not found:**
   - Call `create_asset_and_check()`. This function creates a new asset with a parent control, a control, and a check nested within that control.
       - If the response indicates that the asset name already exists, it means an assessment with the same name is present. Retry creation with a new unique asset name until successful.
-  - **If new asset created:** Get `runPrefixName` and `schedule` from user (mandatory, cannot assume). Build cronTab from user's schedule. Call `schedule_asset_execution`.
+  - **If new asset created:** Get `runPrefixName`, `schedule` and `controlPeriod` from user (mandatory, cannot assume). Build cronTab from user's schedule. Call `schedule_asset_execution`.
   - Proceed to citation suggestion and attachment steps.
 
 **Step 2: Discover Check**

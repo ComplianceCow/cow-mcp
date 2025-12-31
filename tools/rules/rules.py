@@ -7632,6 +7632,131 @@ async def schedule_asset_execution(assetId: str, runPrefixName: str, description
         }
 
 @mcp.tool()
+async def list_asset_schedules( assetId: str, ctx: Context | None = None) -> dict:
+    """
+    List schedules for a given asset.
+
+    Args:
+        - assetId (str): Asset ID whose schedules need to be listed
+
+    Returns:
+        - success (bool)
+        - items (list): List of schedules
+        - error (Optional[str])
+    """
+    try:
+        logger.info("list_asset_schedules: assetId: %s", assetId)
+
+        if not assetId or not str(assetId).strip():
+            return {
+                "success": False,
+                "error": "assetId is mandatory and cannot be empty",
+            }
+
+        payload = {
+            "assessmentId": str(assetId).strip()
+        }
+
+        output = await utils.make_GET_API_call_to_CCow_With_Payload(constants.URL_ASSESSMENT_SCHEDULE, payload, ctx=ctx)
+
+        logger.debug(
+            "list_asset_schedules raw output: %s",
+            json.dumps(output) if isinstance(output, dict) else output,
+        )
+
+        if isinstance(output, str):
+            return {"success": False, "error": output}
+
+        if isinstance(output, dict):
+            if "Message" in output:
+                return {"success": False, "error": output}
+
+            if "error" in output:
+                return {"success": False, "error": output.get("error")}
+
+        items = output.get("items", [])
+        filtered_items = []
+
+        if isinstance(items, list):
+            for item in items:
+                if not isinstance(item, dict):
+                    continue
+                filtered_items.append(
+                    {
+                        "id": item.get("id"),
+                        "name": item.get("name"),
+                        "description": item.get("description"),
+                        "controlPeriod": item.get("controlPeriod"),
+                        "cronTab": item.get("cronTab"),
+                        "status": item.get("status"),
+                    }
+                )
+
+        return {
+            "success": True,
+            "items": filtered_items,
+        }
+
+    except Exception as e:
+        logger.error(traceback.format_exc())
+        return {
+            "success": False,
+            "error": f"Unexpected error listing schedules: {e}",
+        }
+
+
+@mcp.tool()
+async def delete_asset_schedule( scheduleId: str, ctx: Context | None = None) -> dict:
+    """
+    Delete an existing assessment schedule.
+
+    Args:
+        - scheduleId (str): ID of the schedule to delete
+
+    Returns:
+        - success (bool)
+        - error (Optional[str])
+    """
+    try:
+        logger.info("delete_asset_schedule: scheduleId: %s", scheduleId)
+
+        if not scheduleId or not str(scheduleId).strip():
+            return {
+                "success": False,
+                "error": "scheduleId is mandatory and cannot be empty",
+            }
+
+        url = f"{constants.URL_ASSESSMENT_SCHEDULE}/{str(scheduleId).strip()}"
+
+        output = await utils.make_API_call_to_CCow_and_get_response( url, "DELETE", ctx=ctx)
+
+        logger.debug(
+            "delete_asset_schedule output: %s",
+            json.dumps(output) if isinstance(output, dict) else output,
+        )
+
+        if isinstance(output, str):
+            return {"success": False, "error": output}
+
+        if isinstance(output, dict):
+            if "Message" in output:
+                return {"success": False, "error": output}
+
+            if "error" in output:
+                return {"success": False, "error": output.get("error")}
+
+        return {
+            "success": True
+        }
+
+    except Exception as e:
+        logger.error(traceback.format_exc())
+        return {
+            "success": False,
+            "error": f"Unexpected error deleting schedule: {e}",
+        }
+
+@mcp.tool()
 async def suggest_control_config_citations(
     controlName: str,
     description: str,
