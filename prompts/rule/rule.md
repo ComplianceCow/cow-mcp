@@ -156,7 +156,7 @@ SCHEDULING RULE
 
 **Step 4: Rule Automation Process**
 
-Rules are attached to **controls**, not directly to checks. The control contains the check, and automation applies to the control level. Rule Output name should match check name exactly. Rule output schema format should be Standard schema.
+Rules are attached to **controls**, not directly to checks. The control contains the check, and automation applies to the control level. Rule Output name should match check name exactly. Rule output schema format should be Standard schema (System, Source, ResourceId, ResourceName, ResourceType, ComplianceStatus, ComplianceStatusReason are mandatory).
 
 1. **Search for Existing Rule**
    - Call `fetch_cc_rules_list` to retrieve the list of published rules, then check for any rule that matches the check requirements.
@@ -169,3 +169,7 @@ Rules are attached to **controls**, not directly to checks. The control contains
 
 3. **Attach Rule to Control**
    - Call `attach_rule_to_control()` with `controlId` and `ruleId` (from existing or new rule)
+
+4. **Create Control Automation Summary Note (Mandatory)**
+   - Call `create_control_note()` to create a summary note for the control automation.
+   - Provide `assetId` as `assessmentId`, `controlId`, `topic` as `"control_automation_summary"`, and `notes` as the Rule README Content.
