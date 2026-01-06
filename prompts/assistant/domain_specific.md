@@ -54,6 +54,7 @@ When generating SQL from a control configuration:
    - Use the `entity_hierarchy` and `control_additional_context` tables in the query
    - **Step 3a: Create Context Filtered Table**
      - Perform a LEFT JOIN: `entity_hierarchy` LEFT JOIN `control_additional_context` (reference directly, do NOT define them)
+     - **Include the join column in the result and name it `ControlObjectiveEntityName`**
      - Apply all control context specific filters on this joined table
      - This filtered result is called `context_filtered_table`
    - **Step 3b: Join with Evidence Data**
