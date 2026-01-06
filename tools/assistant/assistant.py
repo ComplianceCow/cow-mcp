@@ -1968,6 +1968,17 @@ async def validate_sql_query(
                 logger.error("validate_sql_query error: {}\n".format(resp.get("error")))
                 return {"success": False, "error": resp.get("error")}
             
+
+            data_block = resp.get("data")
+            columns = data_block.get("columns") if isinstance(data_block, dict) else None
+
+            if columns and isinstance(columns, list):
+                if len(columns) != len(set(columns)):
+                    return {
+                        "success": False,
+                        "error": "The column names are duplicated"
+                    }
+
             result = {
                 "success": True,
                 "resp": resp
