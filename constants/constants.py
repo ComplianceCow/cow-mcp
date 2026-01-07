@@ -14,11 +14,11 @@ else:
     basic_auth_flow = True
     headers["Authorization"]= "Basic " + base64.b64encode((cid + ":" + cs).encode("ascii")).decode("ascii")
 
-host = os.environ.get("CCOW_HOST", "https://dev.compliancecow.live")
-if not host.endswith("/api"):
-    host += "/api"
+host = os.environ.get("CCOW_HOST", "http://cowapiservice:80")
 
 ENABLE_CONTEXTUAL_VECTOR_SEARCH = os.environ.get("ENABLE_CONTEXTUAL_VECTOR_SEARCH", "false").lower() == "true"
+ENABLE_CCOW_API_TOOLS = os.environ.get("ENABLE_CCOW_API_TOOLS", "true").lower() == "true"
+ENABLE_RULE_CREATION_TASK_CHAIN_PROCESS = os.environ.get("ENABLE_RULE_CREATION_TASK_CHAIN_PROCESS", "false").lower() == "true"
 
 # DASHBOARD
 URL_CCF_DASHBOARD_CONTROL_DETAILS = "/v2/aggregator/ccf-dashboard-control-details"
@@ -29,9 +29,22 @@ URL_CCF_DASHBOARD_REVIEW_PERIODS = "/v2/aggregator/fetch-ccf-dashboard-review-pe
 # ASSESSMENTS
 URL_ASSESSMENT_CATEGORIES = "/v1/assessment-categories"
 URL_PLANS = "/v1/plans"
+URL_ASSESSMENTS = "/v1/assessments"
+URL_GET_ENTITY_HIERARCHY = "/v1/servicenow/entities"
+URL_ASSESSMENT_SCHEDULE = "/v1/assessment-schedule"
+URL_CONFIGURATION = "/v2/configuration"
 
 # ASSESSMENT CONTROLS
 URL_PLAN_CONTROLS = "/v1/plan-controls"
+URL_PLAN_CONTROLS_FETCH_SOURCE_SUMMARY = "/v1/plan-controls/fetch-source-summary"
+URL_PLAN_CONTROLS_FETCH_SAMPLE_EVIDENCE_DATA = "/v1/plan-controls/fetch-sample-evidence-data"
+URL_PLAN_CONTROLS_VALIDATE_SQL_QUERY = "/v1/plan-controls/validate-sql-query"
+URL_GET_SIMILAR_CONTROLS = "/v1/llm/get-similar-controls"
+URL_PLAN_CONTROL_CITATIONS_BATCH = "/v1/plan-controls/assessment-control-citations/batch"
+URL_PLANS_SYNC_CCFID = "/v1/plans/sync-ccfid"
+URL_PLAN_CONTROL_NOTES = "/v1/plan-controls/{controlConfigId}/notes"
+URL_VALIDATE_AUTOMATE_CONTROL = "/v1/llm/automated-control-validation"
+URL_MARK_CONTROL_READY = "/v1/plans/mark-control-ready"
 
 # ASSESSMENT RUNS
 URL_PLAN_INSTANCES = "/v1/plan-instances"
@@ -88,9 +101,10 @@ URL_FETCH_FILE_BY_HASH = "/url-hash/download"
 
 # RULES
 MCP_GET_RULES_TAG = "MCP"
-URL_FETCH_RULES = "/v5/partner/pc/rules"
+URL_FETCH_RULES = "/pc-api/v1/rules"
 URL_FETCH_TASKS = "/pc-api/v1/tasks"
 URL_CREATE_RULE = "/pc-api/v2/rules"
+URL_UPDATE_RULE = "/pc-api/v2/rules/update"
 URL_EXECUTE_RULE = "/pc-api/v2/rules/execute-rule"
 URL_FETCH_EXECUTION_PROGRESS = "/pc-api/v2/rules/fetch-execution-progress"
 URL_FETCH_FILE = "/pc-api/v1/storage/fetch-file"
@@ -133,3 +147,11 @@ URL_AUTH_TOKEN_GENERATION = "/v1/oauth2/token"
 # cache support added
 mcp_cache_ttl_in_seconds = int(os.getenv("MCP_CACHE_TTL_IN_SECONDS", "82800"))
 cow_cache = TTLCache(maxsize=300, ttl=mcp_cache_ttl_in_seconds)
+
+# MCP Upload
+URL_STORAGE_UPLOAD = "/v1/mcp-upload"
+
+AUTH_HEADER_KEY = 'Authorization'
+
+X_COW_SECURITY_CONTEXT = 'X-Cow-Security-Context'
+
