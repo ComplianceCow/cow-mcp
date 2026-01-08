@@ -61,6 +61,8 @@ When generating SQL from a control configuration:
    - Include ALL columns from 'context_filtered_table' - if a column has all rows empty or null, ignore that column on 'context_filtered_table'. Also Include ALL columns from evidence data
    - Add a column called 'ResourceName' with leaf level entity name as its value. This column must always be present
    - Add missing rows with 'NOT_DETERMINED' as ComplianceStatus for entries without matching evidence
+   - Include the join key used for `entity_hierarchy` LEFT JOIN `control_additional_context` as a column named `ControlObjectiveEntityName` in the query result
+   - **All column names in the Supporting Evidence query result must be unique**
 
    **Step 4: Generate Primary Evidence Query (Summary Query)**
    - Use the extract query generated for supporting evidence query as the base - recreate the query inline (do NOT reference supporting evidence query table name)

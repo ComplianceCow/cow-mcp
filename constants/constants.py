@@ -31,6 +31,8 @@ URL_ASSESSMENT_CATEGORIES = "/v1/assessment-categories"
 URL_PLANS = "/v1/plans"
 URL_ASSESSMENTS = "/v1/assessments"
 URL_GET_ENTITY_HIERARCHY = "/v1/servicenow/entities"
+URL_ASSESSMENT_SCHEDULE = "/v1/assessment-schedule"
+URL_CONFIGURATION = "/v2/configuration"
 
 # ASSESSMENT CONTROLS
 URL_PLAN_CONTROLS = "/v1/plan-controls"

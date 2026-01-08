@@ -1,3 +1,4 @@
+import json
 from typing import Any
 import httpx
 import traceback
@@ -5,6 +6,7 @@ from utils.debug import logger
 from constants.constants import headers, host
 import constants.error_constants as error_constants
 from fastmcp import Context
+from mcpconfig.config import get_cc_headers
 
 # from mcpconfig import get_access_token
 from mcp.server.auth.middleware.auth_context import get_access_token
@@ -116,7 +118,26 @@ async def make_GET_API_call_to_CCow(uriSuffix: str,ctx: Context | None = None) -
             logger.error(traceback.format_exc())
             logger.error("make_GET_API_call_to_CCow error: {}\n".format(e))
             return "Facing error  :  "+str(e)
-        
+
+async def make_GET_API_call_to_CCow_With_Payload(uriSuffix: str, payload: dict | None = None, ctx: Context | None = None) -> dict[str, Any] | str  :
+    logger.info(f"uriSuffix: {uriSuffix}")
+    async with httpx.AsyncClient() as client:
+        try:
+            requestHeader = get_cc_headers(ctx)
+            response = await client.request("GET", host+uriSuffix, content=json.dumps(payload).encode("utf-8"), headers=requestHeader, timeout=60.0)
+            if response.status_code == 502:
+                return error_constants.ERROR_BAD_GATEWAY
+            if response.status_code < 200 or response.status_code > 299:
+                logger.error("make_GET_API_call_to_CCow unexpected status code: error: {}\n".format(response.json()))
+                return ErrorVO(error=f"Unexpected response status: {response.status_code}").model_dump()
+            return response.json()
+        except httpx.TimeoutException:
+            logger.error(f"make_GET_API_call_to_CCow error: Request timed out after 60 seconds for uriSuffix: {uriSuffix}")
+            return "Facing error : Request timed out."
+        except Exception as e:
+            logger.error(traceback.format_exc())
+            logger.error("make_GET_API_call_to_CCow error: {}\n".format(e))
+            return "Facing error  :  "+str(e)
         
 def formatChecks (data: dict) -> dict:
     if data is not None and 'items' in data:
