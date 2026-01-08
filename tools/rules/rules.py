@@ -598,22 +598,10 @@ if constants.ENABLE_CCOW_API_TOOLS:
                     "message": f"Rule '{rule_name}' published successfully",
                     "ui_display_message": f"View your published rule on the ComplianceCow Rules Dashboard → {ui_url}"
                 }
-                
-                search_rule_name = cc_rule_name or rule_name
 
-                rule_resp = wsutils.get(
-                    path=wsutils.build_api_url(endpoint=constants.URL_GET_CC_RULE),
-                    params={"name": search_rule_name, "page_size": 1},
-                    header=headers
-                )
-
-                logger.debug(f"fetch_cc_rule_by_name after publish: rule_output: {rule_resp}\n")
-
-                if rule.is_valid_key(rule_resp, "items", array_check=True):
-                    item = rule_resp["items"][0] if rule_resp["items"] else None
-                    if item and item.get("id"):
-                        resp["cc_rule_id"] = item["id"]
-
+                if publish_resp.get("ruleId"):
+                    resp["cc_rule_id"] = publish_resp.get("ruleId")
+            
                 return resp
             else:
                 return {
