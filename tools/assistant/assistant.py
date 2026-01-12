@@ -494,7 +494,7 @@ async def list_assessment_control_configs(
         return {"success": False, "error": f"Unexpected error listing assessment controls: {e}"}
 
 
-@mcp.tool()
+# @mcp.tool()
 async def create_control_config(
     assessmentId: str,
     name: str,
@@ -2370,4 +2370,265 @@ async def get_context_tables(controlId: str, ctx: Context | None = None) -> dict
         return {
             "success": False,
             "error": f"Unexpected error fetching context tables: {e}"
+        }
+
+@mcp.tool()
+async def create_control_config(
+    assessmentName: str,
+    controlObjectiveName: str,
+    controlObjectiveDescription: str,
+    controlObjectiveCategory: str,
+    entityClass: str,
+    entities: list[str],
+    controlContext: str | None = None,
+    ctx: Context | None = None
+) -> dict:
+    """
+    Create or update an assessment by adding a control config (control objective).
+
+    Important:
+    - Use only user-provided inputs and do not assume any values.
+
+    Behavior:
+    - If an assessment with the given `assessmentName` already exists, the control objective
+      is added to the existing assessment.
+    - If no assessment with the given `assessmentName` exists, a new assessment is created
+      and the control objective is added to it.
+    
+    Args:
+        assessmentName (str): Name of the assessment (required).
+        controlObjectiveName (str): Control objective name (required).
+        controlObjectiveDescription (str): Control objective description (required).
+        controlObjectiveCategory (str): Control objective category (required).
+        entityClass (str): Entity class name (required).
+        entities (List[str]): List of entity names (required).
+        controlContext (str, optional): Additional control context.
+
+    Returns:
+        Dict with:
+        - success (bool)
+        - data (dict, optional): API response
+            - assessment id (str)
+        - error (str, optional)
+    """
+    try:
+        logger.info("create_control_config invoked\n")
+
+        if not assessmentName or not assessmentName.strip():
+            return {"success": False, "error": "assessmentName is mandatory"}
+
+        if not controlObjectiveName or not controlObjectiveName.strip():
+            return {"success": False, "error": "controlObjectiveName is mandatory"}
+
+        if not controlObjectiveDescription or not controlObjectiveDescription.strip():
+            return {"success": False, "error": "controlObjectiveDescription is mandatory"}
+        
+        if not controlObjectiveCategory or not controlObjectiveCategory.strip():
+            return {"success": False, "error": "controlObjectiveCategory is mandatory"}
+
+        if not entityClass or not entityClass.strip():
+            return {"success": False, "error": "entityClass is mandatory"}
+
+        if not isinstance(entities, list) or not entities:
+            return {"success": False, "error": "entities must be a non-empty array of strings"}
+
+        for e in entities:
+            if not isinstance(e, str) or not e.strip():
+                return {"success": False, "error": "Each entity must be a non-empty string"}
+
+
+        entity_payload = [
+            {
+                "name": entity.strip(),
+                "class": entityClass.strip()
+            }
+            for entity in entities
+        ]
+
+        payload = {
+            "assessmentName": assessmentName.strip(),
+            "controlObjectives": [
+                {
+                    "name": controlObjectiveName.strip(),
+                    "description": controlObjectiveDescription.strip(),
+                    "category": controlObjectiveCategory.strip(),
+                    "context": controlContext.strip() if controlContext else "",
+                    "additionalContext": {
+                        "entities": entity_payload
+                    }
+                }
+            ]
+        }
+
+        logger.debug("create_control_config payload:\n{}\n".format(json.dumps(payload, indent=2)))
+
+        resp = await utils.make_API_call_to_CCow_and_get_response(
+            constants.URL_ADD_CONTROL_OBJECTIVE,
+            "POST",
+            payload,
+            ctx=ctx
+        )
+
+        logger.debug(
+            "create_control_config response:\n{}\n".format(
+                json.dumps(resp) if isinstance(resp, dict) else resp
+            )
+        )
+
+        if isinstance(resp, str):
+            logger.error(f"create_control_config error: {resp}\n")
+            return {"success": False, "error": resp}
+
+        if isinstance(resp, dict):
+            if "id" not in resp:
+                return {"success": False, "error": f"Unexpected response: {resp}"}
+            result = {
+                "assessment_id": resp.get("id")
+            }
+            logger.info(
+                f"create_control_config: Successfully created custom control with ID: {result['assessment_id']}\n"
+            )
+            return {"success": True, "data": result}
+
+        return {
+            "success": False,
+            "error": f"Unexpected response type: {type(resp)}"
+        }
+
+    except Exception as e:
+        logger.error(traceback.format_exc())
+        logger.error("create_control_config error: {}\n".format(e))
+        return {
+            "success": False,
+            "error": f"Unexpected error while adding custom control: {e}"
+        }
+    
+
+@mcp.tool()
+async def update_control_config_contexts(
+    controlConfigId: str,
+    entityClass: str,
+    entities: list[str],
+    controlContext: str | None = None,
+    ctx: Context | None = None
+) -> dict:
+    """
+    Update both context and additionalContext (entities) of an existing control config (control objective).
+
+    Args:
+        controlConfigId (str): ID of the control config to update (required).
+        entityClass (str): Entity class name (required).
+        entities (List[str]): List of entity names (required).
+        controlContext (str | None): New context value. If None/empty, context will be set to "".
+
+    Returns:
+        dict:
+            - success (bool)
+            - controlConfigId (str)
+            - message (str)
+            - error (str, optional)
+    """
+    try:
+        logger.info("update_control_config_contexts invoked\n")
+
+        if not controlConfigId or not controlConfigId.strip():
+            return {"success": False, "error": "controlConfigId is mandatory"}
+
+
+        if not entityClass or not entityClass.strip():
+            return {"success": False, "error": "entityClass is mandatory"}
+
+        if not isinstance(entities, list) or not entities:
+            return {"success": False, "error": "entities must be a non-empty array of strings"}
+
+        for e in entities:
+            if not isinstance(e, str) or not e.strip():
+                return {"success": False, "error": "Each entity must be a non-empty string"}
+
+
+        controlConfigId = controlConfigId.strip()
+
+        context_value = controlContext.strip() if isinstance(controlContext, str) else ""
+
+        entity_payload = [
+            {
+                "name": entity.strip(),
+                "class": entityClass.strip()
+            }
+            for entity in entities
+        ]
+
+        payload = [
+            {
+                "op": "replace",
+                "path": "/context",
+                "value": context_value
+            },
+            {
+                "op": "replace",
+                "path": "/additionalContext",
+                "value": {
+                    "entities": entity_payload
+                }
+            }
+        ]
+
+        logger.debug(
+            "update_control_config_contexts payload:\n{}\n".format(
+                json.dumps(payload, indent=2)
+            )
+        )
+
+        resp_raw = await utils.make_API_call_to_CCow_and_get_response(
+            f"{constants.URL_PLAN_CONTROLS}/{controlConfigId}",
+            "PATCH",
+            payload,
+            return_raw=True,
+            ctx=ctx
+        )
+
+        if resp_raw.status_code == 502:
+            return {"success": False, "error": error_constants.ERROR_BAD_GATEWAY}
+
+        if resp_raw.status_code == 204:
+            logger.info(
+                "update_control_config_contexts: Successfully updated context and additional context "
+                f"with status {resp_raw.status_code}\n"
+            )
+            return {
+                "success": True,
+                "controlConfigId": controlConfigId,
+                "message": "Control config context and additional context updated successfully"
+            }
+
+        # ---- Error handling ----
+        error_resp = {}
+        try:
+            if resp_raw.content:
+                error_resp = resp_raw.json()
+        except Exception:
+            error_resp = {"error": f"HTTP {resp_raw.status_code}"}
+
+        logger.error(
+            "update_control_config_contexts error: Status {} - {}\n".format(
+                resp_raw.status_code, error_resp
+            )
+        )
+
+        if isinstance(error_resp, dict):
+            if "Message" in error_resp:
+                return {"success": False, "error": error_resp}
+            if "error" in error_resp:
+                return {"success": False, "error": error_resp.get("error")}
+
+        return {
+            "success": False,
+            "error": f"Failed to update control config contexts: HTTP {resp_raw.status_code}"
+        }
+
+    except Exception as e:
+        logger.error(traceback.format_exc())
+        return {
+            "success": False,
+            "error": f"Unexpected error while updating control contexts: {e}"
         }
