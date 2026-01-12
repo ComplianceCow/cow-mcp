@@ -59,7 +59,7 @@ When generating SQL from a control configuration:
    - **Step 3b: Join with Evidence Data**
      - Perform a LEFT JOIN between `context_filtered_table` and actual evidence data
    - Include ALL columns from 'context_filtered_table' - if a column has all rows empty or null, ignore that column on 'context_filtered_table'. Also Include ALL columns from evidence data
-   - Add a column called 'ResourceName' with leaf level entity name as its value. This column must always be present
+   - Add ResourceName column positioned AFTER ResourceID: Use `COALESCE(evidence.ResourceName, context_join_key)` where context_join_key is the field from context_filtered used in the JOIN ON clause
    - Add missing rows with 'NOT_DETERMINED' as ComplianceStatus for entries without matching evidence
    - Include the join key used for `entity_hierarchy` LEFT JOIN `control_additional_context` as a column named `ControlObjectiveEntityName` in the query result
    - **All column names in the Supporting Evidence query result must be unique**

@@ -45,6 +45,7 @@ URL_PLANS_SYNC_CCFID = "/v1/plans/sync-ccfid"
 URL_PLAN_CONTROL_NOTES = "/v1/plan-controls/{controlConfigId}/notes"
 URL_VALIDATE_AUTOMATE_CONTROL = "/v1/llm/automated-control-validation"
 URL_MARK_CONTROL_READY = "/v1/plans/mark-control-ready"
+URL_ADD_CONTROL_OBJECTIVE = "/v5/partner/servicenow/configure-assessment"
 
 # ASSESSMENT RUNS
 URL_PLAN_INSTANCES = "/v1/plan-instances"
