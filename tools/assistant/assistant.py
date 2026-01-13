@@ -2399,7 +2399,7 @@ async def create_control_config(
         assessmentName (str): Name of the assessment (required).
         controlObjectiveName (str): Control objective name (required).
         controlObjectiveDescription (str): Control objective description (required).
-        controlObjectiveCategory (str): Control objective category (required).
+        controlObjectiveCategory (str): Parent control name that will be a first-level control (required).
         entityClass (str): Entity class name (required).
         entities (List[str]): List of entity names (required).
         controlContext (str, optional): Additional control context.
