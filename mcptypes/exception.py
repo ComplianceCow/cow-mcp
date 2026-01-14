@@ -131,8 +131,15 @@ class CCowExceptionVO(Exception):
 
         return base_message
 
-    def to_json_response(self) -> JsonResponse:
-        return JsonResponse(remove_none_values(self.error_vo.to_dict()), safe=False, status=self.status_code)
+    # def to_json_response(self) -> JsonResponse:
+    #     return JsonResponse(remove_none_values(self.error_vo.to_dict()), safe=False, status=self.status_code)
+
+    def to_json_response(self) -> dict:
+        """Return error as a dictionary suitable for JSON serialization"""
+        return {
+            "error": remove_none_values(self.error_vo.to_dict()),
+            "status_code": self.status_code
+        }
 
 
 def remove_none_values(d):
