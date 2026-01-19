@@ -4965,9 +4965,8 @@ if constants.ENABLE_RULE_CREATION_TASK_CHAIN_PROCESS:
             kind: rule
             meta:
                 name: MeaningfulRuleName — Use a simple, clean name with no spaces or special characters.
-                    **When is_update=True, the system must update the rule name automatically based on the revised tasks, ensuring the rule name always reflects the current structure.**
-                purpose: Clear, concise statement that reflects the user’s intended outcome. **If is_update=True, the purpose must be rewritten to reflect the updated tasks and the new functional intent.**
-                description: A detailed explanation combining all task steps into a coherent narrative. **If is_update=True, regenerate the description so it accurately describes the full updated workflow, including added, removed, or reordered tasks.**
+                purpose: Clear, concise statement that reflects the user’s intended outcome. 
+                description: A detailed explanation combining all task steps into a coherent narrative. 
                 labels:
                     appType: [PRIMARY_APP_TYPE_FROM_STEP_1] # Single value array CRITICAL: Must be extracted from spec.tasks[].appTags.appType - NEVER use random values or user requirements
                     environment: [logical] # Array
@@ -5931,29 +5930,25 @@ if constants.ENABLE_RULE_CREATION_TASK_CHAIN_PROCESS:
             3. Never perform partial patches. Always rewrite the full final
             rule in rule_structure and return the entire updated object.
 
-        MANDATORY STEP: METADATA RULES (WRITE BACK INTO rule_structure["meta"])
+        RULE METADATA HANDLING:
             --------------------------------------------------------------------
-            - meta.name:
-                * Must be meaningful, simple, clean, and contain no spaces or
-                special characters.
-                * When is_update = True, regenerate this name ONLY if the task
-                changes alter the rule’s meaning or workflow.
-                * Write the new name to:
-                    rule_structure["meta"]["name"]
-
+            - meta.name: 
+                * NEVER auto-rename the rule during updates
+                * Only rename if user explicitly provides a new name
+                * Preserve existing rule name in all update scenarios
+            
             - meta.purpose:
-                * Must describe the business intent of the rule clearly.
-                * When is_update = True, rewrite the purpose to reflect the new
-                outcome based on updated tasks.
-                * Write the new purpose to:
-                    rule_structure["meta"]["purpose"]
-
+                * Preserve existing purpose unless user explicitly provides new purpose
+                * Do not auto-regenerate based on task changes
+            
             - meta.description:
-                * Must be a complete narrative covering all steps in order.
-                * When is_update = True, regenerate the description so it
-                reflects added, removed, or reordered tasks.
-                * Write the new description to:
-                    rule_structure["meta"]["description"]
+                * Preserve existing description unless user explicitly provides new description
+                * Do not auto-regenerate based on task changes
+            
+            USER-INITIATED RENAME ONLY:
+            - If user explicitly says "rename the rule to X" or "change the rule name to X"
+            - Then and only then update meta.name with the user-provided name
+            - Otherwise, always preserve the existing rule name
 
             OUTPUT REQUIREMENTS
             --------------------------------------------------------------------
