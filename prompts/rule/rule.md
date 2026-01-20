@@ -265,6 +265,9 @@ Shall I help you with:
 
 - **User-Driven Task Selection:** When the user requests to `create a rule and add a single task` or `add a task to an existing rule`, ask for their requirements for the task, show suggested tasks, and let the user select one. Never choose a task automatically.
 
+- **Dependency Chain Task Execution (MANDATORY for rule updates):** When adding or editing a task that depends on another task's output (e.g., t1.Output.X), or when the new/updated task’s output is used as an input by any other task**, automatically execute **all related dependency tasks (both upstream and downstream), collect required credentials, then execute all dependent tasks in correct order including new/updated task. Show results, then update rule. Execution is mandatory when dependencies exist.
+
+
 ============================================================
 ## CHECK AUTOMATION IN ASSETS
 ============================================================
