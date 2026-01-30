@@ -1,4 +1,4 @@
-# ComplianceCow MCP Server
+# ComplianceCow MCP Servers
 
 ## Table of Contents
 
