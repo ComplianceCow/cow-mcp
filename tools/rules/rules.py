@@ -3893,6 +3893,8 @@ def execute_task(task_name: str, task_inputs: Dict[str, Any], application: Dict[
     ===============================================================================
     APPLICATION CONFIGURATION
     ===============================================================================
+    Application credentials are REQUIRED if the task's appType is NOT 'nocredapp'.
+
     If the task requires application credentials (appType != 'nocredapp'):
     - Application config must be provided with:
         - appName: Application class name
@@ -3900,6 +3902,17 @@ def execute_task(task_name: str, task_inputs: Dict[str, Any], application: Dict[
         - credentialType: Type of credentials
         - credentialValues: Actual credential key-value pairs
     - OR applicationId if using existing saved application
+
+    If the task's appType is 'nocredapp':
+    - Application configuration can be omitted (pass None or empty)
+    - The system will automatically use the hardcoded nocredapp application structure:
+      {
+          "applicationType": "NoCredApp",
+          "appURL": "",
+          "credentialType": "NoCred",
+          "credentialValues": {"Dummy": ""},
+          "appTags": {"appType": ["nocredapp"], "environment": ["logical"], "execlevel": ["app"]}
+      }
 
     ===============================================================================
     TASK EXECUTION FLOW
@@ -3983,21 +3996,39 @@ def execute_task(task_name: str, task_inputs: Dict[str, Any], application: Dict[
         task_inputs_spec = task_details.get("inputs", [])
         task_app_tags = task_details.get("appTags", {})
         task_app_types = task_app_tags.get("appType", [])
-        
+
         # Step 2: Check if task requires application credentials
-        requires_app = task_app_types and not all(t.lower() == "nocredapp" for t in task_app_types)
-        
+        # Application is required only if appType is NOT 'nocredapp'
+        is_nocredapp = task_app_types and all(t.lower() == "nocredapp" for t in task_app_types)
+        requires_app = task_app_types and not is_nocredapp
+
         if requires_app and not application:
             return {
                 "success": False,
                 "execution_status": "FAILED",
                 "task_name": task_name,
-                "error": f"Task '{task_name}' requires application credentials but none provided",
+                "error": f"Task '{task_name}' requires application credentials but none provided. Application credentials are required because appType is not 'nocredapp'.",
                 "required_app_type": task_app_types,
                 "next_action": "provide_application_credentials",
                 "hint": "Use get_applications_for_tag() to find existing applications or provide new credentials"
             }
-        
+
+        # For nocredapp tasks, use hardcoded application structure if no application provided
+        if is_nocredapp and not application:
+            application = {
+                "applicationType": "NoCredApp",
+                "appURL": "",
+                "credentialType": "NoCred",
+                "credentialValues": {
+                    "Dummy": ""
+                },
+                "appTags": {
+                    "appType": ["nocredapp"],
+                    "environment": ["logical"],
+                    "execlevel": ["app"]
+                }
+            }
+
         # Step 3: Validate all required inputs are present
         validated_inputs = {}
         missing_inputs = []
@@ -5310,26 +5341,34 @@ def prepare_applications_for_execution(rule_name: str, ctx: Context | None = Non
     - To identify if multiple tasks can share the same application
     - To determine if unique identifiers are needed when using different applications for same appType
 
-    APPLICATION SHARING SCENARIOS:
+    NOTE: This tool is optional. Rules with only 'nocredapp' tasks can be executed directly
+    without any application configuration. Use this tool only when tasks require credentials.
+
+    APPLICATION SHARING SCENARIOS (when applications are needed):
     1. **Shared Application**: User wants same credentials for all tasks of an appType
        - Single application config with basic appTags (just appType)
        - One application covers multiple tasks
-       
+
     2. **Separate Applications**: User needs different credentials per task
        - Must add unique identifier key (e.g., "purpose") to task appTags
        - Each application config must include matching unique identifier
 
+    3. **No Application Needed**: All tasks have 'nocredapp' appType
+       - Skip application configuration entirely
+       - Call execute_rule() with an empty applications list
+
     WORKFLOW:
     1. Call this tool with rule_name
-    2. Review which tasks need applications
-    3. For tasks with same appType, decide: share or separate?
-    4. If sharing: Provide one application config per appType
-    5. If separate: Add unique identifiers and provide separate configs
-    6. Call execute_rule() with configured applications
+    2. Review which tasks need applications (if any)
+    3. If no tasks need applications (all nocredapp): Skip to step 6
+    4. For tasks with same appType, decide: share or separate?
+    5. If sharing: Provide one application config per appType
+       If separate: Add unique identifiers and provide separate configs
+    6. Call execute_rule() with configured applications (or empty list for nocredapp rules)
 
     Args:
         rule_name: Name of the rule to analyze
-        
+
     Returns:
         Dict with analysis results and configuration guidance
     """
@@ -5390,6 +5429,26 @@ def prepare_applications_for_execution(rule_name: str, ctx: Context | None = Non
                 guidance.append(f"    Option A: Use SAME application for all (shared credentials)")
                 guidance.append(f"    Option B: Use DIFFERENT applications (requires unique identifiers)")
         
+        # Determine if applications are needed
+        applications_required = len(app_type_tasks) > 0
+
+        # Build appropriate next steps and message
+        if applications_required:
+            next_steps = [
+                "1. For each appType with multiple tasks, ask user: 'Share same application or use different applications?'",
+                "2. If DIFFERENT: Call add_unique_identifier_to_task() for each task",
+                "3. Then configure applications with matching identifiers",
+                "4. Call execute_rule() with the configured applications"
+            ]
+            message = f"Analysis complete. Found {len(app_type_tasks)} application types across {len(tasks_needing_apps)} tasks."
+        else:
+            next_steps = [
+                "1. No application configuration needed - all tasks use 'nocredapp'",
+                "2. Call execute_rule() directly with an empty applications list"
+            ]
+            message = "Analysis complete. No application configuration required - all tasks use 'nocredapp'. You can execute the rule directly."
+            guidance.append("✅ No application configuration needed - all tasks use 'nocredapp' appType.")
+
         return {
             "success": True,
             "rule_name": rule_name,
@@ -5397,14 +5456,10 @@ def prepare_applications_for_execution(rule_name: str, ctx: Context | None = Non
             "tasks_needing_apps": tasks_needing_apps,
             "needs_differentiation": needs_differentiation,
             "total_app_types": len(app_type_tasks),
+            "applications_required": applications_required,
             "guidance": guidance,
-            "next_steps": [
-                "1. For each appType with multiple tasks, ask user: 'Share same application or use different applications?'",
-                "2. If DIFFERENT: Call add_unique_identifier_to_task() for each task",
-                "3. Then configure applications with matching identifiers",
-                "4. Call execute_rule() with the configured applications"
-            ],
-            "message": f"Analysis complete. Found {len(app_type_tasks)} application types across {len(tasks_needing_apps)} tasks."
+            "next_steps": next_steps,
+            "message": message
         }
         
     except Exception as e:
@@ -6864,30 +6919,31 @@ if constants.ENABLE_RULE_CREATION_TASK_CHAIN_PROCESS:
     def execute_rule(rule_name: str, from_date: str, to_date:str, rule_inputs: List[Dict[str, Any]], applications: List[Dict[str, Any]], is_application_data_provided_by_user: bool, ctx: Context | None = None) -> Dict[str, Any]:
         """
         RULE EXECUTION WORKFLOW:
-        
-        **MANDATORY PARAMETER VALIDATION:
-            Before starting any execution workflow, the tool MUST validate that **all required parameters**
-            (rule_name, rule_inputs, applications, is_application_data_provided_by_user) are present.
-            If *any* parameter is missing or incomplete, the tool must STOP and explicitly ask the user
-            for the missing input(s). The tool must NOT proceed until all values are provided.**
+
+        **PARAMETER VALIDATION:
+            Before starting any execution workflow, the tool should validate that required parameters
+            (rule_name, rule_inputs) are present. Applications are optional and only needed for tasks
+            that require credentials.**
 
         PREREQUISITE STEPS:
         0. **MANDATORY: Check rule status to ensure rule is fully developed before execution**
         1. User chooses to execute rule after creation
-        2. Extract unique appTags from selected tasks → get user confirmation
-        3. MANDATORY STEP (CANNOT BE SKIPPED):
-            For each tag:
+        2. Extract unique appTags from selected tasks (excluding 'nocredapp')
+        3. APPLICATION CONFIGURATION (OPTIONAL - only for tasks requiring credentials):
+            For tasks that need application credentials:
             - Fetch available applications via get_applications_for_tag().
             - Present them to the user for manual selection.
-            - **Tool must not auto-select.** User decides to:
-                a. Use an existing application, or  
+            - User decides to:
+                a. Use an existing application, or
                 b. Run with new credentials (not persisted or saved as an application).
-            - Proceed only after user confirmation for each tag.
+            - Proceed after user confirmation.
 
-        APPLICATION-TASK MATCHING LOGIC:
+            Note: Rules with only 'nocredapp' tasks can be executed without any application configuration.
+
+        APPLICATION-TASK MATCHING LOGIC (when applications are needed):
         ================================
         - Applications are matched to tasks via 'appTags' labels
-        - This matching is NOT applicable for 'nocredapp' tasks
+        - Tasks with 'nocredapp' appType do not require application configuration
         - **SHARED APPLICATION SUPPORT**: A single application CAN be used for multiple tasks
         if the user confirms they want to share the same credentials
         - When multiple tasks share the same appType AND require DIFFERENT applications,
@@ -6903,7 +6959,7 @@ if constants.ENABLE_RULE_CREATION_TASK_CHAIN_PROCESS:
         - Add unique identifier key (e.g., "purpose", "sourceSystem") to distinguish
         - Each application's appTags must include the unique identifier matching its target task
 
-        APPLICATION CONFIGURATION FORMAT:
+        APPLICATION CONFIGURATION FORMAT (when needed):
         For existing application (can be shared across multiple tasks):
         ```json
             [
@@ -6936,12 +6992,12 @@ if constants.ENABLE_RULE_CREATION_TASK_CHAIN_PROCESS:
         a) Use SAME application/credentials for all tasks
         b) Use DIFFERENT applications (requires unique identifiers)"
         3. If SAME: User provides one application config with basic appTags
-        4. If DIFFERENT: 
+        4. If DIFFERENT:
         - Prompt for unique identifier key (e.g., "purpose", "sourceSystem")
         - User provides separate application configs with unique identifier values
         - Update task appTags with matching unique identifiers
 
-        4. Build applications array → get user confirmation
+        4. Build applications array (if needed) → get user confirmation
         5. Additional Inputs (optional):
             - Ask user: "Do you want to specify a date range for this execution?"
             - From Date (format: YYYY-MM-DD) - optional
@@ -6963,16 +7019,16 @@ if constants.ENABLE_RULE_CREATION_TASK_CHAIN_PROCESS:
         10. Modify rule such as add/delete tasks (optional):
         - Ask user: "Do you want to modify this rule? (yes/no)"
         - If yes: Call publish_rule() to publish the rule
-        - If no: End workflow    
+        - If no: End workflow
 
         UI DISPLAY REQUIREMENT:
         - The file URL must ALWAYS be displayed to the user in the UI, allowing the user to view or download the file directly.
 
-        CRITICAL: rule_inputs MUST be the complete spec.inputsMeta__ objects with ALL original fields 
-        (name, description, dataType, repeated, allowedValues, required, defaultValue, format, showField, 
+        CRITICAL: rule_inputs MUST be the complete spec.inputsMeta__ objects with ALL original fields
+        (name, description, dataType, repeated, allowedValues, required, defaultValue, format, showField,
         explanation) plus the 'value' field. DO NOT send trimmed objects with only name/dataType/value.
-        
-        MANDATORY: The 'value' field content MUST also be copied to the 'defaultValue' field. Both fields 
+
+        MANDATORY: The 'value' field content MUST also be copied to the 'defaultValue' field. Both fields
         must contain identical values. Example: if value="CSV", then defaultValue must also be "CSV".
 
         Args:
@@ -6980,23 +7036,38 @@ if constants.ENABLE_RULE_CREATION_TASK_CHAIN_PROCESS:
             from_date: (Optional) Start date provided by the user in the format YYYY-MM-DD.
             to_date: (Optional) End date provided by the user in the format YYYY-MM-DD.
             rule_inputs: Complete spec.inputsMeta__ objects with ALL fields plus 'value' field, and 'defaultValue' set to same value as 'value'.
-            applications: Application configuration details, including credentials.
-            is_application_data_provided_by_user (bool): 
-                This value **must be determined strictly based on actual user input** during the workflow.
-                - Set to True **only if the user has provided or configured application details (such as applicationId, credentials or URL) during execution.**
-                - Set to False **if the application information was pre-existing or selected from saved applications.**
-                - The tool must **not assume or predefine** this value without user confirmation.
+            applications: Application configuration details. For rules with only 'nocredapp' tasks,
+                         pass an empty list and the system will automatically use the hardcoded
+                         nocredapp application structure.
+            is_application_data_provided_by_user (bool):
+                Indicates whether application data was provided by the user.
+                - Set to True if user provided or configured application details during execution.
+                - Set to False if using nocredapp (empty applications list) or pre-existing applications.
 
         Returns:
             Dict with execution results
         """
         try:
-            # if not is_application_data_provided_by_user:
-            #     return {
-            #         "success": False, 
-            #         "error": "Application information is missing. get application detials from user and try again."
-            #     }
+            # Define hardcoded nocredapp application structure
+            NOCREDAPP_APPLICATION = {
+                "applicationType": "NoCredApp",
+                "appURL": "",
+                "credentialType": "NoCred",
+                "credentialValues": {
+                    "Dummy": ""
+                },
+                "appTags": {
+                    "appType": ["nocredapp"],
+                    "environment": ["logical"],
+                    "execlevel": ["app"]
+                }
+            }
 
+            # If applications list is empty, add nocredapp application structure
+            if not applications or len(applications) == 0:
+                applications = [NOCREDAPP_APPLICATION]
+
+            # Validate applications only if provided
             for application in applications:
                 is_valid, result = False,{}
                 application_id = application.get("applicationId", None)
@@ -7005,7 +7076,7 @@ if constants.ENABLE_RULE_CREATION_TASK_CHAIN_PROCESS:
                 if application_id:
                     if not is_valid_uuid(application_id):
                         return {"success": False, "error": f'The provided application ID: {application_id} is not valid. Please try again with a valid application ID.'}
-                    
+
                     headers = wsutils.create_header(ctx)
                     params = {
                         "id": application_id,
@@ -7013,8 +7084,8 @@ if constants.ENABLE_RULE_CREATION_TASK_CHAIN_PROCESS:
                     }
 
                     application_resp = wsutils.get(
-                        path=wsutils.build_api_url(endpoint=constants.URL_FETCH_CREDENTIAL), 
-                        params=params, 
+                        path=wsutils.build_api_url(endpoint=constants.URL_FETCH_CREDENTIAL),
+                        params=params,
                         header=headers
                     )
                     logger.debug("application_resp {}\n".format(application_resp))
@@ -8096,20 +8167,22 @@ else:
         PREREQUISITE STEPS:
         0. **MANDATORY: Check rule status to ensure rule is fully developed before execution**
         1. User chooses to execute rule after creation
-        2. Extract unique appTags from selected tasks → get user confirmation
-        3. MANDATORY STEP (CANNOT BE SKIPPED):
-            For each tag:
+        2. Extract unique appTags from selected tasks (excluding 'nocredapp')
+        3. APPLICATION CONFIGURATION (OPTIONAL - only for tasks requiring credentials):
+            For tasks that need application credentials:
             - Fetch available applications via get_applications_for_tag().
             - Present them to the user for manual selection.
-            - **Tool must not auto-select.** User decides to:
-                a. Use an existing application, or  
+            - User decides to:
+                a. Use an existing application, or
                 b. Run with new credentials (not persisted or saved as an application).
-            - Proceed only after user confirmation for each tag.
+            - Proceed after user confirmation.
 
-        APPLICATION-TASK MATCHING LOGIC:
+            Note: Rules with only 'nocredapp' tasks can be executed without any application configuration.
+
+        APPLICATION-TASK MATCHING LOGIC (when applications are needed):
         ================================
         - Applications are matched to tasks via 'appTags' labels
-        - This matching is NOT applicable for 'nocredapp' tasks
+        - Tasks with 'nocredapp' appType do not require application configuration
         - **SHARED APPLICATION SUPPORT**: A single application CAN be used for multiple tasks
           if the user confirms they want to share the same credentials
         - When multiple tasks share the same appType AND require DIFFERENT applications,
@@ -8125,7 +8198,7 @@ else:
            - Add unique identifier key (e.g., "purpose", "sourceSystem") to distinguish
            - Each application's appTags must include the unique identifier matching its target task
 
-        APPLICATION CONFIGURATION FORMAT:
+        APPLICATION CONFIGURATION FORMAT (when needed):
         For existing application (can be shared across multiple tasks):
             ```json
             [
@@ -8158,12 +8231,12 @@ else:
            a) Use SAME application/credentials for all tasks
            b) Use DIFFERENT applications (requires unique identifiers)"
         3. If SAME: User provides one application config with basic appTags
-        4. If DIFFERENT: 
+        4. If DIFFERENT:
            - Prompt for unique identifier key (e.g., "purpose", "sourceSystem")
            - User provides separate application configs with unique identifier values
            - Update task appTags with matching unique identifiers
 
-        4. Build applications array → get user confirmation
+        4. Build applications array (if needed) → get user confirmation
         5. Additional Inputs (optional):
             - Ask user: "Do you want to specify a date range for this execution?"
             - From Date (format: YYYY-MM-DD) - optional
@@ -8181,16 +8254,16 @@ else:
         9. Rule Publication (optional):
         - Ask user: "Do you want to publish this rule to make it available in ComplianceCow system? (yes/no)"
         - If yes: Call publish_rule() to publish the rule
-        - If no: End workflow    
+        - If no: End workflow
 
         UI DISPLAY REQUIREMENT:
         - The file URL must ALWAYS be displayed to the user in the UI, allowing the user to view or download the file directly.
 
-        CRITICAL: rule_inputs MUST be the complete spec.inputsMeta__ objects with ALL original fields 
-        (name, description, dataType, repeated, allowedValues, required, defaultValue, format, showField, 
+        CRITICAL: rule_inputs MUST be the complete spec.inputsMeta__ objects with ALL original fields
+        (name, description, dataType, repeated, allowedValues, required, defaultValue, format, showField,
         explanation) plus the 'value' field. DO NOT send trimmed objects with only name/dataType/value.
-        
-        MANDATORY: The 'value' field content MUST also be copied to the 'defaultValue' field. Both fields 
+
+        MANDATORY: The 'value' field content MUST also be copied to the 'defaultValue' field. Both fields
         must contain identical values. Example: if value="CSV", then defaultValue must also be "CSV".
 
         Args:
@@ -8198,25 +8271,38 @@ else:
             from_date: (Optional) Start date provided by the user in the format YYYY-MM-DD.
             to_date: (Optional) End date provided by the user in the format YYYY-MM-DD.
             rule_inputs: Complete spec.inputsMeta__ objects with ALL fields plus 'value' field, and 'defaultValue' set to same value as 'value'.
-            applications: Application configuration details, including credentials.
-            is_application_data_provided_by_user (bool): 
-                This value **must be determined strictly based on actual user input** during the workflow.
-                - Set to True **only if** the user has provided or configured application details 
-                (such as credentials or URL) during execution.
-                - Set to False **if** the application information was pre-existing or selected from saved applications.
-                - The tool must **not assume or predefine** this value without user confirmation.
+            applications: Application configuration details. For rules with only 'nocredapp' tasks,
+                         pass an empty list and the system will automatically use the hardcoded
+                         nocredapp application structure.
+            is_application_data_provided_by_user (bool):
+                Indicates whether application data was provided by the user.
+                - Set to True if user provided or configured application details during execution.
+                - Set to False if using nocredapp (empty applications list) or pre-existing applications.
 
         Returns:
             Dict with execution results
         """
         try:
-
-            if not is_application_data_provided_by_user:
-                return {
-                    "success": False, 
-                    "error": "Application information is missing. get application detials from user and try again."
+            # Define hardcoded nocredapp application structure
+            NOCREDAPP_APPLICATION = {
+                "applicationType": "NoCredApp",
+                "appURL": "",
+                "credentialType": "NoCred",
+                "credentialValues": {
+                    "Dummy": ""
+                },
+                "appTags": {
+                    "appType": ["nocredapp"],
+                    "environment": ["logical"],
+                    "execlevel": ["app"]
                 }
+            }
 
+            # If applications list is empty, add nocredapp application structure
+            if not applications or len(applications) == 0:
+                applications = [NOCREDAPP_APPLICATION]
+
+            # Validate applications only if provided
             for application in applications:
                 is_valid, result = False,{}
                 application_id = application.get("applicationId", None)
@@ -8225,7 +8311,7 @@ else:
                 if application_id:
                     if not is_valid_uuid(application_id):
                         return {"success": False, "error": f'The provided application ID: {application_id} is not valid. Please try again with a valid application ID.'}
-                    
+
                     headers = wsutils.create_header(ctx)
                     params = {
                         "id": application_id,
@@ -8233,8 +8319,8 @@ else:
                     }
 
                     application_resp = wsutils.get(
-                        path=wsutils.build_api_url(endpoint=constants.URL_FETCH_CREDENTIAL), 
-                        params=params, 
+                        path=wsutils.build_api_url(endpoint=constants.URL_FETCH_CREDENTIAL),
+                        params=params,
                         header=headers
                     )
                     logger.debug("application_resp {}\n".format(application_resp))
