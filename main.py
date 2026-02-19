@@ -37,6 +37,9 @@ if "assistant" in MCP_TOOLS:
     from tools.assistant import assistant
     from prompts.assistant import assistant
 
+if "metric" in MCP_TOOLS:
+    from tools.metrics import metrics
+
 def signal_handler(sig, frame):
     print("Shutting down...")
     sys.exit(0)
