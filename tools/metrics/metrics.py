@@ -81,6 +81,22 @@ async def get_metrics_assessment(ctx: Context | None = None) -> dict:
         else :   
             logger.error("get_metrics_assessment error: No assessment found with name {}\n".format(METRICS_ASSESSMENT_NAME))
 
+
+            category_create_payload = {
+                "name" : METRICS_CATEGORY_NAME
+            }
+
+            create_category = await utils.make_API_call_to_CCow_and_get_response(
+                constants.URL_ASSESSMENT_CATEGORIES,"POST",category_create_payload, ctx=ctx
+            )
+
+            error = utils.handle_error_response(create_category,"get_metrics_assessment")
+            if error:
+                logger.error("get_metrics_assessment create_category_error: {}\n".format(error))
+                if isinstance(resp, dict) and create_category.get("Description") != "category name already exists":
+                    return error
+
+
             payload = {
                 "name": METRICS_ASSESSMENT_NAME,
                 "type": "generic",
@@ -332,8 +348,9 @@ async def get_all_metrics_of_run(
                 "name": item.get("name", ""),
                 "description": item.get("description", ""),
                 "metricId": item.get("controlId", ""),
+                "metricNumber": item.get("displayable", ""),
                 # "metricScore": item.get("compliancePCT__", ""),
-                "formula": "a/b*100",
+                "formula": "(a/b)*100",
                 "metricEvidences": metric_evidences,
                 "metricEvidencesSources": metric_evidences_sources,
             }
@@ -356,11 +373,17 @@ async def get_all_metrics_of_run(
 @mcp.tool()
 async def add_metric(assessmentMetricsId: str,categoryName: str, descrition: str, ctx: Context | None = None) -> dict:
     """
-    Add a metrics definition to metrics assessment with category and description.
+    Add a metric to an assessment under the best matching category.
+
+    Category routing rule:
+    - Infer category from the metric description; do not ask the user for category selection.
+    - Mandatory: call `get_all_metrics_categories` first for the same `assessmentMetricsId`.
+    - Then map the inferred category to an existing category in the target assessment.
+    - If no existing category fits, create a new category with the inferred name, then add the metric there.
 
     Args:
         assessmentMetricsId (str): The ID of the metrics assessment to which the metric will be added.
-        categoryName (str): The category name for the metric. This should be inferred automatically based on the provided description (do not prompt the user for it).
+        categoryName (str): System-resolved category name derived from description; reused if existing, else created.
         description (str): A description for the metric.
 
     Returns:
@@ -548,7 +571,7 @@ async def get_all_assessment_metrics(
                                 "name": item.get("name", ""),
                                 "description": item.get("description", ""),
                                 "alias": item.get("alias", ""),
-                                "controlNumber": item.get("displayable", ""),
+                                "metricNumber": item.get("displayable", ""),
                             }
                         )
                 total_pages = int(output.get("TotalPage", 0)) or 1
@@ -576,7 +599,31 @@ async def suggest_metrics_citations(
     ctx: Context | None = None,
 ) -> dict:
     """
-    Suggest citations for a metric.
+    Suggest citations for a metric name and description.
+
+    Args:
+        metricName (str): Name of metric to get suggestions for (required).
+        assessmentMetricsId (str): Assessment ID - resolved from assessment name (required).
+        description (str, optional): Description of the metric to get suggestions for.
+        metricId (str, optional): Metric ID - resolved from metric name if selecting existing metric, empty if creating new control.
+    
+    Returns:
+        Dict with success status and suggestions:
+        - success (bool): Whether the request was successful
+        - items (List[dict]): List of suggestion items, each containing:
+            - inputMetricName (str): The input metric name
+            - controlId (str): The control ID (empty if control doesn't exist yet)
+            - suggestions (List[dict]): List of suggested controls, each containing:
+                - Name (str): metric name
+                - metric ID (int): Control ID number
+                - Metric Classification (str): Classification type
+                - Impact Zone (str): Impact zone category
+                - Metric Requirement (str): Requirement level
+                - Sort ID (str): Sort identifier
+                - Metric Type (str): Type of Metric
+                - Score (float): Similarity score
+        - authorityDocument (str): Name of the authorityDocument
+        - error (str, optional): Error message if request failed
     """
     try:
         logger.info("suggest_metrics_citations:\n")
@@ -640,11 +687,11 @@ async def suggest_metrics_citations(
                         {
                             "Name": suggestion.get("Name", ""),
                             "Metric ID": suggestion.get("Metric ID", suggestion.get("Control ID", "")),
-                            "Classification": suggestion.get("Classification", suggestion.get("Control Classification", "")),
+                            "Metric Classification": suggestion.get("Classification", suggestion.get("Control Classification", "")),
                             "Impact Zone": suggestion.get("Impact Zone", ""),
-                            "Requirement": suggestion.get("Requirement", suggestion.get("Control Requirement", "")),
+                            "Metric Requirement": suggestion.get("Requirement", suggestion.get("Control Requirement", "")),
                             "Sort ID": suggestion.get("Sort ID", ""),
-                            "Type": suggestion.get("Type", suggestion.get("Control Type", "")),
+                            "Metric Type": suggestion.get("Type", suggestion.get("Control Type", "")),
                             "Score": suggestion.get("Score", 0.0),
                         }
                     )
@@ -678,6 +725,27 @@ async def attach_citation_to_metrics(
 ) -> dict:
     """
     Attach one citation to a metric.
+
+    Args:
+    assessmentId (str): The assessment ID (plan ID) - MUST be user-selected.
+    metricsId (str): The control ID to attach citations to - MUST be user-selected.
+    authorityDocument (str): The authority document name (e.g., "Trial1 CF").
+    controlIdsInAuthorityDocument (List[str]): List of metric IDs from the authority document (e.g., ["10014"]).
+    sortId (str): Sort ID from the suggestion (e.g., "010 014").
+    metricNames (List[str]): List of metric names from the suggestion (e.g., ["Multifactor Authentication"]).
+
+    Returns:
+        Dict with success status and citation data:
+        - success (bool): Whether the request was successful
+        - citations (List[dict], optional): List of attached citation objects (only when confirm=True), each containing:
+            - id (str): Citation ID
+            - metricsID (str): metric ID
+            - authorityDocument (str): Authority document name
+            - MetricNames (List[str]): Metric names
+            - MetricInAuthorityDocument (List[str]): Metric IDs in authority document
+            - sortID (str): Sort ID
+            - status (str): Citation status
+        - error (str, optional): Error message if request failed
     """
     try:
         logger.info("attach_citation_to_metrics:\n")
@@ -805,6 +873,27 @@ async def fetch_metrics_source_summary(
 ) -> dict:
     """
     Fetch source summary for a metric.
+
+    Fetch aggregated source summary for a metrics, including linked metrics, evidences (including schema), and lineage depth.
+
+    It returns how a metrics is connected to evidence configurations and what evidence
+    structures (schemas) are available.
+
+    ⚠️ IMPORTANT WORKFLOW 
+    If **no evidence configs** exist and a **citation is already attached**, SQL query and formula generation must STOP.  
+    If no evidence configs exist and a citation is already attached, SQL query generation must stop immediately.
+    Do not proceed and do not provide any suggestions.
+    No further actions or recommendations are allowed.
+    
+    Args:
+        controlId (str): Plan control ID provided by the user (mandatory).
+
+    Returns:
+        MetricsSourceSummaryResponseVO containing:
+            - success (bool): API invocation status.
+            - data (MetricsSourceSummaryVO, optional): Source summary (lineage, evidence, schema) on success.
+            - error (str, optional): Validation or API error details.
+            - next_action (str, optional): Recommended next action.
     """
     try:
         logger.info("fetch_metrics_source_summary:\n")
@@ -1118,7 +1207,9 @@ async def create_sql_query_evidence(
     ⚠️ IMPORTANT WORKFLOW (Two-Step Confirmation)
     1. The SQL query MUST always be shown to the user in PREVIEW mode before execution.
     2. The user can review, edit, or approve the SQL query.
-    3. Only after explicit confirmation (confirm=True) will the SQL query be created and attached.
+    3. SQL validation is MANDATORY before calling this tool.
+       Use `validate_metrics_sql_query` and ensure SQL is valid.
+    4. Only after explicit confirmation (confirm=True) will the SQL query be created and attached.
     
     🔍 EVIDENCE & TABLE MAPPING
     - The `referedEvidenceNames` represent existing evidenceConfigNames.
@@ -1331,7 +1422,9 @@ async def update_sql_query_evidence(
     ⚠️ IMPORTANT WORKFLOW (Two-Step Confirmation)
     1. The updated SQL query MUST always be shown to the user in PREVIEW mode before execution.
     2. The user can review, edit, or approve the updated SQL query.
-    3. Only after explicit confirmation (confirm=True) will the SQL query evidence be updated.
+    3. SQL validation is MANDATORY before calling this tool.
+       Use `validate_metrics_sql_query` and ensure SQL is valid.
+    4. Only after explicit confirmation (confirm=True) will the SQL query evidence be updated.
     
     🔍 EVIDENCE & TABLE MAPPING
     - The `referedEvidenceNames` represent existing evidenceConfigNames.
