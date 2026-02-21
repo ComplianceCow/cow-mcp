@@ -102,7 +102,10 @@ async def get_metrics_assessment(ctx: Context | None = None) -> dict:
                 "type": "generic",
                 "applicationType": "generic",
                 "status": "active",
-                "categoryName": METRICS_CATEGORY_NAME
+                "categoryName": METRICS_CATEGORY_NAME,
+                "linkDefaultCCFPlan":{
+                    "propagate": "evidence", "propagateToSource": "none",
+                }
             }
 
             create_output = await utils.make_API_call_to_CCow_and_get_response(
@@ -1834,7 +1837,7 @@ async def list_metrics_notes(
             return {"success": False, "error": "metricsId is mandatory"}
         
         metrics_id = str(metricsId).strip()
-        url = constants.URL_PLAN_CONTROL_NOTES.format(metricsId=metrics_id)
+        url = constants.URL_PLAN_CONTROL_NOTES.format(controlConfigId=metrics_id)
         
         logger.debug("list_metrics_notes URL: {}\n".format(url))
         

@@ -68,6 +68,13 @@ It provides long-term traceability by documenting:
 - Which evidence sources were referenced
 - Why specific filters, joins, and aggregations were chosen
 - How the generated evidence supports the control objective
+- How metric source lineage maps from asset and authority metric to this metric
+
+#### METRIC SOURCE LINEAGE (MANDATORY IN NOTES)
+Metric source lineage details can be retrieved from `fetch_metrics_source_summary`.
+Always include metric source lineage in a clear diagram-style structure.
+Use this lineage order:
+`Asset Metric -> Authority Document Metric -> Current Metric`
 
 #### MANDATORY & FLOW-INTEGRATED
 This tool is MANDATORY and must be executed as part of the approval flow once query artifacts are validated and presented to the user. Create the documentation note when the user approves.
@@ -76,10 +83,10 @@ This tool is MANDATORY and must be executed as part of the approval flow once qu
 When creating metric notes, use the following markdown template:
 
 ```
-# Metric {METRIC_NUMBER} - {CONTROL_NAME} Documentation
+# Metric {METRIC_NUMBER} - {METRICL_NAME} Documentation
 
 ## Overview
-Automation for assessment {ASSESSMENT_NAME} ensuring {CONTROL_OBJECTIVE} aligned to {FRAMEWORK_NAME} {FRAMEWORK_CONTROL}.
+Automation for assessment {ASSESSMENT_NAME} ensuring {METRIC_NAME} aligned to {FRAMEWORK_NAME} {FRAMEWORK_METRIC}.
 
 ## Metric Context
 Metric Assessment ID: {ASSESSMENT_ID}
@@ -89,6 +96,11 @@ Metric Description: {METRIC_DESCRIPTION}
 ## Evidence Sources
 1. {EVIDENCE_TABLE_1} - {EVIDENCE_1_PURPOSE}
 2. {EVIDENCE_TABLE_2} - {EVIDENCE_2_PURPOSE}
+
+## Metric Data Source Lineage
+-> {ASSET_METRIC_NAME}
+-> {AUTHORITY_METRIC_NAME}
+-> {METRIC_DESCRIPTION}
 
 ## Sql Query: {QUERY_NAME}
 Purpose: {QUERY_PURPOSE}
@@ -125,6 +137,9 @@ This rule is ABSOLUTE and must NEVER be bypassed.
 4. Get the latest metric run.
 5. Get previous metric runs (up to 10 most recent).
 6. Trigger a metric assessment run.
+
+### METRIC SOURCE REQUEST RULE
+When the user asks for metric source, show the metric note content.
 
 ### METRIC RUN DISPLAY FORMAT (MANDATORY)
 When showing any metric run, include for each metric:
