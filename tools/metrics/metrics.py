@@ -18,17 +18,13 @@ from utils.debug import logger
 from mcptypes import assessment_config_tool_types as assessment_vo
 from mcptypes.metrics_tool_types import MetricsSourceSummaryResponseVO, MetricsSourceSummaryVO
 import constants.error_constants as error_constants
+from mcptypes.graph_tool_types import UniqueNodeDataVO , CypherQueryVO
 
 
 @mcp.tool()
 async def get_metrics_assessment(ctx: Context | None = None) -> dict:
     """
     Get metrics assessment
-
-    Args:
-    categoryId (str, optional): Assessment category ID to filter by.
-    categoryName (str, optional): Assessment category name to filter by (partial match).
-    assessmentName (str, optional): Assessment name to filter by (partial match).
 
     Returns:
         - assessments (AssessmentVO): A assessment objects containing:
@@ -129,6 +125,277 @@ async def get_metrics_assessment(ctx: Context | None = None) -> dict:
     except Exception as e:
         logger.error(traceback.format_exc())
         logger.error("get_metrics_assessment error: {}\n".format(e))
+        return {"success": False, "error": f"Unexpected error: {e}"}
+
+@mcp.tool()
+async def get_assets_data(ctx: Context | None = None) -> dict:
+    """
+    get available assets with their metrics and evidence sample.
+
+    Use this to discover candidate evidences and source metrics before metric suggestion/linking flows.
+
+    Returns:
+        success (bool)
+        data (dict): keyed by asset assessment name.
+            - assetName (str)
+            - metrics (list):
+                - metricsId (str)
+                - metricsName (str)
+                - evidence (list):
+                    - evidenceRunId (str)
+                    - evidenceName (str)
+                    - sampleRecords (list[dict])
+        errors (list, optional): partial fetch failures, if any.
+
+    """
+    try:
+        logger.info("get_assets_data:\n")
+
+        ASSET_ASSESSMENT_NAMES = ["Github DORA"]
+        SAMPLE_EVIDENCE_DATA_TO_INCLUDE = 5
+        EVIDENCE_NAMES_TO_IGNORE = ["LogFile", "AuditFile"]
+        max_pages = 10
+
+        ignored_evidence_names = {name.lower() for name in EVIDENCE_NAMES_TO_IGNORE}
+
+        assets_data: dict = {}
+        errors: list[dict] = []
+
+        for asset_assessment_name in ASSET_ASSESSMENT_NAMES:
+            try:
+                logger.info(f"get_assets_data: processing asset assessment: {asset_assessment_name}\n")
+
+                plan_url = (
+                    f"{constants.URL_PLANS}"
+                    f"?fields=basic&name={asset_assessment_name}&page=1&page_size=1"
+                )
+                plan_resp = await utils.make_GET_API_call_to_CCow(plan_url, ctx=ctx)
+                logger.debug(
+                    "get_assets_data plan_resp for {}: {}\n".format(
+                        asset_assessment_name,
+                        json.dumps(plan_resp) if isinstance(plan_resp, (dict, list)) else plan_resp,
+                    )
+                )
+
+                plan_error = utils.handle_error_response(plan_resp, "get_assets_data:plan_lookup")
+                if plan_error:
+                    errors.append({"assetName": asset_assessment_name, "stage": "plan_lookup", "error": plan_error})
+                    continue
+
+                plan_items = plan_resp.get("items", []) if isinstance(plan_resp, dict) else []
+                plan = next(iter(plan_items), None)
+                if not plan or not plan.get("id"):
+                    errors.append(
+                        {
+                            "assetName": asset_assessment_name,
+                            "stage": "plan_lookup",
+                            "error": f"No plan found for asset assessment name: {asset_assessment_name}",
+                        }
+                    )
+                    continue
+
+                plan_id = plan.get("id")
+                plan_name = plan.get("name") or asset_assessment_name
+
+                run_url = (
+                    f"{constants.URL_PLAN_INSTANCES}"
+                    f"?plan_id={plan_id}&fields=basic&page=1&page_size=1"
+                )
+                run_resp = await utils.make_GET_API_call_to_CCow(run_url, ctx=ctx)
+                logger.debug(
+                    "get_assets_data run_resp for {}: {}\n".format(
+                        asset_assessment_name,
+                        json.dumps(run_resp) if isinstance(run_resp, (dict, list)) else run_resp,
+                    )
+                )
+
+                run_error = utils.handle_error_response(run_resp, "get_assets_data:run_lookup")
+                if run_error:
+                    errors.append({"assetName": asset_assessment_name, "assetId": plan_id, "stage": "run_lookup", "error": run_error})
+                    continue
+
+                run_items = run_resp.get("items", []) if isinstance(run_resp, dict) else []
+                run = next(iter(run_items), None)
+                if not run or not run.get("id"):
+                    errors.append(
+                        {
+                            "assetName": asset_assessment_name,
+                            "assetId": plan_id,
+                            "stage": "run_lookup",
+                            "error": f"No plan instance found for asset assessment name: {asset_assessment_name}",
+                        }
+                    )
+                    continue
+
+                asset_run_id = run.get("id")
+
+                metrics: list[dict] = []
+                page = 1
+                page_size=20
+                total_pages = 1
+                while page <= total_pages and page <= max_pages:
+                    controls_url = (
+                        f"{constants.URL_PLAN_INSTANCE_CONTROLS}"
+                        f"?page={page}&page_size={page_size}&is_leaf_control=true&plan_instance_id={asset_run_id}"
+                    )
+                    controls_resp = await utils.make_GET_API_call_to_CCow(controls_url, ctx=ctx)
+                    logger.debug(
+                        "get_assets_data controls_resp for {} (page {}): {}\n".format(
+                            asset_assessment_name,
+                            page,
+                            json.dumps(controls_resp) if isinstance(controls_resp, (dict, list)) else controls_resp,
+                        )
+                    )
+
+                    controls_error = utils.handle_error_response(controls_resp, "get_assets_data:controls_lookup")
+                    if controls_error:
+                        errors.append(
+                            {
+                                "assetName": asset_assessment_name,
+                                "assetId": plan_id,
+                                "assetrunId": asset_run_id,
+                                "stage": "controls_lookup",
+                                "error": controls_error,
+                            }
+                        )
+                        break
+
+                    if not isinstance(controls_resp, dict):
+                        errors.append(
+                            {
+                                "assetName": asset_assessment_name,
+                                "assetId": plan_id,
+                                "assetrunId": asset_run_id,
+                                "stage": "controls_lookup",
+                                "error": "Invalid controls response format",
+                            }
+                        )
+                        break
+
+                    controls = controls_resp.get("items", [])
+                    for control in controls:
+                        evidence_list: list[dict] = []
+                        for evidence in control.get("evidences", []) or []:
+                            evidence_id = evidence.get("id")
+                            evidence_name = evidence.get("name", "")
+                            if (evidence_name or "").strip().lower() in ignored_evidence_names:
+                                continue
+
+                            sample_records: list[dict] = []
+                            evidence_error = None
+
+                            if evidence_id:
+                                fetch_data_payload = {
+                                    "evidenceID": evidence_id,
+                                    "returnFormat": "json",
+                                    "isRelatedDataToBeInclude": True,
+                                    "isDataToBeSplitted": True,
+                                }
+                                fetch_data_resp = await utils.make_API_call_to_CCow(
+                                    fetch_data_payload,
+                                    constants.URL_DATAHANDLER_FETCH_DATA,
+                                    ctx=ctx,
+                                )
+
+                                fetch_data_error = utils.handle_error_response(fetch_data_resp, "get_assets_data:fetch_data")
+                                if fetch_data_error:
+                                    evidence_error = fetch_data_error.get("error") if isinstance(fetch_data_error, dict) else fetch_data_error
+                                elif isinstance(fetch_data_resp, dict) and fetch_data_resp.get("Message") == "CANNOT_FIND_THE_FILE":
+                                    evidence_error = "No data available"
+                                elif isinstance(fetch_data_resp, dict) and fetch_data_resp.get("fileBytes"):
+                                    try:
+                                        decoded_bytes = base64.b64decode(fetch_data_resp["fileBytes"])
+                                        decoded_string = decoded_bytes.decode("utf-8")
+                                        decoded_json = json.loads(decoded_string)
+                                        if isinstance(decoded_json, list):
+                                            sample_records = decoded_json[:SAMPLE_EVIDENCE_DATA_TO_INCLUDE]
+                                        elif isinstance(decoded_json, dict):
+                                            sample_records = [decoded_json]
+                                        else:
+                                            evidence_error = "Decoded evidence data is not JSON object/list"
+                                    except Exception as decode_error:
+                                        evidence_error = f"Failed to decode sample evidence data: {decode_error}"
+                                else:
+                                    evidence_error = "fileBytes not found in fetch-data response"
+
+                            evidence_obj = {
+                                "evidenceRunId": evidence_id,
+                                "evidenceName": evidence_name,
+                                "sampleRecords": sample_records,
+                            }
+                            if evidence_error:
+                                evidence_obj["error"] = evidence_error
+                            evidence_list.append(evidence_obj)
+
+                        metrics.append(
+                            {
+                                "metricsId": control.get("controlId"),
+                                "metricsName": control.get("name", ""),
+                                "evidence": evidence_list,
+                            }
+                        )
+
+                    total_pages = int(controls_resp.get("TotalPage") or 1)
+                    page += 1
+
+                if total_pages > max_pages:
+                    errors.append(
+                        {
+                            "assetName": asset_assessment_name,
+                            "assetId": plan_id,
+                            "assetrunId": asset_run_id,
+                            "stage": "controls_lookup",
+                            "warning": f"Pagination truncated at max_pages={max_pages}, totalPages={total_pages}",
+                        }
+                    )
+
+                assets_data[asset_assessment_name] = {
+                    # "assetId": plan_id,
+                    # "assetrunId": asset_run_id,
+                    "assetName": plan_name,
+                    "metrics": metrics,
+                }
+
+            except Exception as asset_error:
+                logger.error(traceback.format_exc())
+                errors.append(
+                    {
+                        "assetName": asset_assessment_name,
+                        "stage": "processing",
+                        "error": f"Unexpected error: {asset_error}",
+                    }
+                )
+
+        if not assets_data and errors:
+            logger.info(
+                "get_assets_data final assets_data: {}\n".format(
+                    json.dumps(assets_data) if isinstance(assets_data, (dict, list)) else assets_data
+                )
+            )
+            logger.info(
+                "get_assets_data final errors: {}\n".format(
+                    json.dumps(errors) if isinstance(errors, (dict, list)) else errors
+                )
+            )
+            return {"success": False, "error": "Failed to fetch assets data"}
+
+        logger.info(
+            "get_assets_data final assets_data: {}\n".format(
+                json.dumps(assets_data) if isinstance(assets_data, (dict, list)) else assets_data
+            )
+        )
+        logger.info(
+            "get_assets_data final errors: {}\n".format(
+                json.dumps(errors) if isinstance(errors, (dict, list)) else errors
+            )
+        )
+        result = {"success": True, "data": assets_data}
+
+        return result
+
+    except Exception as e:
+        logger.error(traceback.format_exc())
+        logger.error("get_assets_data error: {}\n".format(e))
         return {"success": False, "error": f"Unexpected error: {e}"}
 
 @mcp.tool()
@@ -2000,6 +2267,173 @@ async def update_metrics_note(
         logger.error("update_metrics_note error: {}\n".format(e))
         return {"success": False, "error": f"Unexpected error updating metrics note: {e}"}
  
+
+@mcp.tool() 
+async def link_source_metrics_to_target_metric(sourceMetricsIds: list[str], targetMetricId: str, ctx: Context | None = None) -> dict: 
+    """
+    Args:
+    query (str): The Cypher query to execute against the graph database.
+    
+    Returns:
+        - result (Any): The formatted, human-readable result of the Cypher query.
+        - error (Optional[str]): An error message if the query execution fails or encounters issues.
+    """
+
+    try:
+        logger.info("link_source_metrics_to_metric: \n")
+
+        if not sourceMetricsIds:
+            return "sourceMetricsIds is required"
+        
+        if not targetMetricId or not targetMetricId.strip():
+            return "targetMetricId is required"        
+
+
+        payload = [
+            {
+                "sourcePlan": {
+                    "controlId": source_id
+                },
+                "targetPlan": {
+                    "controlId": targetMetricId
+                },
+                "userGenerated": True,
+                "propagate": "evidence",
+                "propagateToSource": "none"
+            }
+            for source_id in sourceMetricsIds
+        ]
+
+        logger.info(f"link_source_metrics_to_metric payload: {payload}\n")
+
+
+        output = await utils.make_API_call_to_CCow_and_get_response(
+            constants.URL_LINK_CONTROL,
+            "POST",
+            payload,
+            ctx=ctx
+        )
+
+        error = utils.handle_error_response(output,"link_source_metrics_to_metric")
+
+        if error:
+            return error
+        
+        return {"success":True, "message" : "Source metrics were successfully linked to the target metric."}
+
+
+    except Exception as e:
+        logger.error(traceback.format_exc())
+        logger.error("link_source_metrics_to_metric error: {}\n".format(e))
+        return {"success": False, "error": f"Unexpected error linking source metrics to target metric notes: {e}"}
+
+
+@mcp.tool()
+async def get_graph_schema_relationship() -> dict | str:
+    """
+    Retrieve the complete graph database schema and relationship structure
+    
+    Returns:
+        dict: Complete database schema with structural patterns and query guidelines
+        str: Error message if schema retrieval fails
+    """
+    
+    try:
+        logger.info("\nget_schema_form_control: \n")
+        output=await utils.make_API_call_to_CCow({},constants.URL_RETRIEVE_GRAPH_SCHEMA_RELATIONSHIP)
+        logger.debug("output: {}\n".format(output))
+        enhanced_guidance = {
+            "control_status_values": {
+                "status": ["Completed", "In Progress", "Pending", "Unassigned"],
+                "complianceStatus": ["COMPLIANT", "NON_COMPLIANT", "NOT_DETERMINED"],
+                "priority(case insensitive)": ["Low", "Medium", "High"],
+                "overdue_logic": "Controls are overdue when due_date < current_date is [In progress, Pending] (requires manual date comparison)"
+            },
+            "query_best_practices": {
+                "large_datasets": "Use LIMIT clauses and aggregation functions for performance",
+                "hierarchy_traversal": "Always determine depth before complex recursive queries",
+                "evidence_queries": "Evidence only exists on leaf controls - filter accordingly",
+                "performance_tips": [
+                    "Use WHERE clauses early in queries for filtering",
+                    "Prefer specific relationship patterns over generic traversal",
+                    "Use PROFILE or EXPLAIN for query optimization"
+                ]
+            },
+            "common_patterns": {
+                "find_roots": "MATCH (c:Control) WHERE NOT ()-[:HAS_CHILD]->(c)",
+                "find_leaves": "MATCH (c:Control) WHERE NOT (c)-[:HAS_CHILD]->()",
+                "full_hierarchy": "MATCH (root)-[:HAS_CHILD*]->(descendant)",
+                "evidence_with_controls": "MATCH (c:Control)-[:HAS_EVIDENCE]->(e:Evidence) WHERE NOT (c)-[:HAS_CHILD]->()"
+            },
+            "large_dataset_handling": {
+                "description": "Strategies for managing overwhelming query results",
+                "detection_approach": "Identify broad queries through parameter analysis and keyword detection", 
+                "response_strategy": "Provide summary statistics and guided refinement suggestions",
+                "user_experience_goals": [
+                    "Prevent information overload",
+                    "Guide users to actionable insights", 
+                    "Offer immediate value through summaries",
+                    "Enable progressive query refinement"
+                ]
+            },
+            "refinement_suggestions": {
+                "controls": {
+                    "status_based": "Filter by completion state, progress status, assignment status, or overdue conditions",
+                    "compliance_status_based": "Focus on compliance outcomes", 
+                    "framework_based": "Narrow by specific regulatory frameworks or compliance standards",
+                    "priority_based": "Filter by control prioriy",
+                    "time_period_based": "control on specific date, date range, or review period"
+                },
+            },
+            "user_guidance_approach": {
+                "summary_first": "Always provide high-level statistics and patterns before detailed results",
+                "contextual_suggestions": "Offer refinement options specific to the data and user context",
+                "progressive_refinement": "Enable users to iteratively narrow their focus through guided questions",
+                "actionable_examples": "Provide concrete, ready-to-use query phrases that users can immediately apply",
+                "visual_formatting": "Use clear structure, emojis, and hierarchy to make responses scannable"
+            },
+            "Risks": "RiskItem nodes are attached to control-config via HAS_RISK & HAS_MAPPED_CONTROL edges and RiskItemAttribute nodes are attached to RiskItem via HAS_ATTRIBUTE edges, Both nodes are always linked"
+        }
+
+        # return {"Important": "If you need to check control, find try to find how much nested level of controls available then query according", "output": output}
+        return {
+         "output": output,
+         "guidance": enhanced_guidance
+         }
+    except Exception as e:
+        logger.error("get_schema_form_control error: {}\n".format(e))
+        return "Facing internal error"        
+
+
+@mcp.tool() 
+async def execute_cypher_query(query: str, ctx: Context | None = None) -> CypherQueryVO: 
+    """
+    Args:
+    query (str): The Cypher query to execute against the graph database.
+    
+    Returns:
+        - result (Any): The formatted, human-readable result of the Cypher query.
+        - error (Optional[str]): An error message if the query execution fails or encounters issues.
+    """
+    try:
+        logger.info("\nexecute_cypher_query: \n")
+        logger.debug("query: {}".format(query))
+
+        output=await utils.make_API_call_to_CCow({
+            "query": query,
+        },constants.URL_EXECUTE_CYPHER_QUERY, ctx=ctx)
+        logger.debug("output: {}\n".format(output))
+        
+        if isinstance(output, str) or  "error" in output:
+            logger.error("\nexecute_cypher_query error: {}\n".format(output))
+            return CypherQueryVO(error="Facing internal error")
+
+        return CypherQueryVO(result=output.get('result'))
+    except Exception as e:
+        logger.error(traceback.format_exc())
+        logger.error("\nexecute_cypher_query error: {}\n".format(e))
+        return CypherQueryVO(error="Facing internal error")
+
 
 async def get_assessment(id: str, ctx: Context) -> tuple[dict | None, dict | None]:
 
