@@ -154,6 +154,8 @@ async def get_assets_data(ctx: Context | None = None) -> dict:
         ASSET_ASSESSMENT_NAMES = ["Github DORA"]
         SAMPLE_EVIDENCE_DATA_TO_INCLUDE = 5
         EVIDENCE_NAMES_TO_IGNORE = ["LogFile", "AuditFile"]
+        COLUMNS_TO_EXCLUDE = ["ComplianceStatus"]
+        excluded_columns = {c.lower() for c in COLUMNS_TO_EXCLUDE}
         max_pages = 10
 
         ignored_evidence_names = {name.lower() for name in EVIDENCE_NAMES_TO_IGNORE}
@@ -278,6 +280,7 @@ async def get_assets_data(ctx: Context | None = None) -> dict:
                         for evidence in control.get("evidences", []) or []:
                             evidence_id = evidence.get("id")
                             evidence_name = evidence.get("name", "")
+                            evidence_description = evidence.get("description", "")
                             if (evidence_name or "").strip().lower() in ignored_evidence_names:
                                 continue
 
@@ -308,9 +311,16 @@ async def get_assets_data(ctx: Context | None = None) -> dict:
                                         decoded_string = decoded_bytes.decode("utf-8")
                                         decoded_json = json.loads(decoded_string)
                                         if isinstance(decoded_json, list):
-                                            sample_records = decoded_json[:SAMPLE_EVIDENCE_DATA_TO_INCLUDE]
+                                            sample_records = [
+                                                {k: v for k, v in r.items() if (k or "").lower() not in excluded_columns}
+                                                if isinstance(r, dict) else r
+                                                for r in decoded_json[:SAMPLE_EVIDENCE_DATA_TO_INCLUDE]
+                                            ]
+
                                         elif isinstance(decoded_json, dict):
-                                            sample_records = [decoded_json]
+                                            sample_records = [
+                                                {k: v for k, v in decoded_json.items() if (k or "").lower() not in excluded_columns}
+                                            ]
                                         else:
                                             evidence_error = "Decoded evidence data is not JSON object/list"
                                     except Exception as decode_error:
@@ -321,6 +331,7 @@ async def get_assets_data(ctx: Context | None = None) -> dict:
                             evidence_obj = {
                                 "evidenceRunId": evidence_id,
                                 "evidenceName": evidence_name,
+                                "evidenceDescription": evidence_description,
                                 "sampleRecords": sample_records,
                             }
                             if evidence_error:
@@ -331,6 +342,7 @@ async def get_assets_data(ctx: Context | None = None) -> dict:
                             {
                                 "metricsId": control.get("controlId"),
                                 "metricsName": control.get("name", ""),
+                                "metricsDescription": control.get("description", ""),
                                 "evidence": evidence_list,
                             }
                         )
