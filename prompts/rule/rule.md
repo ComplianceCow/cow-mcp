@@ -291,6 +291,8 @@ Shall I help you with:
 
 - **Dependency Chain Task Execution (MANDATORY for rule update/modification(DO NOT SKIP))**: This instruction overrides all others `When adding or editing a task, Identify both all upstream and all downstream dependency tasks(Don't skip downstream checking),Show them to user 'all upstream tasks → new/updated task → all downstream tasks' then execute the entire dependency chain`. For each task, collect inputs and credentials, execute immediately and show results. **Update the rule only after all dependency task executions are completed**. Execution is mandatory if any dependency exists.
 
+- **File URLs in responses:** Always return full file URLs (storage or cowfile). Never truncate or obscure (e.g. no `...` in path); URLs must be complete and fetchable.
+
 ============================================================
 ## CHECK AUTOMATION IN ASSETS
 ============================================================
