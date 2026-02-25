@@ -1322,15 +1322,17 @@ async def get_metrics_evidence_sample_data(
 
 
 @mcp.tool()
-async def validate_sql_query(
+async def validate_sql_query_and_cel(
     sqlQuery: str,
     referenceEvidences: List[dict],
     assessmentMetricsId: str,
     metricsId: str,
+    filteringCELExpression: str,
+    compliantCELExpression: str,
     ctx: Context | None = None,
 ) -> dict:
     """
-    Validate a SQL query against reference evidence data.
+    Validate a SQL query and CEL Expression against reference evidence data.
     
     This tool validates a SQL query by executing it against provided evidence data.
     The evidence data can be provided in two ways:
@@ -1353,6 +1355,9 @@ async def validate_sql_query(
             - Either `id` OR `file` must be provided for each evidence (not both).
         assessmentId (str): The assessment ID that contains the control config (required).
         metricsId (str): MetricsId (required).
+        filteringCELExpression (str): filtering expression to be validated,
+        compliantCELExpression (str): compliant expression to be validated,
+
     
     Returns:
         Dict with validation status and executed query data:
@@ -1360,6 +1365,10 @@ async def validate_sql_query(
         - queryStatus (str): Query validation status - "success" or "fail"
         - data (list, optional): Executed query results (rows returned by the query execution)
         - error (str, optional): Error message if validation failed or request failed
+        - includeCELStatus (str): Include CEL validation status - "Success" or "Failed"
+        - includeCELError (str, optional) : Error message if includeCEL validation failed
+        - complianceCELStatus (str): Compliance CEL validation status - "Success" or "Failed"
+        - complianceCELError (str, optional) : Error message if complianceCEL validation failed
     """
     try:
         logger.info("validate_metrics_sql_query:\n")
@@ -1367,8 +1376,10 @@ async def validate_sql_query(
         sql_query = (sqlQuery or "").strip()
         assessment_metrics_id = (assessmentMetricsId or "").strip()
         metrics_id = (metricsId or "").strip()
+        filteringCEL_expression = (filteringCELExpression or "").strip()
+        compliantCEL_expression = (compliantCELExpression or "").strip()
 
-        err = utils.require_fields(locals(), ["sql_query", "assessment_metrics_id", "metrics_id"])
+        err = utils.require_fields(locals(), ["sql_query", "assessment_metrics_id", "metrics_id","filteringCEL_expression","compliantCEL_expression"])
         if err:
             return err
 
@@ -1426,6 +1437,9 @@ async def validate_sql_query(
             "referenceEvidences": validated_evidences,
             "assessmentID": assessment_metrics_id,
             "assessmentControlID": metrics_id,
+            "validateCEL": True,
+            "includeCEL" : filteringCEL_expression,
+            "complianceCEL" : compliantCEL_expression
         }
         logger.debug("validate_metrics_sql_query payload: {}\n".format(json.dumps(payload)))
 

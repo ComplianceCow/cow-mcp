@@ -6,6 +6,8 @@
   - Never call `suggest_metrics_citations`.
   - Never call `attach_citation_to_metrics`.
   - Use `link_source_metrics_to_target_metric` for source linkage.
+- SQL constraint (mandatory):
+  - Do not create new or derived columns by manipulating existing columns.
 - CEL constraint (mandatory):
   - Never use `ComplianceStatus` column in `compliantExpression` (`A`);Ex: `ComplianceStatus == "Compliant"` is invalid and must never be generated.
 
