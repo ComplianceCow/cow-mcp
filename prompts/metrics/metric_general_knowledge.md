@@ -194,7 +194,7 @@ When the user asks whether a metric is automated:
 - Starts with **suggest citation** → **attach citation to metrics (top citation auto)** → **fetch control source summary** → **generate and run SQL query on data** → **validate SQL query** → **create SQL query evidence** → **generate CEL expression formula** → **create metric notes**
 
 ### METRICS SUGGESTION - (FOLLOW THIS FLOW EXACTLY. DO NOT REORDER, SKIP, OR MODIFY STEPS)
-- Starts with **get assets data** → **suggest metrics with evidence-wise** → **create metrics** → **link source metrics to target metric** → **generate and run SQL query on data** → **validate SQL query** → **create SQL query evidence** → **generate CEL expression formula** → **create metric notes**
+- Starts with **list assets** → **get assets data (metrics/evidence summary only)** → **if metrics > 30 then ask user to narrow their requirement first, then narrow metrics, and call get asset metrics evidence sample data** → **suggest metrics with evidence-wise** → **create metrics** → **link source metrics to target metric** → **generate and run SQL query on data** → **validate SQL query** → **create SQL query evidence** → **generate CEL expression formula** → **create metric notes**
 
 ### METRICS SUGGESTION DISPLAY (MANDATORY)
 When presenting metric suggestions, include for each suggestion:
