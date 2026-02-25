@@ -713,6 +713,69 @@ async def add_metric(assessmentMetricsId: str,categoryName: str, descrition: str
         logger.error("add_metric error: {}\n".format(e))
         return {"success": False, "error": f"Unexpected error: {e}"}
 
+
+@mcp.tool()
+async def update_metric(assessmentMetricsId: str,metricsId: str, descrition: str, ctx: Context | None = None) -> dict:
+    """
+    Update an existing metric definition (name/description).
+
+    Alignment requirement after update:
+    - Ensure SQL query evidence, CEL expressions, and metric notes still match the updated requirement.
+    - If any artifact is out of sync, update it before considering the metric update complete.
+
+    Args:
+        assessmentMetricsId (str): Metrics assessment ID containing the metric.
+        metricsId (str): Metric ID to update.
+        description (str): Updated metric description/definition.
+    """
+    try:
+        logger.info("update_metric:\n")
+
+        assessmentMetricsId = (assessmentMetricsId or "").strip()
+        categoryName = (categoryName or "").strip()
+        descrition = (descrition or "").strip()
+
+        err = utils.require_fields(locals(), ["assessmentMetricsId", "metricsId", "descrition"])
+        if err:
+            return err
+
+        payload = [
+            {
+                "op": "replace",
+                "path": "/name",
+                "value": descrition
+            },
+            {
+                "op": "replace",
+                "path": "/description",
+                "value": descrition
+            }
+        ]
+        logger.debug("update_metric payload: {}\n".format(json.dumps(payload)))
+
+        url = f"{constants.URL_PLAN_CONTROLS}/{metricsId}"
+
+        output = await utils.make_API_call_to_CCow_and_get_response(
+            url, "PATCH", payload, ctx=ctx
+        )
+        logger.debug(
+            "update_metric output: {}\n".format(
+                json.dumps(output) if isinstance(output, dict) else output
+            )
+        )
+        error = utils.handle_error_response(output,"update_metric")
+        if error:
+            return error
+        
+        return {"success": True, "message": "Metrics updated successfully"}
+
+    except Exception as e:
+        logger.error(traceback.format_exc())
+        logger.error("update_metric error: {}\n".format(e))
+        return {"success": False, "error": f"Unexpected error: {e}"}
+
+
+
 @mcp.tool()
 async def get_all_metrics_categories(
     assessmentMetricsId: str,
@@ -1912,6 +1975,86 @@ async def add_cel_expression_to_metrics(
         logger.error(traceback.format_exc())
         logger.error("add_metrics_cel_expression error: {}\n".format(e))
         return {"success": False, "error": f"Unexpected error: {e}"}
+
+
+@mcp.tool()
+async def update_cel_expression_to_metrics(
+    metricsId: str,
+    metricsEvidenceId  :str,
+    filteringExpression: str,
+    compliantExpression: str,
+    ctx: Context | None = None,
+) -> dict:
+    """
+    Update CEL expressions to an existing metric.
+    """
+    try:
+        logger.info("update_cel_expression_to_metrics:\n")
+
+        metrics_id = (metricsId or "").strip()
+        filtering_expression = (filteringExpression or "").strip()
+        compliant_expression = (compliantExpression or "").strip()
+
+        if not metrics_id:
+            return {"success": False, "error": "metricsId is required"}
+        if not filtering_expression:
+            return {"success": False, "error": "filteringExpression is required"}
+        if not compliant_expression:
+            return {"success": False, "error": "compliantExpression is required"}
+
+        payload = [
+            {
+                "op": "add",
+                "path": "/complianceCalculationInfos",
+                "value": {
+                "gocel": {
+                    "include": filtering_expression,
+                    "compliance": compliant_expression
+                }
+            }
+            }
+        ]
+
+        logger.debug(
+            "update_cel_expression_to_metrics payload: {}\n".format(json.dumps(payload))
+        )
+
+        resp_raw = await utils.make_API_call_to_CCow_and_get_response(
+            f"{constants.URL_PLAN_CONTROLS}/{metrics_id}/evidences/{metricsEvidenceId}", "PATCH", payload,return_raw=True, ctx=ctx
+        )
+
+        if resp_raw.status_code == 502:
+            return {"success": False, "error": error_constants.ERROR_BAD_GATEWAY}
+        
+        
+        if resp_raw.status_code == 204:
+            return {"success": True, "message": "CEL expressions uplodated successfully"}
+
+        else:
+                        # Error - parse error response
+            error_resp = {}
+            try:
+                if resp_raw.content:
+                    error_resp = resp_raw.json()
+            except Exception:
+                error_resp = {"error": f"HTTP {resp_raw.status_code}"}
+            
+            logger.error("update_cel_expression_to_metrics error: Status {} - {}\n".format(resp_raw.status_code, error_resp))
+            
+            # Check for error fields in response
+            if isinstance(error_resp, dict):
+                if "Message" in error_resp:
+                    return {"success": False, "error": error_resp}
+                if "error" in error_resp:
+                    return {"success": False, "error": error_resp.get("error")}
+
+            return {"success": False, "error": f"Failed to add CEL expressions: HTTP {resp_raw.status_code}"}
+     
+    except Exception as e:
+        logger.error(traceback.format_exc())
+        logger.error("update_cel_expression_to_metrics error: {}\n".format(e))
+        return {"success": False, "error": f"Unexpected error: {e}"}
+
 
 
 @mcp.tool()
