@@ -1,5 +1,3 @@
-
-
 import json
 import base64
 import asyncio
@@ -292,7 +290,11 @@ async def get_assets_data(assetId: str , ctx: Context | None = None) -> dict:
             evidence_list: list[dict] = []
             for evidence in control.get("evidences", []) or []:
                 evidence_name = evidence.get("name", "")
+                evidence_status = evidence.get("status", "")
                 if (evidence_name or "").strip().lower() in ignored_evidence_names:
+                    continue
+
+                if evidence_status != "Completed":
                     continue
 
                 evidence_list.append(
