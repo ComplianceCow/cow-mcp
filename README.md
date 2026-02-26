@@ -1,215 +1,581 @@
+# ComplianceCow MCP Servers
+
 ## Table of Contents
 
-1. **ComplianceCow MCP Server**  
-    1.1. [Introduction](#introduction)  
-    1.2. [Glossary](#glossary)  
-    1.3. [Architecture](#architecture)  
-    1.4. [Getting Started](#getting-started)  
-&nbsp;&nbsp;&nbsp;&nbsp;1.4.1. [Dependencies](#dependencies)  
-&nbsp;&nbsp;&nbsp;&nbsp;1.4.2. [Authentication](#authentication)  
-&nbsp;&nbsp;&nbsp;&nbsp;1.4.3. [Server setup](#server-setup)  
-&nbsp;&nbsp;&nbsp;&nbsp;1.4.4. [Server configuration](#server-configuration)  
-&nbsp;&nbsp;&nbsp;&nbsp;1.4.5. [Examples](#examples)  
-&nbsp;&nbsp;&nbsp;&nbsp;1.4.6. [Running Locally](#running-locally)  
-    1.5. [API Endpoints](#api-endpoints)  
-    1.6. [FAQ](#faq)
+1. [Introduction](#introduction)
+2. [Glossary](#glossary)
+3. [Architecture](#architecture)
+4. [MCP Servers](#mcp-servers)
+5. [Getting Started](#getting-started)
+   - [Prerequisites](#prerequisites)
+   - [Authentication](#authentication)
+   - [Installation](#installation)
+   - [Configuration](#configuration)
+6. [MCP Host Setup](#mcp-host-setup)
+   - [Claude Desktop](#claude-desktop)
+   - [Goose Desktop/CLI](#goose-desktopcli)
+7. [Running Locally](#running-locally)
+8. [Tools Reference](#tools-reference)
+9. [FAQ](#faq)
 
+---
 
+## Introduction
 
-### Introduction
+MCP (Model Context Protocol) servers are designed to process structured requests from AI agents, perform domain-specific operations, and return context-aware responses. The ComplianceCow MCP servers enable seamless integration with MCP-compatible hosts like Claude Desktop and Goose Desktop/CLI for secure, modular, and intelligent compliance automation.
 
-MCP servers are designed to process structured requests from AI agents, perform domain-specific operations (such as querying databases, applying business rules, or generating summaries), and return context-aware responses. Our implementation allows seamless integration with MCP-compatible hosts like Claude Desktop and Goose Desktop, enabling secure, modular, and intelligent interactions tailored to the needs of modern enterprises.
+---
 
-The tools and resources within the ComplianceCow MCP server are specifically designed to accomplish the following:
+## Glossary
 
-- Get Dashboard and Insights data
-- Get Auditable responses through Compliance Graph
-- Perform actions such as creating tickets, fixing policies, pushing data to external tools, etc
+| Keyword | Description | Example |
+|---------|-------------|---------|
+| **Control** | A compliance or security control that needs to be implemented to ensure adherence to regulations, standards, and policies | Ensure MFA is enabled for all users |
+| **Assessment** | A collection of controls organized hierarchically, representing an industry standard or cybersecurity framework | PCI DSS 4.0 |
+| **Assessment Run** | The verification of controls in an assessment for a given time period, including evidence collection | - |
+| **Check** | A rule or verification for compliance or conformance | Check if MFA is enabled for all AWS users |
+| **Resource Type** | Category or class of resources | AWS EC2, AWS S3 |
+| **Resource** | Instance of a resource type for which checks are performed | Specific EC2 instances, GitHub repositories |
+| **Asset** | A group of resources of various types | AWS services, Kubernetes, GitHub |
+| **Evidence** | Data aggregated through checks against resources for a given control | CSV file with AWS users and their MFA status |
+| **Action** | Activity (automated or manual) to respond or remediate based on conditions | Create a JIRA ticket for non-compliant EC2 instance |
+| **Rule** | A reusable automation unit that executes tasks and generates evidence | AWS MFA Compliance Check Rule |
+| **Workflow** | An event-driven automation sequence with conditions and activities | Alert workflow on critical finding |
 
+---
 
-### Glossary
+## Architecture
 
+The ComplianceCow MCP servers support the **STDIO transport mechanism** for seamless local integration with your MCP host. At the core is the **Compliance Graph**, which continuously ingests data such as assessment runs, evidence, and compliance status. The server actively pulls information from:
 
-<span data-teams="true"><figure class="wp-block-table"><table border="1" style="border-collapse: collapse; width: 100%; height: 442px;"><tbody><tr style="height: 24px;"><td style="width: 15%; height: 24px; text-align: center;"> **Keyword** </td><td style="width: 36.041%; height: 24px; text-align: center;">**Description**</td><td style="width: 36.041%; text-align: center;">**Example(s)**</td></tr><tr style="min-height: 24px;"><td style="min-height: 24px; width: 15%; text-align: left;">**Control**</td><td style="width: 36.041%; min-height: 24px; text-align: left;"><span data-huuid="13667765555677333888">Refers to compliance or security control that needs to be implemented by an organization to ensure adherence to relevant laws, regulations, industry standards, and internal policies.</span></td><td style="width: 36.041%; text-align: left;"><span data-huuid="13667765555677333888">Ensure that MFA is enabled for all users</span></td></tr><tr style="height: 24px; text-align: left;"><td style="height: 24px; width: 15%;">**Assessment**</td><td style="width: 36.041%; height: 24px;">Assessment is a collection of controls, organized hierarchically. This can be an industry standard or a cybersecurity framework.</td><td style="width: 36.041%;">PCI DSS 4.0</td></tr><tr style="height: 48px; text-align: left;"><td style="height: 48px; width: 15%;">**Assessment Run**</td><td style="width: 36.041%; height: 48px;">An assessment run is the verification of the controls in an assessment for a given time period and for a set of inputs. This verification may include evidence either by manually collecting from users or by automatically fetching data from resources such as applications and servers.</td><td style="width: 36.041%;"><span data-huuid="13667765555677333888"> </span></td></tr><tr style="height: 24px; text-align: left;"><td style="height: 24px; width: 15%;">**Check**</td><td style="width: 36.041%; height: 24px;">A rule or a verification for compliance or conformance.</td><td style="width: 36.041%;"><span data-huuid="13667765555677333888">Check if MFA is enabled for all AWS users in a given AWS account</span></td></tr><tr style="height: 24px; text-align: left;"><td style="height: 24px; width: 15%;">**Resource Type**</td><td style="width: 36.041%; height: 24px;">Category or class of resources.</td><td style="width: 36.041%;">AWS EC2, AWS S3</td></tr><tr style="height: 24px; text-align: left;"><td style="height: 24px; width: 15%;">**Resource**</td><td style="width: 36.041%; height: 24px;"><span data-huuid="13667765555677333888">Instance of resource type for which we have checks performed.</span></td><td style="width: 36.041%;"><span data-huuid="13667765555677333888">Specific EC2 instances, Github repositories</span></td></tr><tr style="text-align: left;"><td style="width: 15%;">**Asset**</td><td style="width: 36.041%;"><span data-huuid="13667765555677333888"> A group of resources, of various types.</span></td><td style="width: 36.041%;"><span data-huuid="13667765555677333888">AWS services (spanning multiple accounts), Kubernetes, Github</span></td></tr><tr style="text-align: left;"><td style="width: 15%;">**Evidence**</td><td style="width: 36.041%;">Data aggregated through checks against one or more resources, for a given control.</td><td style="width: 36.041%;"><span data-huuid="13667765555677333888">A CSV file containing the list of AWS users, their details including their MFA status and compliance details (such as score).</span></td></tr><tr style="height: 24px; text-align: left;"><td style="height: 24px; width: 15%;">**Action**</td><td style="width: 36.041%; height: 24px;">Any activity (automated or manual) that can be run to respond or to remediate based on conditions. These actions are bound to some specific resources such as assessment, control, evidence or resource in ComplianceCow.</td><td style="width: 36.041%;">Create a JIRA ticket for a non compliant EC2 instance with SLA not met for remediating a critical vulnerability.</td></tr></tbody></table></figure></span>
+- Vector stores for semantic search
+- Relational databases for structured data
+- Graph databases for relationship queries
+- File storage systems for evidence artifacts
 
+---
 
-### Architecture
+## MCP Servers
 
+We have organized ComplianceCow’s MCP tools into 4 distinct servers.
 
-We support the STDIO transport mechanism to allow seamless local integration of our server with your MCP host. At the core of our backend is the Compliance Graph, which continuously ingests data such as assessment runs, evidence, and more. Additionally, our server actively pulls information from diverse sources including vector stores, relational databases, and file storage systems.
+> **Why multiple MCP servers?** In the MCP ecosystem, using fewer tools per server yields better results and better performance. 
+<br>Each server can be enabled independently via the `MCP_TOOLS_TO_BE_INCLUDED` environment variable. 
+<br>**Important:** Enable only **one server at a time** in the MCP Host to avoid tool name conflicts. Some tools share the same name across servers but have different implementations based on the use case.
 
+### 1. ComplianceCow-Rules
 
-### Getting Started
+The Rules server enables creating, managing, and executing compliance rules. It provides a comprehensive toolkit for rule creation with guided input collection, task orchestration, and ComplianceCow integration.
 
+**Use Cases:**
+- Create custom compliance rules with multiple tasks
+- Execute rules against cloud infrastructure
+- Publish rules to ComplianceCow and attach to controls
+- Generate rule documentation (design notes, README)
 
-#### Dependencies
+---
 
-1\. You’ll need an MCP host like Claude Desktop, Goose Desktop/CLI, or similar. Below are the installation links for Claude Desktop and Goose.
+### 2. ComplianceCow-Insights
 
-- [ Claude Desktop](https://claude.ai/download)
-- [Goose Desktop/CLI](https://block.github.io/goose/docs/getting-started/installation/)
+The Insights server provides comprehensive access to compliance data, dashboards, assessments, and evidence through the Compliance Graph. Ideal for querying and analyzing compliance posture.
 
-2\. Python and **uv** (package manager) are required to run the MCP server.
+**Use Cases:**
+- Query dashboard data for compliance overview
+- Explore assessments and their runs
+- Retrieve evidence and compliance status
+- Execute Cypher queries on the Compliance Graph
+- Perform actions on controls and evidence
 
-- Visit [this](https://www.python.org/downloads/) page to download and install python for your operating system. Recommended version: 3.11 or higher.
-- Visit [this](https://docs.astral.sh/uv/getting-started/installation/) page to download and install **uv**.
+---
 
+### 3. ComplianceCow-Workflow
 
-#### Authentication
+The Workflow server enables building and executing automated compliance workflows with event-driven triggers, conditions, and activities.
 
-The MCP tools and resources of ComplianceCow can be accessed through the <span>OAuth 2.0 mechanism with client\_credentials grant type</span>. Follow the instructions below to get yourself a client ID and a secret.
+**Use Cases:**
+- Create automated compliance workflows
+- Define event triggers and conditions
+- Execute multi-step workflow sequences
+- Manage workflow states and transitions
 
-1\. Sign up for an account (if you don’t have one) by visiting this URL: <https://partner.compliancecow.live/ui/signup>. Replace the hostname with your own if you have a dedicated ComplianceCow instance deployed.
+---
 
-2\. Click on the ‘Manage Client Credentials’ option in the top-right user profile menu.
+### 4. ComplianceCow-Assistant
 
-3\. Fill out the form to obtain a client ID and a secret.
+The Assistant server specializes in assessment configuration, control setup, and SQL-based evidence collection. It provides tools for configuring compliance assessments and managing control evidence.
 
+**Use Cases:**
+- Create and configure assessments
+- Set up control configurations with context entities
+- Create SQL-based evidence collection
+- Manage control citations and documentation
 
-#### Server setup
+---
 
-1\. In your terminal/console, go to a folder of your choice and clone the git repo.
+## Getting Started
 
-> ```
-> git clone https://github.com/ComplianceCow/cow-mcp.git
-> ```
+### Prerequisites
 
-2\. Switch to the repository’s main folder.
+1. **MCP Host**: You need an MCP-compatible host:
+   - [Claude Desktop](https://claude.ai/download)
+   - [Goose Desktop/CLI](https://block.github.io/goose/docs/getting-started/installation/)
 
-> ```
-> cd cow-mcp
-> ```
+2. **Python**: Version 3.11 or higher
+   - [Download Python](https://www.python.org/downloads/)
 
-This directory will be referred to as **PATH\_TO\_THE\_MCP\_SERVER\_REPO\_CLONE** in the subsequent sections.
+3. **uv Package Manager**: Required to run the MCP server
+   - [Install uv](https://docs.astral.sh/uv/getting-started/installation/)
 
-3\. Run the following commands to install the dependencies. Only then, the MCP Host will be able to start the MCP server successfully.
+### Authentication
 
-> ```
-> uv venv .venv
-> ```
+The ComplianceCow MCP servers use OAuth 2.0 with `client_credentials` grant type.
 
-> ```
-> source .venv/bin/activate
-> ```
+**To obtain credentials:**
 
-> ```
-> uv pip install .
-> ```
+1. Sign up at [ComplianceCow](https://partner.compliancecow.live/ui/signup) (or your dedicated instance)
+2. Click **"Manage Client Credentials"** in the top-right user profile menu
+3. Fill out the form to obtain your **Client ID** and **Client Secret**
 
-#### Server configuration
+### Installation
 
-Below are the key details required to configure our MCP server on your host.
+1. **Clone the repository:**
+   ```bash
+   git clone https://github.com/ComplianceCow/cow-mcp.git
+   cd cow-mcp
+   ```
 
-<span style="text-decoration: underline;">**command**</span>
+2. **Create virtual environment and install dependencies:**
+   ```bash
+   uv venv .venv
+   source .venv/bin/activate  # On Windows: .venv\Scripts\activate
+   uv pip install .
+   ```
 
-We use **uv** as the package manager. You can specify the **uv** command along with its path, which will be referred to as **`UV_BIN_PATH`** in the following sections. For example, on macOS: `/Users/UserXYZ/.local/bin/uv`.
+3. **Find your uv binary path** (needed for configuration):
+   ```bash
+   which uv  # On macOS/Linux
+   where uv  # On Windows
+   ```
 
-<span style="text-decoration: underline;">**args**</span>
+---
 
-> ```
-> −−directory <PATH_TO_THE_MCP_SERVER_REPO_CLONE> run main.py
-> ```
+## Configuration
 
-PATH\_TO\_THE\_MCP\_SERVER\_REPO\_CLONE: The folder/path in which you have cloned the ComplianceCow MCP Github repo (in a step above). Example: /Users/UserXYZ/Documents/code/cow-mcp
+### Environment Variables
 
-<span style="text-decoration: underline;">**env**</span>
+| Variable | Description | Required |
+|----------|-------------|----------|
+| `CCOW_HOST` | ComplianceCow API host URL (Ex: https://partner.compliancecow.live) | Yes |
+| `CCOW_CLIENT_ID` | Your Client ID (see [Authentication section above](#authentication)) | Yes |
+| `CCOW_CLIENT_SECRET` | Your Client Secret (see [Authentication section above](#authentication)) | Yes |
 
-Our MCP server needs the following environment variables set:
+## MCP Host Setup
 
-- CCOW\_CLIENT\_ID: Please refer to the “Authentication” section above.
-- CCOW\_CLIENT\_SECRET: Please refer to the “Authentication” section above.
-- CCOW\_HOST: The hostname of the ComplianceCow instance, which could be a dedicated one for you or a default one such as ‘https://partner.compliancecow.live’.
+### Claude Desktop
 
-The next section provides examples of how to use the above configuration values with Claude Desktop and Goose Desktop. For other hosts, you may refer to these examples as a guide for configuring accordingly.\[/et\_pb\_text\]\[et\_pb\_text \_builder\_version=”4.22.1″ \_module\_preset=”default” header\_4\_font=”|700|||||||” header\_4\_font\_size=”22px” header\_5\_font=”|700|||||||” header\_5\_font\_size=”20px” global\_colors\_info=”{}”\]
+**Configuration file location:**
+- macOS: `~/Library/Application Support/Claude/claude_desktop_config.json`
+- Windows: `%APPDATA%\Claude\claude_desktop_config.json`
 
+For detailed setup instructions, see [Claude Desktop MCP Setup](https://modelcontextprotocol.io/quickstart/user).
 
-#### Examples
+**Configuration template for all 4 servers:**
 
-The steps to configure MCP servers may vary across different hosts. You can use the configuration data provided above by following the host-specific instructions. Instructions for two such hosts—Claude and Goose desktops—are provided below.
-
-<span style="text-decoration: underline;">**Claude Desktop**</span>
-
-Update the following json in the Claude desktop config file ( &lt;*Claude desktop installation path*&gt;/<span data-teams="true">claude\_desktop\_config.json</span>). Before saving the configuration, make sure to update these placeholders (as described in the section above) in the json: **PATH\_TO\_THE\_MCP\_SERVER\_REPO\_CLONE**, **UV\_BIN\_PATH**, **YOUR\_CCOW\_HOST**, **YOUR\_CCOW\_CLIENT\_ID and** **YOUR\_****CCOW\_CLIENT\_SECRET .**
-
-
-```
+```json
 {
   "mcpServers": {
-    "ComplianceCow": {
+    "ComplianceCow-Rules": {
+      "command": "<UV_BIN_PATH>",
       "args": [
         "--directory",
-        "PATH_TO_THE_MCP_SERVER_REPO_CLONE",
+        "<PATH_TO_COW_MCP_REPO>",
         "run",
         "main.py"
       ],
-      "command": "UV_BIN_PATH",
       "env": {
-        "CCOW_HOST": "YOUR_CCOW_HOST",
-        "CCOW_CLIENT_ID": "YOUR_CCOW_CLIENT_ID",
-        "CCOW_CLIENT_SECRET": "YOUR_CCOW_CLIENT_SECRET"
+        "CCOW_HOST": "<YOUR_CCOW_HOST>",
+        "CCOW_CLIENT_ID": "<YOUR_CLIENT_ID>",
+        "CCOW_CLIENT_SECRET": "<YOUR_CLIENT_SECRET>",
+        "MCP_TOOLS_TO_BE_INCLUDED": "rules"
+      }
+    },
+    "ComplianceCow-Insights": {
+      "command": "<UV_BIN_PATH>",
+      "args": [
+        "--directory",
+        "<PATH_TO_COW_MCP_REPO>",
+        "run",
+        "main.py"
+      ],
+      "env": {
+        "CCOW_HOST": "<YOUR_CCOW_HOST>",
+        "CCOW_CLIENT_ID": "<YOUR_CLIENT_ID>",
+        "CCOW_CLIENT_SECRET": "<YOUR_CLIENT_SECRET>",
+        "MCP_TOOLS_TO_BE_INCLUDED": "insights"
+      }
+    },
+    "ComplianceCow-Workflow": {
+      "command": "<UV_BIN_PATH>",
+      "args": [
+        "--directory",
+        "<PATH_TO_COW_MCP_REPO>",
+        "run",
+        "main.py"
+      ],
+      "env": {
+        "CCOW_HOST": "<YOUR_CCOW_HOST>",
+        "CCOW_CLIENT_ID": "<YOUR_CLIENT_ID>",
+        "CCOW_CLIENT_SECRET": "<YOUR_CLIENT_SECRET>",
+        "MCP_TOOLS_TO_BE_INCLUDED": "workflow"
+      }
+    },
+    "ComplianceCow-Assistant": {
+      "command": "<UV_BIN_PATH>",
+      "args": [
+        "--directory",
+        "<PATH_TO_COW_MCP_REPO>",
+        "run",
+        "main.py"
+      ],
+      "env": {
+        "CCOW_HOST": "<YOUR_CCOW_HOST>",
+        "CCOW_CLIENT_ID": "<YOUR_CLIENT_ID>",
+        "CCOW_CLIENT_SECRET": "<YOUR_CLIENT_SECRET>",
+        "MCP_TOOLS_TO_BE_INCLUDED": "assistant"
       }
     }
   }
 }
 ```
 
-<span style="text-decoration: underline;">**Goose Desktop**</span>
+**Replace the following placeholders:**
+- `UV_BIN_PATH`: Path to your uv binary (e.g., `/Users/username/.local/bin/uv`). You can find this by running `which uv` (macOS/Linux) or `where uv` (Windows).
+- `PATH_TO_COW_MCP_REPO`: The absolute path to your cloned cow-mcp repository. After cloning and running `cd cow-mcp`, use `pwd` (macOS/Linux) or `cd` (Windows) to get this path.
+- `YOUR_CCOW_HOST`: https://partner.compliancecow.live (or \<your_dedicated_instance_hosturl\>)
+- `YOUR_CLIENT_ID`: Your ComplianceCow Client ID (see [Authentication](#authentication))
+- `YOUR_CLIENT_SECRET`: Your ComplianceCow Client Secret (see [Authentication](#authentication))
 
-Follow the steps given in this [link](https://block.github.io/goose/docs/getting-started/using-extensions/) to add our MCP server as a Goose extension.
+---
 
-#### Running Locally
+### Goose Desktop/CLI
 
-To verify that the MCP server is properly set up with all dependencies and can be started by the MCP host without issues, you can run the command to check if the server runs correctly in a local environment.
+For detailed setup instructions, see [Goose Extensions Documentation](https://block.github.io/goose/docs/getting-started/using-extensions/).
 
-> ```
-> uv run main.py
-> ```
+**Configuration file location:**
+- macOS/Linux: `~/.config/goose/config.yaml`
+- Windows: `%APPDATA%\goose\config.yaml`
 
+**Configuration template for all 4 servers:**
 
-### API Endpoints
+```yaml
+extensions:
+  ComplianceCow-Rules:
+    enabled: true
+    type: stdio
+    name: Compliancecow-Rules
+    description: 'ComplianceCow Rules - Create and manage compliance rules'
+    cmd: <UV_BIN_PATH>
+    args:
+      - --directory
+      - <PATH_TO_COW_MCP_REPO>
+      - run
+      - main.py
+    envs:
+      CCOW_HOST: <YOUR_CCOW_HOST>
+      CCOW_CLIENT_ID: <YOUR_CLIENT_ID>
+      CCOW_CLIENT_SECRET: <YOUR_CLIENT_SECRET>
+      MCP_TOOLS_TO_BE_INCLUDED: rules
+    timeout: 300
 
-| Name | Purpose | Input(s) | Output(s) |
-|------|---------|----------|-----------|
-| list_all_assessment_categories | Get all assessment categories |  | <b>categories (List[Category])</b>: A list of category objects, where each category includes:<br/>&nbsp;&nbsp;&nbsp;&nbsp;• <b>id</b> (<code>str</code>): Unique identifier of the assessment category.<br/>&nbsp;&nbsp;&nbsp;&nbsp;• <b>name</b> (<code>str</code>): Name of the category.<br/><b>error (Optional[str])</b>: An error message if any issues occurred during retrieval. |  |
-| list_assessments | Get all assessments categoryName: assessment category name (Optional) | **Categoryid** (`string`)-assessment category id (Optional)<br>**Categoryname** (`string`) | <b>assessments (List[Assessments])</b>: A list of assessments objects, where each assessment includes:<br/>&nbsp;&nbsp;&nbsp;&nbsp;• <b>id</b> (<code>str</code>): Unique identifier of the assessment.<br/>&nbsp;&nbsp;&nbsp;&nbsp;• <b>name</b> (<code>str</code>): Name of the assessment.<br/>&nbsp;&nbsp;&nbsp;&nbsp;• <b>category_name</b> (<code>str</code>): Name of the category.<br/><b>error (Optional[str])</b>: An error message if any issues occurred during retrieval. |  |
-| fetch_unique_node_data_and_schema | Fetch unique node data and corresponding schema for a given question. | **Question*** (`string`) | <b>node_names (List[str])</b>: List of unique node names involved.<br/><b>unique_property_values (list[any])</b>: Unique property values per node.<br/><b>neo4j_schema (str)</b>: The Neo4j schema associated with the nodes.<br/><b>error (Optional[str])</b>: Error message if any issues occurred during processing. |  |
-| execute_cypher_query | Given a question and query, execute a cypher query and transform result to human readable format. | **Query*** (`string`) | <b>result (Any)</b>: The formatted, human-readable result of the Cypher query.<br/><b>error (Optional[str])</b>: An error message if the query execution fails or encounters issues. |  |
-| fetch_recent_assessment_runs | Get recent assessment run for given assessment id | **Id*** (`string`) | <b>assessmentRuns (List[AssessmentRuns])</b>: A list of assessment runs.<br/>&nbsp;&nbsp;&nbsp;&nbsp;• <b>id</b> (<code>str</code>): Assessement run id.<br/>&nbsp;&nbsp;&nbsp;&nbsp;• <b>name</b> (<code>str</code>): Name of the assessement run.<br/>&nbsp;&nbsp;&nbsp;&nbsp;• <b>description</b> (<code>str</code>): Description of the assessment run.<br/>&nbsp;&nbsp;&nbsp;&nbsp;• <b>assessmentId</b> (<code>str</code>): Assessement id.<br/>&nbsp;&nbsp;&nbsp;&nbsp;• <b>applicationType</b> (<code>str</code>): Application type.<br/>&nbsp;&nbsp;&nbsp;&nbsp;• <b>configId</b> (<code>str</code>): Configuration id.<br/>&nbsp;&nbsp;&nbsp;&nbsp;• <b>fromDate</b> (<code>str</code>): From date of the assessement run.<br/>&nbsp;&nbsp;&nbsp;&nbsp;• <b>toDate</b> (<code>str</code>): To date of the assessment run.<br/>&nbsp;&nbsp;&nbsp;&nbsp;• <b>status</b> (<code>str</code>): Status of the assessment run.<br/>&nbsp;&nbsp;&nbsp;&nbsp;• <b>computedScore</b> (<code>str</code>): Computed score.<br/>&nbsp;&nbsp;&nbsp;&nbsp;• <b>computedWeight</b> (<code>str</code>): Computed weight.<br/>&nbsp;&nbsp;&nbsp;&nbsp;• <b>complianceStatus</b> (<code>str</code>): Compliance status.<br/>&nbsp;&nbsp;&nbsp;&nbsp;• <b>createdAt</b> (<code>str</code>): Time and date when the assessement run was created.<br/><b>error (Optional[str])</b>: An error message if any issues occurred during retrieval. |  |
-| fetch_assessment_runs | Get all assessment run for given assessment id Function accepts page number (page) and page size (pageSize) for pagination. If MCP client host unable to handle large response use page and pageSize, default page is 1 If the request times out retry with pagination, increasing pageSize from 5 to 10. use this tool when expected run is got in fetch recent assessment runs tool | **Id*** (`string`)<br>**Page** (`integer`)<br>**Pagesize** (`integer`) | <b>assessmentRuns (List[AssessmentRuns])</b>: A list of assessment runs.<br/>&nbsp;&nbsp;&nbsp;&nbsp;• <b>id</b> (<code>str</code>): Assessement run id.<br/>&nbsp;&nbsp;&nbsp;&nbsp;• <b>name</b> (<code>str</code>): Name of the assessement run.<br/>&nbsp;&nbsp;&nbsp;&nbsp;• <b>description</b> (<code>str</code>): Description of the assessment run.<br/>&nbsp;&nbsp;&nbsp;&nbsp;• <b>assessmentId</b> (<code>str</code>): Assessement id.<br/>&nbsp;&nbsp;&nbsp;&nbsp;• <b>applicationType</b> (<code>str</code>): Application type.<br/>&nbsp;&nbsp;&nbsp;&nbsp;• <b>configId</b> (<code>str</code>): Configuration id.<br/>&nbsp;&nbsp;&nbsp;&nbsp;• <b>fromDate</b> (<code>str</code>): From date of the assessement run.<br/>&nbsp;&nbsp;&nbsp;&nbsp;• <b>toDate</b> (<code>str</code>): To date of the assessment run.<br/>&nbsp;&nbsp;&nbsp;&nbsp;• <b>status</b> (<code>str</code>): Status of the assessment run.<br/>&nbsp;&nbsp;&nbsp;&nbsp;• <b>computedScore</b> (<code>str</code>): Computed score.<br/>&nbsp;&nbsp;&nbsp;&nbsp;• <b>computedWeight</b> (<code>str</code>): Computed weight.<br/>&nbsp;&nbsp;&nbsp;&nbsp;• <b>complianceStatus</b> (<code>str</code>): Compliance status.<br/>&nbsp;&nbsp;&nbsp;&nbsp;• <b>createdAt</b> (<code>str</code>): Time and date when the assessement run was created.<br/><b>error (Optional[str])</b>: An error message if any issues occurred during retrieval. |  |
-| fetch_assessment_run_details | Get assessment run details for given assessment run id. This api will return many contorls, use page to get details pagewise. If output is large store it in a file. | **Id*** (`string`) | <b>controls (List[Control])</b>: A list of controls.<br/>&nbsp;&nbsp;&nbsp;&nbsp;• <b>id</b> (<code>str</code>): Control run id.<br/>&nbsp;&nbsp;&nbsp;&nbsp;• <b>name</b> (<code>str</code>): Control name.<br/>&nbsp;&nbsp;&nbsp;&nbsp;• <b>controlNumber</b> (<code>str</code>): Control number.<br/>&nbsp;&nbsp;&nbsp;&nbsp;• <b>alias</b> (<code>str</code>): Control alias.<br/>&nbsp;&nbsp;&nbsp;&nbsp;• <b>priority</b> (<code>str</code>): Priority.<br/>&nbsp;&nbsp;&nbsp;&nbsp;• <b>stage</b> (<code>str</code>): Control stage.<br/>&nbsp;&nbsp;&nbsp;&nbsp;• <b>status</b> (<code>str</code>): Control status.<br/>&nbsp;&nbsp;&nbsp;&nbsp;• <b>type</b> (<code>str</code>): Control type.<br/>&nbsp;&nbsp;&nbsp;&nbsp;• <b>executionStatus</b> (<code>str</code>): Rule execution status.<br/>&nbsp;&nbsp;&nbsp;&nbsp;• <b>dueDate</b> (<code>str</code>): Due date.<br/>&nbsp;&nbsp;&nbsp;&nbsp;• <b>assignedTo</b> (<code>List[str]</code>): Assigned user ids<br/>&nbsp;&nbsp;&nbsp;&nbsp;• <b>assignedBy</b> (<code>str</code>): Assigner's user id.<br/>&nbsp;&nbsp;&nbsp;&nbsp;• <b>assignedDate</b> (<code>str</code>): Assigned date.<br/>&nbsp;&nbsp;&nbsp;&nbsp;• <b>checkedOut</b> (<code>bool</code>): Control checked-out status.<br/>&nbsp;&nbsp;&nbsp;&nbsp;• <b>compliancePCT__</b> (<code>str</code>): Compliance percentage.<br/>&nbsp;&nbsp;&nbsp;&nbsp;• <b>complianceWeight__</b> (<code>str</code>): Compliance weight.<br/>&nbsp;&nbsp;&nbsp;&nbsp;• <b>complianceStatus</b> (<code>str</code>): Compliance status.<br/>&nbsp;&nbsp;&nbsp;&nbsp;• <b>createdAt</b> (<code>str</code>): Time and date when the control run was created.<br/>&nbsp;&nbsp;&nbsp;&nbsp;• <b>updatedAt</b> (<code>str</code>): Time and date when the control run was updated.<br/><b>error (Optional[str])</b>: An error message if any issues occurred during retrieval. |  |
-| fetch_assessment_run_leaf_controls | Get leaf controls for given assessment run id. If output is large store it in a file. | **Id*** (`string`) | <b>controls (List[Control])</b>: A list of controls.<br/>&nbsp;&nbsp;&nbsp;&nbsp;• <b>id</b> (<code>str</code>): Control run id.<br/>&nbsp;&nbsp;&nbsp;&nbsp;• <b>name</b> (<code>str</code>): Control name.<br/>&nbsp;&nbsp;&nbsp;&nbsp;• <b>controlNumber</b> (<code>str</code>): Control number.<br/>&nbsp;&nbsp;&nbsp;&nbsp;• <b>alias</b> (<code>str</code>): Control alias.<br/>&nbsp;&nbsp;&nbsp;&nbsp;• <b>priority</b> (<code>str</code>): Priority.<br/>&nbsp;&nbsp;&nbsp;&nbsp;• <b>stage</b> (<code>str</code>): Control stage.<br/>&nbsp;&nbsp;&nbsp;&nbsp;• <b>status</b> (<code>str</code>): Control status.<br/>&nbsp;&nbsp;&nbsp;&nbsp;• <b>type</b> (<code>str</code>): Control type.<br/>&nbsp;&nbsp;&nbsp;&nbsp;• <b>executionStatus</b> (<code>str</code>): Rule execution status.<br/>&nbsp;&nbsp;&nbsp;&nbsp;• <b>dueDate</b> (<code>str</code>): Due date.<br/>&nbsp;&nbsp;&nbsp;&nbsp;• <b>assignedTo</b> (<code>List[str]</code>): Assigned user ids<br/>&nbsp;&nbsp;&nbsp;&nbsp;• <b>assignedBy</b> (<code>str</code>): Assigner's user id.<br/>&nbsp;&nbsp;&nbsp;&nbsp;• <b>assignedDate</b> (<code>str</code>): Assigned date.<br/>&nbsp;&nbsp;&nbsp;&nbsp;• <b>checkedOut</b> (<code>bool</code>): Control checked-out status.<br/>&nbsp;&nbsp;&nbsp;&nbsp;• <b>compliancePCT__</b> (<code>str</code>): Compliance percentage.<br/>&nbsp;&nbsp;&nbsp;&nbsp;• <b>complianceWeight__</b> (<code>str</code>): Compliance weight.<br/>&nbsp;&nbsp;&nbsp;&nbsp;• <b>complianceStatus</b> (<code>str</code>): Compliance status.<br/>&nbsp;&nbsp;&nbsp;&nbsp;• <b>createdAt</b> (<code>str</code>): Time and date when the control run was created.<br/>&nbsp;&nbsp;&nbsp;&nbsp;• <b>updatedAt</b> (<code>str</code>): Time and date when the control run was updated.<br/><b>error (Optional[str])</b>: An error message if any issues occurred during retrieval. |  |
-| fetch_run_controls | use this tool when you there is no result from the tool "execute_cypher_query". use this tool to get all controls that matches the given name. Next use fetch control meta data tool if need assessment name, assessment Id, assessment run name, assessment run Id | **Name*** (`string`) | <b>controls (List[Control])</b>: A list of controls.<br/>&nbsp;&nbsp;&nbsp;&nbsp;• <b>id</b> (<code>str</code>): Control run id.<br/>&nbsp;&nbsp;&nbsp;&nbsp;• <b>name</b> (<code>str</code>): Control name.<br/>&nbsp;&nbsp;&nbsp;&nbsp;• <b>controlNumber</b> (<code>str</code>): Control number.<br/>&nbsp;&nbsp;&nbsp;&nbsp;• <b>alias</b> (<code>str</code>): Control alias.<br/>&nbsp;&nbsp;&nbsp;&nbsp;• <b>priority</b> (<code>str</code>): Priority.<br/>&nbsp;&nbsp;&nbsp;&nbsp;• <b>stage</b> (<code>str</code>): Control stage.<br/>&nbsp;&nbsp;&nbsp;&nbsp;• <b>status</b> (<code>str</code>): Control status.<br/>&nbsp;&nbsp;&nbsp;&nbsp;• <b>type</b> (<code>str</code>): Control type.<br/>&nbsp;&nbsp;&nbsp;&nbsp;• <b>executionStatus</b> (<code>str</code>): Rule execution status.<br/>&nbsp;&nbsp;&nbsp;&nbsp;• <b>dueDate</b> (<code>str</code>): Due date.<br/>&nbsp;&nbsp;&nbsp;&nbsp;• <b>assignedTo</b> (<code>List[str]</code>): Assigned user ids<br/>&nbsp;&nbsp;&nbsp;&nbsp;• <b>assignedBy</b> (<code>str</code>): Assigner's user id.<br/>&nbsp;&nbsp;&nbsp;&nbsp;• <b>assignedDate</b> (<code>str</code>): Assigned date.<br/>&nbsp;&nbsp;&nbsp;&nbsp;• <b>checkedOut</b> (<code>bool</code>): Control checked-out status.<br/>&nbsp;&nbsp;&nbsp;&nbsp;• <b>compliancePCT__</b> (<code>str</code>): Compliance percentage.<br/>&nbsp;&nbsp;&nbsp;&nbsp;• <b>complianceWeight__</b> (<code>str</code>): Compliance weight.<br/>&nbsp;&nbsp;&nbsp;&nbsp;• <b>complianceStatus</b> (<code>str</code>): Compliance status.<br/>&nbsp;&nbsp;&nbsp;&nbsp;• <b>createdAt</b> (<code>str</code>): Time and date when the control run was created.<br/>&nbsp;&nbsp;&nbsp;&nbsp;• <b>updatedAt</b> (<code>str</code>): Time and date when the control run was updated.<br/><b>error (Optional[str])</b>: An error message if any issues occurred during retrieval. |  |
-| fetch_run_control_meta_data | Use this tool to retrieve control metadata for a given `control_id`, including:  - **Control details**: control name   - **Assessment details**: assessment name and ID   - **Assessment run details**: assessment run name and ID | **Id*** (`string`) | <b>assessmentId (str)</b>: Assessment id.<br/><b>assessmentName (str)</b>: Assessment name.<br/><b>assessmentRunId (str)</b>: Assessment run id.<br/><b>assessmentRunName (str)</b>: Assessment run name.<br/><b>controlId (str)</b>: Control id.<br/><b>controlName (str)</b>: Control name.<br/><b>controlNumber (str)</b>: Control number.<br/><b>error (Optional[str])</b>: An error message if any issues occurred during retrieval. |  |
-| fetch_assessment_run_leaf_control_evidence | Get leaf control evidence for given assessment run control id. | **Id*** (`string`) | <b>evidences (List[ControlEvidenceVO])</b>: List of control evidences<br/>&nbsp;&nbsp;&nbsp;&nbsp;• <b>id</b> (<code>str</code>): Evidence id.<br/>&nbsp;&nbsp;&nbsp;&nbsp;• <b>name</b> (<code>str</code>): Evidence name.<br/>&nbsp;&nbsp;&nbsp;&nbsp;• <b>description</b> (<code>str</code>): Evidence description.<br/>&nbsp;&nbsp;&nbsp;&nbsp;• <b>fileName</b> (<code>str</code>): File name.<br/><b>error (Optional[str])</b>: An error message if any issues occurred during retrieval. |  |
-| fetch_controls | To fetch controls. | **Control Name** (`string`) | <b>prompt (str)</b>: The input prompt used to generate the Cypher query for fetching the control. |  |
-| fetch_evidence_records | Get evidence records for a given evidence ID with optional compliance status filtering. Returns max 50 records but counts all records for the summary. | **Id*** (`string`)<br>**Compliantstatus** (`string`) | <b>totalRecords (int)</b>: Total records.<br/><b>compliantRecords (int)</b>: Number of complian records.<br/><b>nonCompliantRecords (int)</b>: Number of non compliant records.<br/><b>notDeterminedRecords (int)</b>: Number of not determined records.<br/><b>records (List[RecordListVO])</b>: List of evidence records.<br/>&nbsp;&nbsp;&nbsp;&nbsp;• <b>id</b> (<code>str</code>): Record id.<br/>&nbsp;&nbsp;&nbsp;&nbsp;• <b>name</b> (<code>str</code>): System name.<br/>&nbsp;&nbsp;&nbsp;&nbsp;• <b>source</b> (<code>str</code>): Record source.<br/>&nbsp;&nbsp;&nbsp;&nbsp;• <b>resourceId</b> (<code>str</code>): Resource id.<br/>&nbsp;&nbsp;&nbsp;&nbsp;• <b>resourceName</b> (<code>str</code>): Resource name.<br/>&nbsp;&nbsp;&nbsp;&nbsp;• <b>resourceType</b> (<code>str</code>): Resource type.<br/>&nbsp;&nbsp;&nbsp;&nbsp;• <b>complianceStatus</b> (<code>str</code>): Compliance status.<br/>&nbsp;&nbsp;&nbsp;&nbsp;• <b>complianceReason</b> (<code>str</code>): Compliance reason.<br/>&nbsp;&nbsp;&nbsp;&nbsp;• <b>createdAt</b> (<code>str</code>): The date and time the record was initially created.<br/>&nbsp;&nbsp;&nbsp;&nbsp;• <b>otherInfo</b> (<code>Any</code>): Additional information.<br/><b>error (Optional[str])</b>: An error message if any issues occurred during retrieval. |  |
-| fetch_available_control_actions | This tool should be used for handling control-related actions such as create, update, or to retrieve available actions for a given control.  If no control details are given use the tool "fetch_controls" to get the control details.  1. Fetch the available actions. 2. Prompt the user to confirm the intended action. 3. Once confirmed, use the `execute_action` tool with the appropriate parameters to carry out the operation.  ### Args: -  assessmentName (str): Name of the assessment (**required**) -  controlNumber (str): Identifier for the control (**required**) - controlAlias (str): Alias of the control (**required**)  If the above arguments are not available: - Use the `fetch_controls` tool to retrieve control details. - Then generate and execute a query to fetch the related assessment information before proceeding. | **Assessmentname*** (`string`)<br>**Controlnumber** (`string`)<br>**Controlalias** (`string`)<br>**Evidencename** (`string`) | <b>actions (List[ActionsVO])</b>: List of actions<br/>&nbsp;&nbsp;&nbsp;&nbsp;• <b>actionName</b> (<code>str</code>): Action name.<br/>&nbsp;&nbsp;&nbsp;&nbsp;• <b>actionDescription</b> (<code>str</code>): Action description.<br/>&nbsp;&nbsp;&nbsp;&nbsp;• <b>actionSpecID</b> (<code>str</code>): Action specific id.<br/>&nbsp;&nbsp;&nbsp;&nbsp;• <b>actionBindingID</b> (<code>str</code>): Action binding id.<br/>&nbsp;&nbsp;&nbsp;&nbsp;• <b>target</b> (<code>str</code>): Target.<br/><b>error (Optional[str])</b>: An error message if any issues occurred during retrieval. |  |
-| fetch_assessment_available_actions | Get **actions available on assessment** for given assessment name.  Once fetched, ask user to confirm to execute the action, then use 'execute_action' tool with appropriate parameters to execute the action. | **Name** (`string`) | <b>actions (List[ActionsVO])</b>: List of actions<br/>&nbsp;&nbsp;&nbsp;&nbsp;• <b>actionName</b> (<code>str</code>): Action name.<br/>&nbsp;&nbsp;&nbsp;&nbsp;• <b>actionDescription</b> (<code>str</code>): Action description.<br/>&nbsp;&nbsp;&nbsp;&nbsp;• <b>actionSpecID</b> (<code>str</code>): Action specific id.<br/>&nbsp;&nbsp;&nbsp;&nbsp;• <b>actionBindingID</b> (<code>str</code>): Action binding id.<br/>&nbsp;&nbsp;&nbsp;&nbsp;• <b>target</b> (<code>str</code>): Target.<br/><b>error (Optional[str])</b>: An error message if any issues occurred during retrieval. |  |
-| fetch_evidence_available_actions | Get actions available on evidence for given evidence name.  If the required parameters are not provided, use the existing tools to retrieve them. Once fetched, ask user to confirm to execute the action, then use 'execute_action' tool with appropriate parameters to execute the action. | **Assessment Name** (`string`)<br>**Control Number** (`string`)<br>**Control Alias** (`string`)<br>**Evidence Name** (`string`) | <b>actions (List[ActionsVO])</b>: List of actions<br/>&nbsp;&nbsp;&nbsp;&nbsp;• <b>actionName</b> (<code>str</code>): Action name.<br/>&nbsp;&nbsp;&nbsp;&nbsp;• <b>actionDescription</b> (<code>str</code>): Action description.<br/>&nbsp;&nbsp;&nbsp;&nbsp;• <b>actionSpecID</b> (<code>str</code>): Action specific id.<br/>&nbsp;&nbsp;&nbsp;&nbsp;• <b>actionBindingID</b> (<code>str</code>): Action binding id.<br/>&nbsp;&nbsp;&nbsp;&nbsp;• <b>target</b> (<code>str</code>): Target.<br/><b>error (Optional[str])</b>: An error message if any issues occurred during retrieval. |  |
-| fetch_automated_controls_of_an_assessment | To fetch the only the **automated controls** for a given assessment. If assessment_id is not provided use other tools to get the assessment and its id. | **Assessment Id** (`string`) | <b>controls (List[AutomatedControlVO])</b>: List of controls<br/>&nbsp;&nbsp;&nbsp;&nbsp;• <b>id</b> (<code>str</code>): Control ID.<br/>&nbsp;&nbsp;&nbsp;&nbsp;• <b>displayable</b> (<code>str</code>): Displayable name or label.<br/>&nbsp;&nbsp;&nbsp;&nbsp;• <b>alias</b> (<code>str</code>): Alias of the control.<br/>&nbsp;&nbsp;&nbsp;&nbsp;• <b>activationStatus</b> (<code>str</code>): Activation status.<br/>&nbsp;&nbsp;&nbsp;&nbsp;• <b>ruleName</b> (<code>str</code>): Associated rule name.<br/>&nbsp;&nbsp;&nbsp;&nbsp;• <b>assessmentId</b> (<code>str</code>): Assessment identifier.<br/><b>error (Optional[str])</b>: An error message if any issues occurred during retrieval. |  |
-| execute_action | Use this tool when the user asks about actions such as create, update or other action-related queries.  IMPORTANT: This tool MUST ONLY be executed after explicit user confirmation.  Always describe the intended action and its effects to the user, then wait for their explicit approval before proceeding. Do not execute this tool without clear user consent, as it performs actual operations that modify system state.  Execute or trigger a specific action on an assessment run. use assessment id, assessment run id and action binding id. Execute or trigger a specific action on an control run. use assessment id, assessment run id, action binding id and assessment run control id . Execute or trigger a specific action on an evidence level. use assessment id, assessment run id, action binding id, assessment run control evidence id and evidence record ids. Use fetch assessment available actions to get action binding id. Only once action can be triggered at a time, assessment level or control level or evidence level based on user preference. Use this to trigger action for assessment level or control level or evidence level. Please also provide the intended effect when executing actions.  WORKFLOW: 1. First fetch the available actions based on user preference assessment level or control level or evidence level 2. Present the available actions to the user 3. Ask user to confirm which specific action they want to execute 4. Explain what the action will do and its expected effects 5. Wait for explicit user confirmation before calling this tool 6. Only then execute the action with this tool | **Assessmentid*** (`string`)<br>**Assessmentrunid*** (`string`)<br>**Actionbindingid*** (`string`)<br>**Assessmentruncontrolid** (`string`)<br>**Assessmentruncontrolevidenceid** (`string`)<br>**Evidencerecordids** (`array`) | <b>id (str)</b>: id of triggered action. |  |
-| get_dashboard_data | Function accepts compliance period as 'period'. Period denotes for which quarter of year dashboard data is needed. Format: Q1 2024.   Dashboard contains summary data of Common Control Framework (CCF). For any related to contorl category, framework, assignment status use this function. This contains details of control status such as 'Completed', 'In Progress', 'Overdue', 'Pending'. The summarization levels are 'overall control status', 'control category wise', 'control framework wise', 'overall control status' can be fetched from 'controlStatus' 'control category wise' can be fetched from 'controlSummary' 'control framework wise' can be fetched from 'frameworks' | **Period** (`string`) | <b>totalControls (int)</b>: Total number of controls in the dashboard.<br/><b>controlStatus (List[ComplianceStatusSummaryVO])</b>: Summary of control statuses.<br/>&nbsp;&nbsp;&nbsp;&nbsp;• <b>status</b> (<code>str</code>): Compliance status of the control.<br/>&nbsp;&nbsp;&nbsp;&nbsp;• <b>count</b> (<code>int</code>): Number of controls with the given status.<br/><b>controlAssignmentStatus (List[ControlAssignmentStatusVO])</b>: Assignment status categorized by control.<br/>&nbsp;&nbsp;&nbsp;&nbsp;• <b>categoryName</b> (<code>str</code>): Name of the control category.<br/>&nbsp;&nbsp;&nbsp;&nbsp;• <b>controlStatus</b> (<code>List[ComplianceStatusSummaryVO]</code>): Status summary within the category.<br/>&nbsp;&nbsp;&nbsp;&nbsp;• <b>status</b> (<code>str</code>): Compliance status.<br/>&nbsp;&nbsp;&nbsp;&nbsp;• <b>count</b> (<code>int</code>): Number of controls with this status.<br/><b>compliancePCT (float)</b>: Overall compliance percentage across all controls.<br/><b>controlSummary (List[ControlSummaryVO])</b>: Detailed summary of each control.<br/>&nbsp;&nbsp;&nbsp;&nbsp;• <b>category</b> (<code>str</code>): Category name of the control.<br/>&nbsp;&nbsp;&nbsp;&nbsp;• <b>status</b> (<code>str</code>): Compliance status of the control.<br/>&nbsp;&nbsp;&nbsp;&nbsp;• <b>dueDate</b> (<code>str</code>): Due date for the control, if applicable.<br/>&nbsp;&nbsp;&nbsp;&nbsp;• <b>compliancePCT</b> (<code>float</code>): Compliance percentage for the control.<br/>&nbsp;&nbsp;&nbsp;&nbsp;• <b>leafControls</b> (<code>int</code>): Number of leaf-level controls in the category.<br/><b>complianceStatusSummary (List[ComplianceStatusSummaryVO])</b>: Summary of control statuses.<br/>&nbsp;&nbsp;&nbsp;&nbsp;• <b>status</b> (<code>str</code>): Compliance status.<br/>&nbsp;&nbsp;&nbsp;&nbsp;• <b>count</b> (<code>int</code>): Number of controls with the given status.<br/><b>error (Optional[str])</b>: An error message if any issues occurred during retrieval. |  |
-| fetch_dashboard_framework_controls | Function Overview: Retrieve Control Details for a Given CCF and Review Period  This function retrieves detailed control-level data for a specified **Common Control Framework (CCF)** during a specific **review period**.  Format: `"Q1 2024"` - framework_name:   The name of the Common Control Framework to fetch data for.  Purpose  This function is used to fetch a list of controls and their associated data for a specific CCF and review period.   It does not return an aggregated overview — instead, it retrieves detailed, item-level data for each control via an API call.  The results are displayed in the MCP host with **client-side pagination**, allowing users to navigate through the control list efficiently without making repeated API calls. | **Period*** (`string`)<br>**Framework Name*** (`string`) | <b>controls (List[FramworkControlVO])</b>: A list of framework controls.<br/>&nbsp;&nbsp;&nbsp;&nbsp;• <b>name</b> (<code>str</code>): Name of the control.<br/>&nbsp;&nbsp;&nbsp;&nbsp;• <b>assignedTo</b> (<code>str</code>): Email ID of the user the control is assigned to.<br/>&nbsp;&nbsp;&nbsp;&nbsp;• <b>assignmentStatus</b> (<code>str</code>): Status of the control assignment.<br/>&nbsp;&nbsp;&nbsp;&nbsp;• <b>complianceStatus</b> (<code>str</code>): Compliance status of the control.<br/>&nbsp;&nbsp;&nbsp;&nbsp;• <b>dueDate</b> (<code>str</code>): Due date for completing the control.<br/>&nbsp;&nbsp;&nbsp;&nbsp;• <b>score</b> (<code>float</code>): Score assigned to the control.<br/>&nbsp;&nbsp;&nbsp;&nbsp;• <b>priority</b> (<code>str</code>): Priority level of the control.<br/><b>page (int)</b>: Current page number in the overall result set.<br/><b>totalPage (int)</b>: Total number of pages.<br/><b>totalItems (int)</b>: Total number of items.<br/><b>error (Optional[str])</b>: An error message if any issues occurred during retrieval. |  |
-| fetch_dashboard_framework_summary | Function Overview: CCF Dashboard Summary Retrieval  This function returns a summary dashboard for a specified **compliance period** and **Common Control Framework (CCF)**. It is designed to provide a high-level view of control statuses within a given framework and period, making it useful for compliance tracking, reporting, and audits. The compliance quarter for which the dashboard data is requested.   Format: `"Q1 2024"` - framework_name:   The name of the Common Control Framework whose data is to be retrieved.  Dashboard Overview  The dashboard provides a consolidated view of all controls under the specified framework and period. It includes key information such as assignment status, compliance progress, due dates, and risk scoring to help stakeholders monitor and manage compliance posture. | **Period*** (`string`)<br>**Framework Name*** (`string`) | <b>controls (List[FramworkControlVO])</b>: A list of framework controls.<br/>&nbsp;&nbsp;&nbsp;&nbsp;• <b>name</b> (<code>str</code>): Name of the control.<br/>&nbsp;&nbsp;&nbsp;&nbsp;• <b>assignedTo</b> (<code>str</code>): Email ID of the user the control is assigned to.<br/>&nbsp;&nbsp;&nbsp;&nbsp;• <b>assignmentStatus</b> (<code>str</code>): Status of the control assignment.<br/>&nbsp;&nbsp;&nbsp;&nbsp;• <b>complianceStatus</b> (<code>str</code>): Compliance status of the control.<br/>&nbsp;&nbsp;&nbsp;&nbsp;• <b>dueDate</b> (<code>str</code>): Due date for completing the control.<br/>&nbsp;&nbsp;&nbsp;&nbsp;• <b>score</b> (<code>float</code>): Score assigned to the control.<br/>&nbsp;&nbsp;&nbsp;&nbsp;• <b>priority</b> (<code>str</code>): Priority level of the control.<br/><b>page (int)</b>: Current page number in the overall result set.<br/><b>totalPage (int)</b>: Total number of pages.<br/><b>totalItems (int)</b>: Total number of items.<br/><b>error (Optional[str])</b>: An error message if any issues occurred during retrieval. |  |
-| get_dashboard_common_controls_details | Function accepts compliance period as 'period'. Period donates for which quarter of year dashboard data is needed. Format: Q1 2024.  Use this tool to get Common Control Framework (CCF) dashboard data for a specific compliance period with filters. This function provides detailed information about common controls, including their compliance status, control status, and priority. Use pagination if controls count is more than 50 then use page and pageSize to get control data pagewise, Once 1st page is fetched,then more pages available suggest to get next page data then increase page number. | **Period*** (`string`)<br>**Compliancestatus** (`string`)<br>**Controlstatus** (`string`)<br>**Priority** (`string`)<br>**Controlcategoryname** (`string`)<br>**Page** (`integer`)<br>**Pagesize** (`integer`) | <b>controls (List[CommonControlVO])</b>: A list of common controls.<br/>&nbsp;&nbsp;&nbsp;&nbsp;• <b>id</b> (<code>str</code>): Unique identifier of the control.<br/>&nbsp;&nbsp;&nbsp;&nbsp;• <b>planInstanceID</b> (<code>str</code>): ID of the associated plan instance.<br/>&nbsp;&nbsp;&nbsp;&nbsp;• <b>alias</b> (<code>str</code>): Alias or alternate name for the control.<br/>&nbsp;&nbsp;&nbsp;&nbsp;• <b>displayable</b> (<code>str</code>): Flag or content that indicates display eligibility.<br/>&nbsp;&nbsp;&nbsp;&nbsp;• <b>controlName</b> (<code>str</code>): Name of the control.<br/>&nbsp;&nbsp;&nbsp;&nbsp;• <b>dueDate</b> (<code>str</code>): Due date assigned to the control.<br/>&nbsp;&nbsp;&nbsp;&nbsp;• <b>score</b> (<code>float</code>): Score assigned to the control.<br/>&nbsp;&nbsp;&nbsp;&nbsp;• <b>priority</b> (<code>str</code>): Priority level of the control.<br/>&nbsp;&nbsp;&nbsp;&nbsp;• <b>status</b> (<code>str</code>): Current status of the control.<br/>&nbsp;&nbsp;&nbsp;&nbsp;• <b>complianceStatus</b> (<code>str</code>): Compliance status of the control.<br/>&nbsp;&nbsp;&nbsp;&nbsp;• <b>updatedAt</b> (<code>str</code>): Timestamp when the control was last updated.<br/><b>page (int)</b>: Current page number in the paginated result.<br/><b>totalPage (int)</b>: Total number of pages available.<br/><b>totalItems (int)</b>: Total number of control items.<br/><b>error (Optional[str])</b>: An error message if any issues occurred during retrieval. |  |
-| get_top_over_due_controls_detail | Fetch controls with top over due (over-due) Function accepts count as 'count' Function accepts compliance period as 'period'. Period donates for which quarter of year dashboard data is needed. Format: Q1 2024. | **Period** (`string`)<br>**Count** (`integer`) | <b>controls (List[OverdueControlVO])</b>: A list of overdue controls.<br/>&nbsp;&nbsp;&nbsp;&nbsp;• <b>name</b> (<code>str</code>): Name of the control.<br/>&nbsp;&nbsp;&nbsp;&nbsp;• <b>assignedTo</b> (<code>List[UserVO]</code>): List of users assigned to the control.<br/>&nbsp;&nbsp;&nbsp;&nbsp;• <b>emailid</b> (<code>str</code>): Email ID of the assigned user.<br/>&nbsp;&nbsp;&nbsp;&nbsp;• <b>assignmentStatus</b> (<code>str</code>): Assignment status of the control.<br/>&nbsp;&nbsp;&nbsp;&nbsp;• <b>complianceStatus</b> (<code>str</code>): Compliance status of the control.<br/>&nbsp;&nbsp;&nbsp;&nbsp;• <b>dueDate</b> (<code>str</code>): Due date for the control.<br/>&nbsp;&nbsp;&nbsp;&nbsp;• <b>score</b> (<code>float</code>): Score assigned to the control.<br/>&nbsp;&nbsp;&nbsp;&nbsp;• <b>priority</b> (<code>str</code>): Priority level of the control.<br/><b>error (Optional[str])</b>: An error message if any issues occurred during retrieval. |  |
-| get_top_non_compliant_controls_detail | Function overview: Fetch control with low compliant score or non compliant controls. Arguments:  1. period: Compliance period which denotes quarter of the year whose dashboard data is needed. By default: Q1 2024. 2. count:  3. page: If the user asks of next page use smartly decide the page. - error (Optional[str]): An error message if any issues occurred during retrieval. | **Period*** (`string`)<br>**count** (`string`)<br>**page** (`string`) | <b>controls (List[NonCompliantControlVO])</b>: A list of non-compliant controls.<br/><b>name (str)</b>: Name of the control.<br/><b>lastAssignedTo (List[UserVO])</b>: List of users to whom the control was last assigned.<br/>&nbsp;&nbsp;&nbsp;&nbsp;• <b>emailid</b> (<code>str</code>): Email ID of the assigned user.<br/><b>score (float)</b>: Score assigned to the control.<br/><b>priority (str)</b>: Priority level of the control. |  |
-| list_assets | Get all assets |  | <b>assets (List[AssetsVo])</b>: A list of assets.<br/>&nbsp;&nbsp;&nbsp;&nbsp;• <b>id</b> (<code>str</code>): Asset id.<br/>&nbsp;&nbsp;&nbsp;&nbsp;• <b>name</b> (<code>str</code>): Name of the asset.<br/><b>error (Optional[str])</b>: An error message if any issues occurred during retrieval. |  |
-| fetch_assets_summary | Get assets summary for given assessment id | **Id*** (`string`) | <b>integrationRunId (str)</b>: Asset id.<br/><b>assessmentName (str)</b>: Name of the asset.<br/><b>status (str)</b>: Name of the asset.<br/><b>numberOfResources (str)</b>: Name of the asset.<br/><b>numberOfChecks (str)</b>: Name of the asset.<br/><b>dataStatus (str)</b>: Name of the asset.<br/><b>createdAt (str)</b>: Name of the asset.<br/><b>error (Optional[str])</b>: An error message if any issues occurred during retrieval. |  |
-| fetch_resource_types | Get resource types for given asset run id. Use 'fetch_assets_summary' tool to get assets run id Function accepts page number (page) and page size (pageSize) for pagination. If MCP client host unable to handle large response use page and pageSize. If the request times out retry with pagination, increasing pageSize from 50 to 100.  1. Call fetch_resource_types with page=1, pageSize=50 2. Note the totalPages from the response 3. Continue calling each page until complete 4. Summarize all results together | **Id*** (`string`)<br>**Page** (`integer`)<br>**Pagesize** (`integer`) | <b>resourceTypes (List[AssetsVo])</b>: A list of resource types.<br/>&nbsp;&nbsp;&nbsp;&nbsp;• <b>resourceType</b> (<code>str</code>): Resource type.<br/>&nbsp;&nbsp;&nbsp;&nbsp;• <b>totalResources</b> (<code>int</code>): Total number of resources.<br/><b>error (Optional[str])</b>: An error message if any issues occurred during retrieval. |  |
-| fetch_checks | Get checks for given assets run id and resource type. Use this function to get all checks for given assets run id and resource type Use 'fetch_assets_summary' tool to get asset run id Use 'fetch_resource_types' tool to get all resource types Function accepts page number (page) and page size (pageSize) for pagination. If MCP client host unable to handle large response use page and pageSize. If the request times out retry with pagination, increasing pageSize from 5 to 10.  If the check data set is large to fetch efficiently or results in timeouts,  it is recommended to use the 'summary tool' instead to get a summarized view of the checks.  1. Call fetch_checks with page=1, pageSize=10 2. Note the totalPages from the response 3. Continue calling each page until complete 4. Summarize all results together | **Id*** (`string`)<br>**Resourcetype*** (`string`)<br>**Page** (`integer`)<br>**Pagesize** (`integer`)<br>**Compliancestatus** (`string`) | <b>checks (List[CheckVO])</b>: A list of checks.<br/>&nbsp;&nbsp;&nbsp;&nbsp;• <b>name</b> (<code>str</code>): Name of the check.<br/>&nbsp;&nbsp;&nbsp;&nbsp;• <b>description</b> (<code>str</code>): Description of the check.<br/>&nbsp;&nbsp;&nbsp;&nbsp;• <b>rule</b> (<code>RuleVO</code>): Rule associated with the check.<br/>&nbsp;&nbsp;&nbsp;&nbsp;• <b>type</b> (<code>str</code>): Type of the rule.<br/>&nbsp;&nbsp;&nbsp;&nbsp;• <b>name</b> (<code>str</code>): Name of the rule.<br/>&nbsp;&nbsp;&nbsp;&nbsp;• <b>activationStatus</b> (<code>str</code>): Activation status of the check.<br/>&nbsp;&nbsp;&nbsp;&nbsp;• <b>priority</b> (<code>str</code>): Priority level of the check.<br/>&nbsp;&nbsp;&nbsp;&nbsp;• <b>complianceStatus</b> (<code>str</code>): Compliance status of the check.<br/>&nbsp;&nbsp;&nbsp;&nbsp;• <b>compliancePCT</b> (<code>float</code>): Compliance percentage.<br/><b>error (Optional[str])</b>: An error message if any issues occurred during retrieval. |  |
-| fetch_resources | Get resources for given asset run id and resource type Function accepts page number (page) and page size (pageSize) for pagination. If MCP client host unable to handle large response use page and pageSize, default page is 1 If the request times out retry with pagination, increasing pageSize from 5 to 10.  If the resource data set is large to fetch efficiently or results in timeouts,  it is recommended to use the 'summary tool' instead to get a summarized view of the resource.  1. Call fetch_resources with page=1, pageSize=10 2. Note the totalPages from the response 3. Continue calling each page until complete 4. Summarize all results together | **Id*** (`string`)<br>**Resourcetype*** (`string`)<br>**Page** (`integer`)<br>**Pagesize** (`integer`)<br>**Compliancestatus** (`string`) | <b>resources (List[ResourceVO])</b>: A list of resources.<br/>&nbsp;&nbsp;&nbsp;&nbsp;• <b>name</b> (<code>str</code>): Name of the resource.<br/>&nbsp;&nbsp;&nbsp;&nbsp;• <b>resourceType</b> (<code>str</code>): Type of the resource.<br/>&nbsp;&nbsp;&nbsp;&nbsp;• <b>complianceStatus</b> (<code>str</code>): Compliance status of the resource.<br/>&nbsp;&nbsp;&nbsp;&nbsp;• <b>checks</b> (<code>List[ResourceCheckVO]</code>): List of checks associated with the resource.<br/>&nbsp;&nbsp;&nbsp;&nbsp;• <b>name</b> (<code>str</code>): Name of the check.<br/>&nbsp;&nbsp;&nbsp;&nbsp;• <b>description</b> (<code>str</code>): Description of the check.<br/>&nbsp;&nbsp;&nbsp;&nbsp;• <b>rule</b> (<code>RuleVO</code>): Rule applied in the check.<br/>&nbsp;&nbsp;&nbsp;&nbsp;• <b>type</b> (<code>str</code>): Type of the rule.<br/>&nbsp;&nbsp;&nbsp;&nbsp;• <b>name</b> (<code>str</code>): Name of the rule.<br/>&nbsp;&nbsp;&nbsp;&nbsp;• <b>activationStatus</b> (<code>str</code>): Activation status of the check.<br/>&nbsp;&nbsp;&nbsp;&nbsp;• <b>priority</b> (<code>str</code>): Priority level of the check.<br/>&nbsp;&nbsp;&nbsp;&nbsp;• <b>controlName</b> (<code>str</code>): Name of the control.<br/>&nbsp;&nbsp;&nbsp;&nbsp;• <b>complianceStatus</b> (<code>str</code>): Compliance status specific to the resource.<br/><b>error (Optional[str])</b>: An error message if any issues occurred during retrieval. |  |
-| fetch_resources_by_check_name | Get resources for given asset run id, and check name. Function accepts page number (page) and page size (pageSize) for pagination. If MCP client host unable to handle large response use page and pageSize. If the request times out retry with pagination, increasing pageSize from 10 to 50.  If the resource data set is large to fetch efficiently or results in timeouts,  it is recommended to use the 'summary tool' instead to get a summarized view of the resource.  1. Call fetch_resources_for_check with page=1, pageSize=10 2. Note the totalPages from the response 3. Continue calling each page until complete 4. Summarize all results together | **Id*** (`string`)<br>**Checkname*** (`string`)<br>**Page** (`integer`)<br>**Pagesize** (`integer`) | <b>resources (List[ResourceVO])</b>: A list of resources.<br/>&nbsp;&nbsp;&nbsp;&nbsp;• <b>name</b> (<code>str</code>): Name of the resource.<br/>&nbsp;&nbsp;&nbsp;&nbsp;• <b>resourceType</b> (<code>str</code>): Type of the resource.<br/>&nbsp;&nbsp;&nbsp;&nbsp;• <b>complianceStatus</b> (<code>str</code>): Compliance status of the resource.<br/><b>error (Optional[str])</b>: An error message if any issues occurred during retrieval. |  |
-| fetch_checks_summary | Use this to get the summary on checks Use this when total items in 'fetch_checks' is high Get checks summary for given asset run id and resource type. Get a summarized view of resources based on     - Compliance breakdown for checks         - Total Checks available         - Total compliant checks         - Total non-compliant checks | **Id*** (`string`)<br>**Resourcetype*** (`string`) | <b>complianceSummary (dict)</b>: Summary of compliance status across checks.<br/><b>error (Optional[str])</b>: An error message if any issues occurred during retrieval. |  |
-| fetch_resources_summary | Use this to get the summary on resource      Use this when total items in 'fetch_resources' is high     Fetch a summary of resources for a given asset run id and resource type.     Get a summarized view of resources include         - Compliance breakdown for resource             - Total Resources available             - Total compliant resources             - Total non-compliant resources | **Id*** (`string`)<br>**Resourcetype*** (`string`) | <b>complianceSummary (dict)</b>: Summary of compliance status across checks.<br/><b>error (Optional[str])</b>: An error message if any issues occurred during retrieval. |  |
-| fetch_resources_by_check_name_summary | Use this to get the summary on check resources  Use this when total items in 'fetch_resources_for_check' is high Get check resources summary for given asset run id, resource type and check Paginated data is enough for summary Get a summarized view of check resources based on     - Compliance breakdown for resources         - Total Resources available         - Total compliant resources         - Total non-compliant resources | **Id*** (`string`)<br>**Resourcetype*** (`string`)<br>**Check*** (`string`) | <b>complianceSummary (dict)</b>: Summary of compliance status across checks.<br/><b>error (Optional[str])</b>: An error message if any issues occurred during retrieval. |  |
+  ComplianceCow-Insights:
+    enabled: true
+    type: stdio
+    name: Compliancecow-Insights
+    description: 'ComplianceCow Insights - Query compliance data and dashboards'
+    cmd: <UV_BIN_PATH>
+    args:
+      - --directory
+      - <PATH_TO_COW_MCP_REPO>
+      - run
+      - main.py
+    envs:
+      CCOW_HOST: <YOUR_CCOW_HOST>
+      CCOW_CLIENT_ID: <YOUR_CLIENT_ID>
+      CCOW_CLIENT_SECRET: <YOUR_CLIENT_SECRET>
+      MCP_TOOLS_TO_BE_INCLUDED: insights
+    timeout: 300
 
-### FAQ
+  ComplianceCow-Workflow:
+    enabled: true
+    type: stdio
+    name: Compliancecow-Workflow
+    description: 'ComplianceCow Workflow - Build and execute compliance workflows'
+    cmd: <UV_BIN_PATH>
+    args:
+      - --directory
+      - <PATH_TO_COW_MCP_REPO>
+      - run
+      - main.py
+    envs:
+      CCOW_HOST: <YOUR_CCOW_HOST>
+      CCOW_CLIENT_ID: <YOUR_CLIENT_ID>
+      CCOW_CLIENT_SECRET: <YOUR_CLIENT_SECRET>
+      MCP_TOOLS_TO_BE_INCLUDED: workflow
+    timeout: 300
 
-**1. How do I signup for ComplianceCow?**
+  ComplianceCow-Assistant:
+    enabled: true
+    type: stdio
+    name: Compliancecow-Assistant
+    description: 'ComplianceCow Assistant - Configure assessments and controls'
+    cmd: <UV_BIN_PATH>
+    args:
+      - --directory
+      - <PATH_TO_COW_MCP_REPO>
+      - run
+      - main.py
+    envs:
+      CCOW_HOST: <YOUR_CCOW_HOST>
+      CCOW_CLIENT_ID: <YOUR_CLIENT_ID>
+      CCOW_CLIENT_SECRET: <YOUR_CLIENT_SECRET>
+      MCP_TOOLS_TO_BE_INCLUDED: assistant
+    timeout: 300
+```
 
-Visit our [product site](https://demo.partner.compliancecow.live/ui/signup) to create an account using various sign-up options, including Google, Microsoft, OTP, and more.
+**Replace the following placeholders:**
+- `UV_BIN_PATH`: Path to your uv binary (e.g., `/Users/username/.local/bin/uv`). You can find this by running `which uv` (macOS/Linux) or `where uv` (Windows).
+- `PATH_TO_COW_MCP_REPO`: The absolute path to your cloned cow-mcp repository. After cloning and running `cd cow-mcp`, use `pwd` (macOS/Linux) or `cd` (Windows) to get this path.
+- `YOUR_CCOW_HOST`: https://partner.compliancecow.live (or \<your_dedicated_instance_hosturl\>)
+- `YOUR_CLIENT_ID`: Your ComplianceCow Client ID (see [Authentication](#authentication))
+- `YOUR_CLIENT_SECRET`: Your ComplianceCow Client Secret (see [Authentication](#authentication))
+
+---
+
+## Running Locally
+
+To verify the MCP server is properly set up before configuring your MCP host:
+
+```bash
+# Navigate to the cow-mcp directory
+cd /path/to/cow-mcp
+
+# Set required environment variables
+export CCOW_HOST="https://partner.compliancecow.live"
+export CCOW_CLIENT_ID="<your_client_id>"
+export CCOW_CLIENT_SECRET="<your_client_secret>"
+export MCP_TOOLS_TO_BE_INCLUDED="rules"  # or insights, workflow, assistant
+
+# Run the server
+uv run main.py
+```
+
+If the server starts without errors, you're ready to configure your MCP host.
+
+---
+
+## Tools Reference
+
+### Rules Server Tools
+
+| Tool | Description |
+|------|-------------|
+| [`get_tasks_summary`](tools/rules/rules.py) | Retrieve available tasks for rule creation |
+| [`get_task_details`](tools/rules/rules.py) | Get detailed task information including inputs/outputs |
+| [`fetch_tasks_suggestions`](tools/rules/rules.py) | Intelligent task suggestions based on requirements |
+| [`get_rules_summary`](tools/rules/rules.py) | List all available rules in the catalog |
+| [`fetch_rules_suggestions`](tools/rules/rules.py) | Suggest matching rules to avoid duplicates |
+| [`create_rule`](tools/rules/rules.py) | Create a new rule with tasks and I/O mapping |
+| [`fetch_rule`](tools/rules/rules.py) | Retrieve complete rule structure by name |
+| [`check_rule_status`](tools/rules/rules.py) | Check rule completion level |
+| [`prepare_input_collection_overview`](tools/rules/rules.py) | Overview of required inputs before collection |
+| [`get_template_guidance`](tools/rules/rules.py) | Guidance for template-based inputs |
+| [`collect_template_input`](tools/rules/rules.py) | Collect file/template inputs with validation |
+| [`confirm_template_input`](tools/rules/rules.py) | Confirm and process template input |
+| [`collect_parameter_input`](tools/rules/rules.py) | Collect primitive parameter values |
+| [`confirm_parameter_input`](tools/rules/rules.py) | Confirm and store parameter values |
+| [`upload_file`](tools/rules/rules.py) | Upload files with format validation |
+| [`verify_collected_inputs`](tools/rules/rules.py) | Verify all inputs before execution |
+| [`execute_task`](tools/rules/rules.py) | Execute a specific task with collected inputs |
+| [`execute_rule`](tools/rules/rules.py) | Execute complete rule with credentials |
+| [`fetch_execution_progress`](tools/rules/rules.py) | Monitor live execution progress |
+| [`fetch_output_file`](tools/rules/rules.py) | Fetch output files from execution |
+| [`fetch_cc_rule_by_id`](tools/rules/rules.py) | Fetch rule from ComplianceCow by ID |
+| [`fetch_cc_rule_by_name`](tools/rules/rules.py) | Fetch rule from ComplianceCow by name |
+| [`fetch_cc_rules_list`](tools/rules/rules.py) | List published ComplianceCow rules |
+| [`publish_rule`](tools/rules/rules.py) | Publish rule to ComplianceCow |
+| [`fetch_assessments`](tools/rules/rules.py) | Retrieve available assessments |
+| [`fetch_leaf_controls_of_an_assessment`](tools/rules/rules.py) | Fetch attachable controls from assessment |
+| [`verify_control_in_assessment`](tools/rules/rules.py) | Verify control is attachable |
+| [`attach_rule_to_control`](tools/rules/rules.py) | Attach published rule to control |
+| [`get_applications_for_tag`](tools/rules/rules.py) | Get applications for specific tag |
+| [`get_application_info`](tools/rules/rules.py) | Get application details and credential types |
+| [`fetch_applications`](tools/rules/rules.py) | Fetch all available applications |
+| [`prepare_applications_for_execution`](tools/rules/rules.py) | Prepare application configuration |
+| [`check_applications_publish_status`](tools/rules/rules.py) | Check application publication status |
+| [`publish_application`](tools/rules/rules.py) | Publish applications for rule execution |
+| [`add_unique_identifier_to_task`](tools/rules/rules.py) | Add unique identifier to task |
+| [`configure_rule_output_schema`](tools/rules/rules.py) | Configure standard/extended output schema |
+| [`generate_design_notes_preview`](tools/rules/rules.py) | Generate Jupyter notebook design notes |
+| [`create_design_notes`](tools/rules/rules.py) | Save design notes |
+| [`fetch_rule_design_notes`](tools/rules/rules.py) | Fetch existing design notes |
+| [`generate_rule_readme_preview`](tools/rules/rules.py) | Generate comprehensive README |
+| [`create_rule_readme`](tools/rules/rules.py) | Save README |
+| [`update_rule_readme`](tools/rules/rules.py) | Update existing README |
+| [`list_assets`](tools/rules/rules.py) | List integration plans/assets |
+| [`list_checks`](tools/rules/rules.py) | List checks for an asset |
+| [`get_asset_control_hierarchy`](tools/rules/rules.py) | Get control hierarchy for asset |
+| [`create_asset_and_check`](tools/rules/rules.py) | Create asset with initial check |
+| [`add_check_to_asset`](tools/rules/rules.py) | Add check to existing asset |
+| [`schedule_asset_execution`](tools/rules/rules.py) | Schedule automated asset execution |
+| [`list_asset_schedules`](tools/rules/rules.py) | List schedules for an asset |
+| [`delete_asset_schedule`](tools/rules/rules.py) | Delete asset schedule |
+| [`suggest_control_config_citations`](tools/rules/rules.py) | Suggest control citations |
+| [`add_citation_to_asset_control`](tools/rules/rules.py) | Attach citation to control |
+| [`verify_control_automation`](tools/rules/rules.py) | Verify control automation status |
+| [`create_control_note`](tools/rules/rules.py) | Create documentation note on control |
+| [`list_control_notes`](tools/rules/rules.py) | List control notes |
+| [`update_control_config_note`](tools/rules/rules.py) | Update control note |
+| [`create_support_ticket`](tools/rules/rules.py) | Create support tickets |
+| [`check_rule_publish_status`](tools/rules/rules.py) | Check rule publication status |
+| [`read_file`](tools/general/general.py) | Read local file content |
+| [`read_resource`](tools/general/general.py) | Read resource URI content |
+| [`create_downloadable_file`](tools/general/general.py) | Create downloadable file URL |
+
+---
+
+### Insights Server Tools
+
+| Tool | Description |
+|------|-------------|
+| [`list_all_assessment_categories`](tools/assessments/config/config.py) | List all assessment categories |
+| [`list_assessments`](tools/assessments/config/config.py) | List assessments by category/name |
+| [`fetch_recent_assessment_runs`](tools/assessments/run/run.py) | Fetch recent assessment runs |
+| [`fetch_assessment_runs`](tools/assessments/run/run.py) | Fetch runs with pagination |
+| [`fetch_assessment_run_details`](tools/assessments/run/run.py) | Get control details from run |
+| [`fetch_assessment_run_leaf_controls`](tools/assessments/run/run.py) | Get leaf controls from run |
+| [`fetch_run_controls`](tools/assessments/run/run.py) | Get controls by name |
+| [`fetch_run_control_meta_data`](tools/assessments/run/run.py) | Get control metadata |
+| [`fetch_assessment_run_leaf_control_evidence`](tools/assessments/run/run.py) | Get evidence for controls |
+| [`fetch_controls`](tools/assessments/run/run.py) | Fetch control information |
+| [`fetch_evidence_records`](tools/assessments/run/run.py) | Get evidence records with filtering |
+| [`fetch_evidence_record_schema`](tools/assessments/run/run.py) | Get evidence schema |
+| [`fetch_available_control_actions`](tools/assessments/run/run.py) | Fetch available control actions |
+| [`fetch_assessment_available_actions`](tools/assessments/run/run.py) | Fetch assessment actions |
+| [`fetch_evidence_available_actions`](tools/assessments/run/run.py) | Fetch evidence actions |
+| [`fetch_general_available_actions`](tools/assessments/run/run.py) | Fetch general actions |
+| [`fetch_automated_controls_of_an_assessment`](tools/assessments/run/run.py) | Fetch automated controls |
+| [`execute_action`](tools/assessments/run/run.py) | Execute action on control/evidence |
+| [`list_assets`](tools/assets/assets.py) | List all assets |
+| [`fetch_assets_summary`](tools/assets/assets.py) | Get asset summary statistics |
+| [`fetch_resource_types`](tools/assets/assets.py) | Get resource types with pagination |
+| [`fetch_checks`](tools/assets/assets.py) | Get checks for resource type |
+| [`fetch_resources`](tools/assets/assets.py) | Get resources with pagination |
+| [`fetch_resources_by_check_name`](tools/assets/assets.py) | Get resources by check name |
+| [`fetch_checks_summary`](tools/assets/assets.py) | Get checks summary statistics |
+| [`fetch_resources_summary`](tools/assets/assets.py) | Get resources summary statistics |
+| [`fetch_resources_by_check_name_summary`](tools/assets/assets.py) | Get resources summary by check |
+| [`fetch_resource_types_summary`](tools/assets/assets.py) | Get resource types summary |
+| [`get_dashboard_review_periods`](tools/dashboard/dashboard.py) | Get available review periods |
+| [`get_dashboard_data`](tools/dashboard/dashboard.py) | Get comprehensive dashboard data |
+| [`fetch_dashboard_framework_controls`](tools/dashboard/dashboard.py) | Get framework controls |
+| [`fetch_dashboard_framework_summary`](tools/dashboard/dashboard.py) | Get framework summary |
+| [`get_dashboard_common_controls_details`](tools/dashboard/dashboard.py) | Get common control details |
+| [`get_top_over_due_controls_detail`](tools/dashboard/dashboard.py) | Get top overdue controls |
+| [`get_top_non_compliant_controls_detail`](tools/dashboard/dashboard.py) | Get top non-compliant controls |
+| [`fetch_unique_node_data_and_schema`](tools/graphdb/graphdb.py) | Fetch graph node data and schema |
+| [`execute_cypher_query`](tools/graphdb/graphdb.py) | Execute Cypher query on graph |
+| [`help`](tools/help/help.py) | Get help information |
+| [`read_file`](tools/general/general.py) | Read local file content |
+| [`read_resource`](tools/general/general.py) | Read resource URI content |
+| [`create_downloadable_file`](tools/general/general.py) | Create downloadable file URL |
+
+---
+
+### Workflow Server Tools
+
+| Tool | Description |
+|------|-------------|
+| [`list_workflow_event_categories`](tools/workflow/workflow.py) | List workflow event categories |
+| [`list_workflow_events`](tools/workflow/workflow.py) | List available trigger events |
+| [`list_workflow_activity_types`](tools/workflow/workflow.py) | List available activity types |
+| [`list_workflow_function_categories`](tools/workflow/workflow.py) | List function categories |
+| [`list_workflow_functions`](tools/workflow/workflow.py) | List available functions |
+| [`list_workflow_tasks`](tools/workflow/workflow.py) | List available workflow tasks |
+| [`list_workflow_condition_categories`](tools/workflow/workflow.py) | List condition categories |
+| [`list_workflow_conditions`](tools/workflow/workflow.py) | List available conditions |
+| [`list_workflow_predefined_variables`](tools/workflow/workflow.py) | List predefined variables |
+| [`list_workflow_rules`](tools/workflow/workflow.py) | List available workflow rules |
+| [`create_workflow`](tools/workflow/workflow.py) | Create workflow from YAML |
+| [`list_workflows`](tools/workflow/workflow.py) | List all workflows |
+| [`get_workflow_by_name`](tools/workflow/workflow.py) | Get workflow by name |
+| [`fetch_workflow_details`](tools/workflow/workflow.py) | Fetch complete workflow details |
+| [`modify_workflow`](tools/workflow/workflow.py) | Update workflow implementation |
+| [`update_workflow_summary`](tools/workflow/workflow.py) | Update workflow description |
+| [`update_workflow_mermaid_diagram`](tools/workflow/workflow.py) | Update workflow diagram |
+| [`fetch_workflow_resource_data`](tools/workflow/workflow.py) | Fetch resource data for execution |
+| [`create_workflow_custom_event`](tools/workflow/workflow.py) | Create custom trigger event |
+| [`trigger_workflow`](tools/workflow/workflow.py) | Trigger workflow execution |
+| [`fetch_workflow_rule`](tools/workflow/workflow.py) | Fetch workflow rule by name |
+| [`fetch_task_readme`](tools/workflow/workflow.py) | Fetch task README |
+| [`fetch_rule_readme`](tools/workflow/workflow.py) | Fetch rule README |
+
+---
+
+### Assistant Server Tools
+
+| Tool | Description |
+|------|-------------|
+| [`create_assessment`](tools/assistant/assistant.py) | Create assessment from YAML |
+| [`list_assessments`](tools/assistant/assistant.py) | List all assessments |
+| [`list_assessment_control_configs`](tools/assistant/assistant.py) | List control configurations |
+| [`create_control_config`](tools/assistant/assistant.py) | Create control configuration |
+| [`update_control_config_contexts`](tools/assistant/assistant.py) | Update control context entities |
+| [`attach_citation_to_control_config`](tools/assistant/assistant.py) | Attach citation to control |
+| [`suggest_control_config_citations`](tools/assistant/assistant.py) | Suggest relevant citations |
+| [`mark_control_ready_for_execution`](tools/assistant/assistant.py) | Mark control ready for execution |
+| [`create_sql_query_evidence`](tools/assistant/assistant.py) | Create SQL-based evidence |
+| [`list_sql_query_evidence`](tools/assistant/assistant.py) | List SQL evidence for control |
+| [`update_sql_query_evidence`](tools/assistant/assistant.py) | Update SQL evidence |
+| [`validate_sql_query`](tools/assistant/assistant.py) | Validate SQL query syntax |
+| [`get_evidence_sample_data`](tools/assistant/assistant.py) | Get sample evidence data |
+| [`fetch_control_source_summary`](tools/assistant/assistant.py) | Fetch evidence source summary |
+| [`create_control_config_note`](tools/assistant/assistant.py) | Create control config note |
+| [`list_control_config_notes`](tools/assistant/assistant.py) | List control config notes |
+| [`update_control_config_note`](tools/assistant/assistant.py) | Update control config note |
+| [`get_entity_hierarchy`](tools/assistant/assistant.py) | Get entity hierarchy |
+| [`get_context_tables`](tools/assistant/assistant.py) | Get available context tables |
+| [`fetch_rule_readme`](tools/assistant/assistant.py) | Fetch rule README |
+
+---
+
+## FAQ
+
+**1. How do I sign up for ComplianceCow?**
+
+Visit [ComplianceCow Signup](https://partner.compliancecow.live/ui/signup) to create an account using various sign-up options including Google, Microsoft, and OTP.
 
 **2. What value does ComplianceCow deliver?**
 
-ComplianceCow is designed to help with automated security compliance evidence collection, analysis and remediation challenges faced by large enterprises and compliance, GRC and security teams. We are a security GRC controls automation studio for your custom controls and workflows. For more information, please visit our [corporate site](https://www.compliancecow.com/).
+ComplianceCow helps with automated security compliance evidence collection, analysis, and remediation challenges. It's a security GRC controls automation studio for custom controls and workflows. Learn more at [compliancecow.com](https://www.compliancecow.com/).
+
+**3. Why are there 4 separate servers?**
+
+MCP works best with fewer tools per server. Splitting into 4 servers (Rules, Insights, Workflow, Assistant) ensures optimal performance and allows you to enable only the tools you need for specific use cases.
+
+**4. What if some tools have the same name across servers?**
+
+Some tools share the same name but have different implementations. Enable only **one server at a time** to avoid conflicts. The tool behavior is determined by the `MCP_TOOLS_TO_BE_INCLUDED` env.
+
+**5. How do I update the MCP server?**
+
+```bash
+cd /path/to/cow-mcp
+git pull origin main
+uv pip install .
+```
+Then restart your MCP host (Claude Desktop or Goose).
+
+**6. Where can I get help?**
+
+- Create an issue on [GitHub](https://github.com/ComplianceCow/cow-mcp/issues)
+- Contact ComplianceCow support through the platform 
