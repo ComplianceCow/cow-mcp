@@ -47,6 +47,8 @@ URL_VALIDATE_AUTOMATE_CONTROL = "/v1/llm/automated-control-validation"
 URL_MARK_CONTROL_READY = "/v1/plans/mark-control-ready"
 URL_ADD_CONTROL_OBJECTIVE = "/v5/partner/servicenow/configure-assessment"
 
+URL_LINK_CONTROL = "/v1/link-plan-controls/bulk-upsert"
+
 # ASSESSMENT RUNS
 URL_PLAN_INSTANCES = "/v1/plan-instances"
 URL_PLAN_INSTANCE_CONTROLS = "/v1/plan-instance-controls"
