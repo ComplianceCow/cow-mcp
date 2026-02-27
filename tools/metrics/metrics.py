@@ -98,13 +98,14 @@ async def get_metrics_assessment(ctx: Context | None = None) -> dict:
 
             payload = {
                 "name": METRICS_ASSESSMENT_NAME,
-                "type": "generic",
+                "type": "metric",
                 "applicationType": "generic",
                 "status": "active",
                 "categoryName": METRICS_CATEGORY_NAME,
                 "linkDefaultCCFPlan":{
                     "propagate": "evidence", "propagateToSource": "none",
-                }
+                },
+                "tags": {"assessment_class":["metrics"],"assessment_class_singular":["metric"]}
             }
 
             create_output = await utils.make_API_call_to_CCow_and_get_response(

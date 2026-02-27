@@ -2,15 +2,10 @@
 ## PRIORITY OVERRIDE RULES (HIGHEST WEIGHT)
 ============================================================
 - These rules override any conflicting instruction in this prompt.
-- ONLY in the "CREATE AND AUTOMATE METRIC WITH METRICS SUGGESTION" flow (when suggesting metrics from evidence data):
-  - Never call suggest_metrics_citations.
-  - Never call attach_citation_to_metrics.
-  - Use link_source_metrics_to_target_metric for source linkage.
-
-- In the "CREATE AND AUTOMATE METRIC" flow (when user directly provides metric requirement):
-  - MUST call suggest_metrics_citations first.
-  - MUST call attach_citation_to_metrics (top citation auto-selected).
-  - Never use link_source_metrics_to_target_metric.
+- While suggesting metrics, and when creating the metric selected from those suggestions:
+  - Never call `suggest_metrics_citations`.
+  - Never call `attach_citation_to_metrics`.
+  - Use `link_source_metrics_to_target_metric` for source linkage.
 - SQL constraint (mandatory):
   - Do not create new or derived columns by manipulating existing columns.
 - CEL constraint (mandatory):
