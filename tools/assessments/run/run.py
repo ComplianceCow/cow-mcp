@@ -951,3 +951,100 @@ async def execute_action(assessmentId: str, assessmentRunId: str, actionBindingI
     except Exception as e:
         logger.error("execute_action error: {}\n".format(e))
         return vo.TriggerActionVO(error="Facing internal error")
+
+
+@mcp.tool()
+async def upload_evidence(
+    runId: str, 
+    runControlId: str, 
+    filePath: str = None,
+    fileBytes: str = None,
+    fileName: str = None
+) -> str:
+    """
+    Upload evidence file to ComplianceCow assessment run control
+    
+    Purpose: Create evidence in an executed assessment run by attaching a file
+    
+    Args:
+    - runId (str): Assessment run ID from the executed assessment run
+    - runControlId (str): Control ID within the assessment run where evidence will be attached
+    - filePath (str, optional): Full file system path to the evidence file to upload
+    - fileBytes (str, optional): Base64 encoded file content
+    - fileName (str, optional): Name of the file when using fileBytes
+    
+    Returns:
+    - str: Success message with evidence ID, or error message
+    
+    Note: Either provide filePath OR both fileBytes and fileName must be provided.
+    """
+    try:
+        # Validate input parameters
+        if filePath and (fileBytes or fileName):
+            return "Error: Cannot provide both filePath and fileBytes/filename. Please use only one method."
+        
+        if not filePath and (not fileBytes or not fileName):
+            return "Error: Either filePath must be provided, or both fileBytes and filename must be provided for binary upload."
+        
+        # Handle filePath method
+        if filePath:
+            # Validate file exists
+            if not os.path.exists(filePath):
+                return f"Error: File not found at path: {filePath}"
+            
+            # Extract file info from path
+            file_path = Path(filePath)
+            actualFileName = file_path.name
+            fileExtension = file_path.suffix.lstrip('.') if file_path.suffix else 'bin'
+            
+            # Read file and convert to base64
+            with open(filePath, 'rb') as f:
+                file_bytes = f.read()
+            
+            fileContent = base64.b64encode(file_bytes).decode('utf-8')
+        
+        # Handle fileBytes method
+        else:
+            actualFileName = fileName
+            fileExtension = Path(fileName).suffix.lstrip('.') if Path(fileName).suffix else 'bin'
+            fileContent = fileBytes  # Already base64 encoded
+            
+            # Validate base64 string
+            try:
+                # Test decode to ensure valid base64
+                base64.b64decode(fileBytes)
+            except Exception:
+                return "Error: Invalid base64 string provided in fileBytes"
+        
+        req_body = {
+            "name": actualFileName,
+            "description": "test",
+            "userSelectedComplianceWeight__": 5,
+            "userDefinedSynthesizerName": "",
+            "graphResourceInfo": {"context": ""},
+            "fileContent": "",
+            "graphConfigYamlFileContent": "",
+            "sqlRuleYamlFileContent": "",
+            "fileName": actualFileName,
+            "nonCSVFile": {
+                "fileName": actualFileName,
+                "fileType": fileExtension,
+                "fileContent": fileContent
+            },
+            "data": "",
+            "reCalculateCompliancePCT": True,
+            "planInstanceControlID": runControlId,
+        }
+        
+        output = await utils.make_API_call_to_CCow(req_body, '/v1/evidences/link')
+        logger.debug("output: {}\n".format(output))
+        
+        if isinstance(output, str) or "error" in output:
+            logger.error("upload_evidence error: {}\n".format(output))
+            return "Facing internal server error"
+            
+        return f"Evidence '{actualFileName}' uploaded successfully, id = {output.get('id')}"
+        
+    except Exception as e:
+        logger.error("upload_evidence error: {}\n".format(e))
+        return f"Error uploading evidence: {str(e)}"
