@@ -10,6 +10,8 @@ from constants import constants
 from tools.graphdb import graphdb
 from mcptypes import assessment_run_tool_types as vo
 from fastmcp import Context
+import os
+from pathlib import Path
 
 
 @mcp.tool()
@@ -967,8 +969,8 @@ async def upload_evidence(
     Purpose: Create evidence in an executed assessment run by attaching a file
     
     Args:
-    - runId (str): Assessment run ID from the executed assessment run
-    - runControlId (str): Control ID within the assessment run where evidence will be attached
+    - runId (str): Assessment run(aka Plan instance) ID from the executed assessment run
+    - runControlId (str): Leaf control ID in the Assessment run where evidence will be attached
     - filePath (str, optional): Full file system path to the evidence file to upload
     - fileBytes (str, optional): Base64 encoded file content
     - fileName (str, optional): Name of the file when using fileBytes
