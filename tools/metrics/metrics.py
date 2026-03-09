@@ -2569,7 +2569,8 @@ async def link_source_metrics_to_target_metric(sourceMetricsIds: list[str], targ
                 },
                 "userGenerated": True,
                 "propagate": "evidence",
-                "propagateToSource": "none"
+                "propagateToSource": "none",
+                "nonReportable": True,
             }
             for source_id in sourceMetricsIds
         ]
