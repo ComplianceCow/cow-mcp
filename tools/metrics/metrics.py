@@ -103,7 +103,7 @@ async def get_metrics_assessment(ctx: Context | None = None) -> dict:
                 "status": "active",
                 "categoryName": METRICS_CATEGORY_NAME,
                 "linkDefaultCCFPlan":{
-                    "propagate": "evidence", "propagateToSource": "none",
+                    "propagate": "evidence", "propagateToSource": "none", "nonReportable": True,
                 },
                 "tags": {"assessment_class":["metrics"],"assessment_class_singular":["metric"]}
             }
@@ -2569,7 +2569,8 @@ async def link_source_metrics_to_target_metric(sourceMetricsIds: list[str], targ
                 },
                 "userGenerated": True,
                 "propagate": "evidence",
-                "propagateToSource": "none"
+                "propagateToSource": "none",
+                "nonReportable": True,
             }
             for source_id in sourceMetricsIds
         ]
