@@ -26,7 +26,7 @@ async def make_API_call_to_CCow_and_get_response(uriSuffix: str,method: str,requ
                 requestHeader["Content-Type"] = "application/json"
 
             method = method.upper()
-            request_args = {"url": host + uriSuffix, "headers": requestHeader,"timeout": 60.0}
+            request_args = {"url": host + uriSuffix, "headers": requestHeader,"timeout": 120.0}
 
             if method in ["GET", "DELETE"]:
                 if isinstance(request_body, dict):
@@ -208,3 +208,54 @@ def deleteKey(src: dict,key: str):
 
 def isFileHash(s: str) -> bool:
     return bool(re.fullmatch(r"[a-fA-F0-9]{40}", s.strip()))
+
+
+def handle_error_response(resp, tool_name: str) -> dict | None:
+    """
+    Standardizes API error handling.
+
+    Returns:
+        None → if response is valid
+        dict → standardized error response
+    """
+
+    logger.debug(f"{tool_name} response: {resp}")
+
+    if resp is None:
+        msg = "Empty response"
+        return {"success": False, "error": msg}
+
+    if isinstance(resp, str):
+        logger.error(f"{tool_name} resp: {resp}")
+        return {"success": False, "error": resp}
+
+    if isinstance(resp, dict):
+
+        if resp.get("error"):
+            return {"success": False, "error": resp.get("error")}
+
+        if resp.get("Message"):
+            return {"success": False, "error": resp}
+
+    return None
+
+
+def require_fields(data: dict, fields: list[str]) -> dict | None:
+    """
+    Validate required string fields.
+
+    Returns:
+        None → if valid
+        dict → error response if missing
+    """
+
+    for field in fields:
+        value = data.get(field)
+
+        if value is None or (isinstance(value, str) and not value.strip()):
+            return {
+                "success": False,
+                "error": f"{field} is required"
+            }
+
+    return None
