@@ -835,7 +835,7 @@ async def update_metric(assessmentMetricsId: str,metricsId: str, descrition: str
         logger.info("update_metric:\n")
 
         assessmentMetricsId = (assessmentMetricsId or "").strip()
-        categoryName = (categoryName or "").strip()
+        metricsId = (metricsId or "").strip()
         descrition = (descrition or "").strip()
 
         err = utils.require_fields(locals(), ["assessmentMetricsId", "metricsId", "descrition"])

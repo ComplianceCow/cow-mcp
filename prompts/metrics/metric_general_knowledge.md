@@ -189,6 +189,8 @@ When the user asks whether a metric is automated:
    - Ask the user if they want to complete the automation.
    - If the user agrees, continue from the missing automation steps (SQL query and CEL generation, preview, approval, etc.).
 
+## METRICS EXISTING UPDATE 
+If a **metric is updated**, verify that the SQL query evidence, CEL expressions, and metric notes still match the updated requirement; if mismatched, show the updated SQL, CEL, and metric notes for user confirmation before updating.
 
 ### AUTOMATE METRICS — (FOLLOW THIS FLOW EXACTLY. DO NOT REORDER, SKIP, OR MODIFY STEPS)
 - Starts with **suggest citation** → **attach citation to metrics (top citation auto)** → **fetch control source summary** → **generate and run SQL query on data** → **validate SQL query** → **create SQL query evidence** → **generate CEL expression formula** → **create metric notes**
