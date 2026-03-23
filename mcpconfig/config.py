@@ -91,19 +91,17 @@ def get_cc_headers(ctx: Optional[Context]) -> Optional[dict[str, str]]:
             logger.debug(f"[get_cc_headers] cc_headers (final): {cc_headers}")
 
     if not bool(cc_headers) or (not cc_headers.get(constants.AUTH_HEADER_KEY) and not cc_headers.get(constants.AUTH_HEADER_KEY.lower())):
-        http_req = None
+        headers = {}
         try:
-            http_req = ctx.get_http_request() if ctx else None
+            headers = ctx.request_context.request.headers if ctx and ctx.request_context and ctx.request_context.request else {}
+            logger.debug(f"[get_cc_headers] HTTP headers from request context: {headers}")
         except RuntimeError:
-            http_req = None  # No active HTTP request
-        if http_req and hasattr(http_req, "headers"):
-            headers = dict(http_req.headers)
-        else:
+            logger.debug(f"[get_cc_headers] No HTTP headers found in context")
             headers = {}
         if not cc_headers.get(constants.AUTH_HEADER_KEY):
-            authoriation = get_header_value(headers,constants.AUTH_HEADER_KEY)
-            if authoriation:
-                cc_headers[constants.AUTH_HEADER_KEY]=authoriation
+            authorization = get_header_value(headers, constants.AUTH_HEADER_KEY)
+            if authorization:
+                cc_headers[constants.AUTH_HEADER_KEY] = authorization
             else:
                 cc_headers=constants.headers.copy() if isinstance(constants.headers, dict) else {}
 
