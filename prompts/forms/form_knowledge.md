@@ -14,7 +14,7 @@ Each question has:
 - a question type (how input is captured)
 - optional helper text (footer)
 - requiredness
-- an order position (sequence)
+- an order position index (sequence)
 - additional behavior that depends on the question type (for example: containers, grids, option-jumps, scoring)
 
 ------------------------------------------------------------
@@ -154,7 +154,7 @@ Field meanings (placeholders)
 - `title`: Question label shown to the user (`{{question_title}}`).
 - `footer`: Helper text shown under the question (`{{question_footer}}`).
 - `isRequired`: Whether the user must answer (`{{is_required}}`).
-- `sequence`: Ordering position within the form (`{{sequence_index}}`).
+- `sequence`: Ordering position index within the form (zero based indexing sequence)(`{{sequence_index}}`).
 - `tags`: Optional metadata list (`{{tag_value_1}}`, `{{tag_value_2}}`).
 - `points`: Maximum points for quiz scoring (`{{question_points_max}}`).
 - `nextInSequence`: Question-level jump configuration flag (`{{question_level_jump_flag}}`).
@@ -176,7 +176,7 @@ OPERATIONAL RULES FOR FORM CREATION / UPDATES
 - For `Radio Button`, `Checkbox`, and `Dropdown`, always provide options; use dynamic options only when intended; keep sequence consistent when adding/reordering.
 - For `Matrix`, ensure every child row uses the same option set; when you change an option label/meaning in one row, apply it to all rows in that matrix.
 
-FORM SUBMISSION RULES
+FORM SUBMISSION RULES 
 -----------------------
 
 PRE-SUBMISSION CONFIRMATION RULE
@@ -206,6 +206,10 @@ TRAVERSAL RULES (STRUCTURE)
 
 INPUT COLLECTION RULES (ONE QUESTION AT A TIME)
 - Ask exactly one question per step.
+- QUIZ CONFIDENTIALITY RULE
+  - If the form is in quiz mode, do not reveal any answers while collecting:
+    - do not show the correct option(s)/answer key
+    - do not provide correctness feedback or scoring before submission
 - After the user answers a question:
   - Persist ONLY that single answer into the current in-progress response mapping.
   - Update the local “answered set” so navigation decisions are correct.

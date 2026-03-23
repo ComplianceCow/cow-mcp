@@ -117,14 +117,28 @@ class CreateFormVO(BaseModel):
             else []
         )
         title = self.title if self.title else self.name
+        elements_payload: list[dict[str, Any]] = []
+        if self.elements is not None:
+            for e in self.elements:
+                if isinstance(e, FormElementVO):
+                    elements_payload.append(
+                        e.model_dump(exclude_none=False, exclude={"id"})
+                    )
+                elif isinstance(e, dict):
+                    elements_payload.append(
+                        FormElementVO(**e).model_dump(
+                            exclude_none=False, exclude={"id"}
+                        )
+                    )
+                else:
+                    raise TypeError(
+                        "Invalid element type in CreateFormVO.elements: "
+                        f"{type(e).__name__}"
+                    )
         return {
             "name": self.name,
             "title": title,
-            "elements": (
-                [e.model_dump(exclude_none=False, exclude={"id"}) for e in self.elements]
-                if self.elements is not None
-                else []
-            ),
+            "elements": elements_payload,
             "type": self.type or "",
             "tag": tag_payload,
             "isQuiz": self.isQuiz if self.isQuiz is not None else False,
@@ -151,11 +165,24 @@ class UpdateFormVO(BaseModel):
 
     def to_payload(self) -> dict:
         """Build API payload (no _id). Serializes elements and tags."""
-        elements_payload = (
-            [e.model_dump(exclude_none=False, exclude={"id"}) for e in self.elements]
-            if self.elements is not None
-            else []
-        )
+        elements_payload: list[dict[str, Any]] = []
+        if self.elements is not None:
+            for e in self.elements:
+                if isinstance(e, FormElementVO):
+                    elements_payload.append(
+                        e.model_dump(exclude_none=False, exclude={"id"})
+                    )
+                elif isinstance(e, dict):
+                    elements_payload.append(
+                        FormElementVO(**e).model_dump(
+                            exclude_none=False, exclude={"id"}
+                        )
+                    )
+                else:
+                    raise TypeError(
+                        "Invalid element type in UpdateFormVO.elements: "
+                        f"{type(e).__name__}"
+                    )
         tags_payload = (
             [{"key": t.key or "", "values": t.values if t.values is not None else []} for t in self.tags]
             if self.tags is not None
