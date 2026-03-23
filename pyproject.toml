@@ -14,7 +14,7 @@ dependencies = [
     "toml>=0.10.2",
     "ruamel.yaml==0.18.14",
     "requests==2.32.4",
-    "django==6.0.2",
+    "django==6.0.3",
     "cachetools==6.2.1",
     "uvicorn[standard]==0.38.0"
 ]
