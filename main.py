@@ -7,6 +7,7 @@ import traceback
 
 from constants.constants import host
 from mcpconfig.config import mcp
+from tools.forms import forms
 from tools.general import general
 from utils.auth import CCowOAuthProvider
 from utils.debug import logger
@@ -39,6 +40,10 @@ if "assistant" in MCP_TOOLS:
 
 if "metric" in MCP_TOOLS:
     from tools.metrics import metrics
+
+if "forms" in MCP_TOOLS:
+    from prompts.forms import forms
+    from tools.forms import forms
 
 def signal_handler(sig, frame):
     print("Shutting down...")
