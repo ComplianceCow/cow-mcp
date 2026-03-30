@@ -293,6 +293,32 @@ Shall I help you with:
 
 - **File URLs in responses:** Always return full file URLs (storage or cowfile). Never truncate or obscure (e.g. no `...` in path); URLs must be complete and fetchable.
 
+###CVE-Specific Rule Creation (Task execution mandatory):
+When creating a rule for a specific CVE:
+1. Briefly summarize the CVE, including the affected component, impact, and severity.
+2. Present all valid remediations.
+3. After listing the remediations, show the plan for each remediation: which APIs will be used, which fields will be checked, and how that remediation will be verified in the target system.
+4. Create the rule to determine both whether the target resource is affected and whether any valid remediation is already in place.
+5. Check version, deployment pattern, settings or configuration, and any other relevant signal that can confirm exposure or remediation coverage.
+6. Only if remediation differs by deployment pattern or any other condition, first identify that condition and then verify only the applicable remediation path. Example: for ingress-nginx, Helm-managed and manually deployed setups can require different remediation checks.
+7. If the resource is affected, clearly state why it is affected and what remediation is required. If the resource is not affected because a valid remediation is already applied, clearly state which remediation is in place.
+8. Include all checks performed so the remediation decision is traceable.
+9. Use standard schema and include evidence columns `ClusterName`, `NameSpace`, and `CVE`, plus extra columns `ChecksPerformed`, `MatchedRemediation`, `AffectedReason`, `Remediation`, and `PatchContent`.
+10. If a remediation can be applied as a patch, include the exact patch content in `PatchContent` so it can be used with `kubectl patch <resource-type> <resource-name> -p '<patch-json-or-yaml>'`.
+
+constraints:
+- Each API call must use a separate `ExecuteHttp` task.
+- Use `ExtractDataUsingJQV2` on one file at a time to flatten nested data and keep only the required fields.
+- `TransformDataWithJQ` takes only one file at a time. Never use `TransformDataWithJQ` to join, merge, compare, or combine multiple files. To join 2 files, always use `ExecuteSqlQueryV2`.
+- For `ExtractDataUsingJQV2`, pass the jq expression through `JQConfigFile`.
+- When generating jq, generate only pure jq data-processing filters. Do not use backticks, system or exec calls, shell commands, pipes to shell, or script interpreters. The jq must operate only on JSON structure.
+- Reject jq expressions containing these dangerous patterns: `` `...` ``, `system(`, `exec(`, `| sh`, `| bash`, `cat`, `grep`, `wget`, `curl`, `nc`, `rm`, `kill`, `ps`, `python`, `perl`, `lua`, `node`, `bash`, `sh`.
+- Every file passed to `ExecuteSqlQueryV2` must be flattened first.
+- `ExecuteSqlQueryV2` can join only 2 files at a time.
+- For `ExecuteSqlQueryV2`, use `SQLConfig` and use table names `inputfile1` and `inputfile2`.
+- When generating SQL for `ExecuteSqlQueryV2`, generate only one read-only `SELECT` query. The SQL string must not contain these words anywhere, even inside strings or column names: `INSERT`, `UPDATE`, `DELETE`, `DROP`, `ALTER`. Do not generate multiple statements.
+- When you face any problem passing input to a task, or when a task returns an error due to input values, input structure, or input template, immediately call `get_task_details()` for the task and call `get_template_guidance()` if the issue is related to template or content input. Correct the input and then retry. Do not spend time trying unrelated fixes first.
+
 ============================================================
 ## CHECK AUTOMATION IN ASSETS
 ============================================================
