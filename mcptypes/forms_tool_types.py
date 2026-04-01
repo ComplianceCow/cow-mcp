@@ -55,6 +55,7 @@ FormElementVO.model_rebuild()
 class FormVO(BaseModel):
     id: Optional[str] = ""
     name: Optional[str] = ""
+    tags: Optional[List["FormTagsItemVO"]] = None
 
     model_config = {
         "extra": "ignore"
@@ -78,6 +79,116 @@ class FormTagVO(BaseModel):
 class FormTagsItemVO(BaseModel):
     key: Optional[str] = ""
     values: Optional[List[str]] = None
+    index: Optional[int] = None
+    primary: Optional[bool] = None
+
+    model_config = {"extra": "ignore"}
+
+
+FormVO.model_rebuild()
+
+
+class FormConfigurationDisplayVO(BaseModel):
+    showPagination: Optional[str] = "false"
+    showOneByOne: Optional[str] = "false"
+    showQuestionProgress: Optional[str] = "false"
+    showQuestionNumber: Optional[str] = "false"
+
+    model_config = {"extra": "ignore"}
+
+
+class FormConfigurationTypographyVO(BaseModel):
+    font: Optional[str] = ""
+    fontSize: Optional[int] = 10
+    fontColor: Optional[str] = ""
+
+    model_config = {"extra": "ignore"}
+
+
+class FormConfigurationLayoutVO(BaseModel):
+    value: Optional[str] = ""
+    spacing: Optional[int] = 8
+    width: Optional[int] = 750
+    lineHeight: Optional[float] = 1.4
+
+    model_config = {"extra": "ignore"}
+
+
+class FormConfigurationStylesVO(BaseModel):
+    typography: Optional[FormConfigurationTypographyVO] = None
+    layout: Optional[FormConfigurationLayoutVO] = None
+
+    model_config = {"extra": "ignore"}
+
+
+class FormConfigurationVO(BaseModel):
+    display: Optional[FormConfigurationDisplayVO] = None
+    styles: Optional[FormConfigurationStylesVO] = None
+
+    model_config = {"extra": "ignore"}
+
+
+class FormConfigFontFamilyVO(BaseModel):
+    label: Optional[str] = ""
+    value: Optional[str] = ""
+    role: Optional[str] = ""
+    cssVar: Optional[str] = ""
+    cssValue: Optional[str] = ""
+
+    model_config = {"extra": "ignore"}
+
+
+class FormConfigFontSizeVO(BaseModel):
+    label: Optional[str] = ""
+    value: Optional[int] = None
+
+    model_config = {"extra": "ignore"}
+
+
+class FormConfigColorVO(BaseModel):
+    label: Optional[str] = ""
+    value: Optional[str] = ""
+    palette: Optional[str] = ""
+    shade: Optional[int] = None
+    cssVar: Optional[str] = ""
+
+    model_config = {"extra": "ignore"}
+
+
+class FormConfigLayoutOptionVO(BaseModel):
+    label: Optional[str] = ""
+    value: Optional[str] = ""
+    width: Optional[int] = None
+    spacing: Optional[int] = None
+    lineHeight: Optional[float] = None
+
+    model_config = {"extra": "ignore"}
+
+
+class FormConfigSettingVO(BaseModel):
+    label: Optional[str] = ""
+    description: Optional[str] = ""
+    value: Optional[str] = ""
+    valueType: Optional[str] = "string"
+    default: Optional[str] = "false"
+    context: Optional[List[str]] = None
+
+    model_config = {"extra": "ignore"}
+
+
+class FormConfigurationsVO(BaseModel):
+    fontFamilies: Optional[List[FormConfigFontFamilyVO]] = None
+    fontSizes: Optional[List[FormConfigFontSizeVO]] = None
+    colors: Optional[List[FormConfigColorVO]] = None
+    layouts: Optional[List[FormConfigLayoutOptionVO]] = None
+    settings: Optional[List[FormConfigSettingVO]] = None
+
+    model_config = {"extra": "ignore"}
+
+
+class GetFormConfigurationsResponseVO(BaseModel):
+    configurations: Optional[FormConfigurationsVO] = None
+    error: Optional[str] = ""
 
     model_config = {"extra": "ignore"}
 
@@ -88,6 +199,7 @@ class CreateFormVO(BaseModel):
     elements: Optional[List[Any]] = None
     type: Optional[str] = ""
     tag: Optional[List[FormTagVO]] = None
+    configuration: Optional[FormConfigurationVO] = None
     isQuiz: Optional[bool] = False
     totalPoints: Optional[int] = 0
     # scoringLogic: Optional[List[Any]] = None
@@ -101,7 +213,7 @@ class CreateFormVO(BaseModel):
             object.__setattr__(self, "title", self.name)
         return self
 
-    def to_payload(self) -> dict:
+    def to_api_payload(self) -> dict:
         """Build API payload with defaults for missing fields."""
         tag_payload = (
             [
@@ -141,6 +253,11 @@ class CreateFormVO(BaseModel):
             "elements": elements_payload,
             "type": self.type or "",
             "tag": tag_payload,
+            "configuration": (
+                self.configuration.model_dump(exclude_none=True)
+                if self.configuration is not None
+                else None
+            ),
             "isQuiz": self.isQuiz if self.isQuiz is not None else False,
             "totalPoints": self.totalPoints if self.totalPoints is not None else 0,
             "scoringLogic": [],
@@ -160,10 +277,11 @@ class UpdateFormVO(BaseModel):
     elements: Optional[List[FormElementVO]] = None
     type: Optional[str] = ""
     tags: Optional[List[FormTagsItemVO]] = None
+    configuration: Optional[FormConfigurationVO] = None
 
     model_config = {"extra": "ignore"}
 
-    def to_payload(self) -> dict:
+    def to_api_payload(self) -> dict:
         """Build API payload (no _id). Serializes elements and tags."""
         elements_payload: list[dict[str, Any]] = []
         if self.elements is not None:
@@ -183,11 +301,19 @@ class UpdateFormVO(BaseModel):
                         "Invalid element type in UpdateFormVO.elements: "
                         f"{type(e).__name__}"
                     )
-        tags_payload = (
-            [{"key": t.key or "", "values": t.values if t.values is not None else []} for t in self.tags]
-            if self.tags is not None
-            else None
-        )
+        tags_payload = None
+        if self.tags is not None:
+            tags_payload = []
+            for t in self.tags:
+                row: dict[str, Any] = {
+                    "key": t.key or "",
+                    "values": t.values if t.values is not None else [],
+                }
+                if t.index is not None:
+                    row["index"] = t.index
+                if t.primary is not None:
+                    row["primary"] = t.primary
+                tags_payload.append(row)
         title = self.title if self.title else self.name
         return {
             "name": self.name,
@@ -197,12 +323,40 @@ class UpdateFormVO(BaseModel):
             "elements": elements_payload,
             "type": self.type or "",
             "tags": tags_payload,
+            "configuration": (
+                self.configuration.model_dump(exclude_none=True)
+                if self.configuration is not None
+                else None
+            ),
         }
 
 
 class UpdateFormResponseVO(BaseModel):
     form: Optional[FormVO] = None
     error: Optional[str] = ""
+
+
+class FormCategoryListVO(BaseModel):
+    categories: Optional[List[str]] = None
+    error: Optional[str] = ""
+
+    model_config = {"extra": "ignore"}
+
+
+class FormCategoryMembersVO(BaseModel):
+    category: str = ""
+    forms: Optional[List[FormVO]] = None
+    error: Optional[str] = ""
+
+    model_config = {"extra": "ignore"}
+
+
+class SetFormCategoryResponseVO(BaseModel):
+    form: Optional[FormVO] = None
+    message: Optional[str] = ""
+    error: Optional[str] = ""
+
+    model_config = {"extra": "ignore"}
 
 
 class DynamicOptionVO(BaseModel):
@@ -262,12 +416,20 @@ class FormDetailVO(BaseModel):
     elements: Optional[List[FormElementVO]] = None
     type: Optional[str] = ""
     tags: Optional[List[FormTagsItemVO]] = None
+    configuration: Optional[FormConfigurationVO] = None
 
     model_config = {"extra": "ignore"}
 
 
 class FormDetailResponseVO(BaseModel):
     form: Optional[FormDetailVO] = None
+    error: Optional[str] = ""
+
+
+class UpdateFormConfigurationResponseVO(BaseModel):
+    form: Optional[FormVO] = None
+    configuration: Optional[FormConfigurationVO] = None
+    message: Optional[str] = ""
     error: Optional[str] = ""
 
 
@@ -357,3 +519,55 @@ class FormElementFileUploadResultVO(BaseModel):
 class FormElementFileUploadResponseVO(BaseModel):
     files: Optional[List[FormElementFileUploadResultVO]] = None
     error: Optional[str] = ""
+
+
+# ---------
+# Form assignments helpers
+# ---------
+
+class UserBlockVO(BaseModel):
+    # Matches `Expected shape` from `tools/forms/form_assignment.md`
+    userBlockName: Optional[str] = ""
+    userBlockDesc: Optional[str] = ""
+    id: Optional[str] = ""
+    users: Optional[List[str]] = None
+
+    model_config = {"extra": "ignore"}
+
+
+class UserSearchResultVO(BaseModel):
+    # Matches `Expected shape` from `tools/forms/form_assignment.md`
+    id: Optional[str] = ""
+    username: Optional[str] = ""
+    emailId: Optional[str] = ""
+
+    model_config = {"extra": "ignore"}
+
+
+class ValidateUserIdentifiersResponseVO(BaseModel):
+    """
+    Matches the expected payload in `tools/forms/form_assignment.md` (step 3).
+    """
+
+    validUserIds: Optional[List[str]] = None
+    inValidUserIdentifiers: Optional[List[str]] = None
+    errorMsg: Optional[str] = ""
+
+    # For internal/unexpected errors.
+    error: Optional[str] = ""
+
+    model_config = {"extra": "ignore"}
+
+
+class AssignFormResponseVO(BaseModel):
+    """
+    Response for form assignment (step 4).
+
+    Backend returns HTTP 201 with body:
+      { "ids": [...] }
+    """
+
+    ids: Optional[List[str]] = None
+    error: Optional[str] = ""
+
+    model_config = {"extra": "ignore"}
