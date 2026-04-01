@@ -1,7 +1,5 @@
-
-import copy
 import traceback
-from typing import Any, Dict, List
+from typing import Any, Dict, List, Optional
 
 from fastmcp import Context
 
@@ -10,28 +8,22 @@ from mcpconfig.config import mcp
 from mcptypes import forms_tool_types as vo
 from utils import utils
 from utils.debug import logger
-
-
-def _normalize_matrix_options(elements: List[Any]) -> None:
-    """For each Matrix element, sync all children's options to the first child's options (mutates in place). Recurses into Block/Statement Block/Matrix."""
-    if not elements:
-        return
-    for item in elements:
-        if not isinstance(item, dict):
-            continue
-        child_elements = item.get("elements")
-        if isinstance(child_elements, list):
-            if item.get("type") == "Matrix" and len(child_elements) > 0:
-                first_options = child_elements[0].get("options")
-                if first_options is not None:
-                    first_options_copy = copy.deepcopy(first_options)
-                    for child in child_elements[1:]:
-                        if isinstance(child, dict) and child.get("type") in (
-                            "Radio Button",
-                            "Checkbox",
-                        ):
-                            child["options"] = copy.deepcopy(first_options_copy)
-            _normalize_matrix_options(child_elements)
+from utils.forms import (
+    collect_assignable_element_ids,
+    elements_from_raw,
+    extract_assign_form_ids_and_error,
+    fetch_form_elements_for_assignment,
+    fetch_form_raw,
+    form_category_values,
+    is_form_assigned,
+    is_dynamic_option_active,
+    list_forms_impl,
+    merge_form_category_tag,
+    normalize_assign_form_inputs,
+    normalize_matrix_options,
+    parse_form_tags_from_raw,
+    update_form_impl,
+)
 
 
 @mcp.tool()
@@ -43,31 +35,54 @@ async def list_forms(ctx: Context | None = None) -> vo.FormListVO:
             - forms (List[FormVO]): A list of forms. Each form has:
                 - id (str): Form id.
                 - name (str): Form name.
+                - tags (Optional[List[FormTagsItemVO]]): Form-level tags when the list API returns them (e.g. key form_category). Category tools require tags on each item from GET /v1/forms.
             - error (Optional[str]): An error message if any issues occurred during retrieval.
     """
+    return await list_forms_impl(ctx)
+
+
+@mcp.tool()
+async def get_configurations_for_forms(
+    ctx: Context | None = None,
+) -> vo.GetFormConfigurationsResponseVO:
+    """
+    Get all form configuration options available globally for UI customization.
+
+    Returns:
+        - configurations (Optional[FormConfigurationsVO]): Catalog with fontFamilies, fontSizes, colors, layouts, settings.
+        - error (Optional[str]): Error message if the request failed.
+    """
     try:
-        logger.info("list_forms: \n")
+        logger.info("get_configurations_for_forms")
 
-        output = await utils.make_API_call_to_CCow_and_get_response(constants.URL_FORMS, "GET", ctx)
-        logger.debug("list_forms output: {}\n".format(output))
-        if isinstance(output, str) or "error" in output:
-            logger.error("list_forms error: {}\n".format(output))
-            return vo.FormListVO(error="Facing internal error")
+        output = await utils.make_API_call_to_CCow_and_get_response(
+            constants.URL_FORMS_CONFIGURATIONS, "GET", ctx=ctx
+        )
+        logger.debug("get_configurations_for_forms output: %s", output)
 
-        forms: List[vo.FormVO] = []
-        for item in output:
-            forms.append(
-                vo.FormVO(
-                    id=item.get("_id", ""),
-                    name=item.get("name", ""),
-                )
+        if isinstance(output, str):
+            logger.error("get_configurations_for_forms error: %s", output)
+            return vo.GetFormConfigurationsResponseVO(
+                error=output or "Facing internal error"
             )
+        if isinstance(output, dict) and output.get("error"):
+            return vo.GetFormConfigurationsResponseVO(
+                error=output.get("error", "Facing internal error")
+            )
+        if isinstance(output, dict) and "Message" in output:
+            return vo.GetFormConfigurationsResponseVO(
+                error=output.get("Description") or output.get("Message", "Request failed")
+            )
+        if not isinstance(output, dict):
+            return vo.GetFormConfigurationsResponseVO(error="Invalid response")
 
-        return vo.FormListVO(forms=forms)
+        return vo.GetFormConfigurationsResponseVO(
+            configurations=vo.FormConfigurationsVO(**output)
+        )
     except Exception as e:
         logger.error(traceback.format_exc())
-        logger.error("list_forms error: {}\n".format(e))
-        return vo.FormListVO(error="Facing internal error")
+        logger.error("get_configurations_for_forms error: %s", e)
+        return vo.GetFormConfigurationsResponseVO(error="Facing internal error")
 
 @mcp.tool()
 async def create_form(form: vo.CreateFormVO, ctx: Context | None = None) -> vo.CreateFormResponseVO:
@@ -106,9 +121,9 @@ async def create_form(form: vo.CreateFormVO, ctx: Context | None = None) -> vo.C
     try:
         logger.info("create_form: name=%s", form.name or form.title)
 
-        payload = form.to_payload()
+        payload = form.to_api_payload()
         if payload.get("elements"):
-            _normalize_matrix_options(payload["elements"])
+            normalize_matrix_options(payload["elements"])
         output = await utils.make_API_call_to_CCow_and_get_response(
             constants.URL_FORMS, "POST", payload, ctx=ctx
         )
@@ -125,7 +140,6 @@ async def create_form(form: vo.CreateFormVO, ctx: Context | None = None) -> vo.C
                 error=output.get("Description") or output.get("Message", "Request failed")
             )
 
-        # Success: response may be the created form object (e.g. _id, name)
         created = output if isinstance(output, dict) else {}
         form_id = created.get("_id") or created.get("id", "")
         form_name = created.get("name") or created.get("title", "")
@@ -140,6 +154,95 @@ async def create_form(form: vo.CreateFormVO, ctx: Context | None = None) -> vo.C
 
 
 @mcp.tool()
+async def clone_form(
+    form_id: str,
+    form_clone_name: str,
+    ctx: Context | None = None,
+) -> vo.CreateFormResponseVO:
+    """
+    Clone an existing form using a new form name.
+
+    Args:
+        form_id: Source form ID to clone.
+        form_clone_name: Name for the cloned form.
+
+    Returns:
+        - form (Optional[FormVO]): Cloned form with id and name.
+        - error (Optional[str]): Error message if cloning failed.
+    """
+    try:
+        logger.info("clone_form: form_id=%s, clone_name=%s", form_id, form_clone_name)
+
+        clone_name = form_clone_name.strip()
+        if not clone_name:
+            return vo.CreateFormResponseVO(error="form_clone_name is required")
+
+        raw = await fetch_form_raw(form_id, ctx)
+        if isinstance(raw, str):
+            return vo.CreateFormResponseVO(error=raw)
+        if not isinstance(raw, dict):
+            return vo.CreateFormResponseVO(error="Invalid source form response")
+
+        source_tags = raw.get("tags")
+        tag_items: List[vo.FormTagVO] = []
+        if isinstance(source_tags, list):
+            for t in source_tags:
+                if not isinstance(t, dict):
+                    continue
+                idx = t.get("index")
+                prim = t.get("primary")
+                vals = t.get("values")
+                tag_items.append(
+                    vo.FormTagVO(
+                        index=idx if isinstance(idx, int) else 0,
+                        key=t.get("key", "") or "",
+                        primary=prim if isinstance(prim, bool) else False,
+                        values=vals if isinstance(vals, list) else [],
+                    )
+                )
+
+        clone_vo = vo.CreateFormVO(
+            name=clone_name,
+            title=clone_name,
+            elements=raw.get("elements") if isinstance(raw.get("elements"), list) else [],
+            type=raw.get("type", "") or "",
+            tag=tag_items,
+            isQuiz=raw.get("isQuiz", False),
+            totalPoints=raw.get("totalPoints", 0),
+            configuration=raw.get("configuration"),
+        )
+
+        payload = clone_vo.to_api_payload()
+        if payload.get("elements"):
+            normalize_matrix_options(payload["elements"])
+
+        output = await utils.make_API_call_to_CCow_and_get_response(
+            constants.URL_FORMS, "POST", payload, ctx=ctx
+        )
+        logger.debug("clone_form output: %s", output)
+
+        if isinstance(output, str):
+            return vo.CreateFormResponseVO(error=output or "Facing internal error")
+        if isinstance(output, dict) and output.get("error"):
+            return vo.CreateFormResponseVO(
+                error=output.get("error", "Facing internal error")
+            )
+        if isinstance(output, dict) and "Message" in output:
+            return vo.CreateFormResponseVO(
+                error=output.get("Description") or output.get("Message", "Request failed")
+            )
+
+        created = output if isinstance(output, dict) else {}
+        created_id = created.get("_id") or created.get("id", "")
+        created_name = created.get("name") or created.get("title", "")
+        return vo.CreateFormResponseVO(form=vo.FormVO(id=created_id, name=created_name))
+    except Exception as e:
+        logger.error(traceback.format_exc())
+        logger.error("clone_form error: %s", e)
+        return vo.CreateFormResponseVO(error="Facing internal error")
+
+
+@mcp.tool()
 async def update_form(
     form_id: str,
     form: vo.UpdateFormVO,
@@ -147,8 +250,6 @@ async def update_form(
 ) -> vo.UpdateFormResponseVO:
     """
     Update an existing form.
-
-    This function is used to update an existing form using form id and payload.
 
     Args:
         form_id: Form ID to update.
@@ -182,50 +283,226 @@ async def update_form(
         - form (Optional[FormVO]): Updated form with id and name (from request; API returns no body).
         - error (Optional[str]): Error message if update failed.
     """
-    try:
-        logger.info("update_form: form_id=%s", form_id)
-
-        url = f"{constants.URL_FORMS}/{form_id}"
-        payload = form.to_payload()
-        if payload.get("elements"):
-            _normalize_matrix_options(payload["elements"])
-        output = await utils.make_API_call_to_CCow_and_get_response(
-            url, "PUT", payload, ctx=ctx
-        )
-        logger.debug("update_form output: %s", output)
-
-        if isinstance(output, str):
-            logger.error("update_form error: %s", output)
-            return vo.UpdateFormResponseVO(error=output or "Facing internal error")
-        if isinstance(output, dict) and output.get("error"):
-            logger.error("update_form error: %s", output)
-            return vo.UpdateFormResponseVO(
-                error=output.get("error", "Facing internal error")
-            )
-        if isinstance(output, dict) and "Message" in output:
-            return vo.UpdateFormResponseVO(
-                error=output.get("Description") or output.get("Message", "Request failed")
-            )
-
+    assigned_state = await is_form_assigned(form_id, ctx)
+    if isinstance(assigned_state, str):
+        return vo.UpdateFormResponseVO(error=assigned_state)
+    if assigned_state is True:
         return vo.UpdateFormResponseVO(
-            form=vo.FormVO(
-                id=form_id,
-                name=form.name or form.title or "",
-            )
+            error="This form is already assigned and cannot be edited."
+        )
+    return await update_form_impl(form_id, form, ctx)
+
+
+@mcp.tool()
+async def update_form_configuration(
+    form_id: str,
+    config: vo.FormConfigurationVO,
+    ctx: Context | None = None,
+) -> vo.UpdateFormConfigurationResponseVO:
+    """
+    Update a form's UI-only configuration (display/styles).
+
+    Args:
+        form_id: Form ID to update.
+        config: UI configuration payload to save under form `configuration`.
+            - config.styles.typography.fontColor: must be the `cssVar` from the colors
+              configuration options (e.g. "--color-destructive-400"), not the hex `value`.
+
+    Returns:
+        - form (Optional[FormVO]): Updated form id/name.
+        - configuration (Optional[FormConfigurationVO]): Saved configuration.
+        - message (Optional[str]): Success message.
+        - error (Optional[str]): Error message if update failed.
+    """
+    try:
+        logger.info("update_form_configuration: form_id=%s", form_id)
+
+        raw = await fetch_form_raw(form_id, ctx)
+        if isinstance(raw, str):
+            return vo.UpdateFormConfigurationResponseVO(error=raw)
+        if not isinstance(raw, dict):
+            return vo.UpdateFormConfigurationResponseVO(error="Invalid form response")
+
+        elements = elements_from_raw(raw.get("elements"))
+        if elements is None:
+            elements = []
+        tags = parse_form_tags_from_raw(raw.get("tags"))
+
+        uf = vo.UpdateFormVO(
+            name=raw.get("name", "") or "",
+            title=raw.get("title"),
+            isQuiz=raw.get("isQuiz", False),
+            totalPoints=raw.get("totalPoints", 0),
+            elements=elements,
+            type=raw.get("type", "") or "",
+            tags=tags,
+            configuration=config,
+        )
+
+        updated = await update_form_impl(form_id, uf, ctx=ctx)
+        if updated.error:
+            return vo.UpdateFormConfigurationResponseVO(error=updated.error)
+
+        return vo.UpdateFormConfigurationResponseVO(
+            form=vo.FormVO(id=form_id, name=uf.name),
+            configuration=config,
+            message="Form configuration updated.",
         )
     except Exception as e:
         logger.error(traceback.format_exc())
-        logger.error("update_form error: %s", e)
-        return vo.UpdateFormResponseVO(error="Facing internal error")
+        logger.error("update_form_configuration error: %s", e)
+        return vo.UpdateFormConfigurationResponseVO(error="Facing internal error")
 
 
-def _is_dynamic_option_active(status) -> bool:
-    """True if status indicates active dynamic option"""
-    if status is True:
-        return True
-    if isinstance(status, str) and str(status).lower() == "active":
-        return True
-    return False
+@mcp.tool()
+async def list_form_categories(ctx: Context | None = None) -> vo.FormCategoryListVO:
+    """
+    List distinct form category names derived from the form tag key `form_category`.
+
+    Uses a single GET /v1/forms (same as list_forms). Each form must include `tags` on the
+    list response for its category to appear; otherwise that form is skipped for category discovery.
+
+    Returns:
+        - categories (Optional[List[str]]): Sorted unique category values from all forms' `form_category` tags.
+        - error (Optional[str]): Error message if the request failed.
+    """
+    try:
+        logger.info("list_form_categories")
+        listed = await list_forms_impl(ctx=ctx)
+        if listed.error:
+            return vo.FormCategoryListVO(categories=[], error=listed.error)
+        seen: set[str] = set()
+        out: List[str] = []
+        for f in listed.forms or []:
+            for v in form_category_values(f.tags):
+                if v not in seen:
+                    seen.add(v)
+                    out.append(v)
+        out.sort()
+        return vo.FormCategoryListVO(categories=out)
+    except Exception as e:
+        logger.error(traceback.format_exc())
+        logger.error("list_form_categories error: %s", e)
+        return vo.FormCategoryListVO(error="Facing internal error")
+
+
+@mcp.tool()
+async def fetch_form_category(
+    category: str,
+    ctx: Context | None = None,
+) -> vo.FormCategoryMembersVO:
+    """
+    List forms that belong to a given category (exact match on a value in the `form_category` tag).
+
+    Uses a single GET /v1/forms. Requires `tags` on each list item to detect membership.
+
+    Args:
+        category: Category name to match exactly against tag values.
+
+    Returns:
+        - category (str): The requested category.
+        - forms (Optional[List[FormVO]]): Matching forms (id, name, tags when present).
+        - error (Optional[str]): Error message if the request failed.
+    """
+    try:
+        logger.info("fetch_form_category: category=%s", category)
+        listed = await list_forms_impl(ctx=ctx)
+        if listed.error:
+            return vo.FormCategoryMembersVO(category=category, error=listed.error)
+        matched: List[vo.FormVO] = []
+        for f in listed.forms or []:
+            vals = form_category_values(f.tags)
+            if category in vals:
+                matched.append(f)
+        return vo.FormCategoryMembersVO(category=category, forms=matched)
+    except Exception as e:
+        logger.error(traceback.format_exc())
+        logger.error("fetch_form_category error: %s", e)
+        return vo.FormCategoryMembersVO(category=category, error="Facing internal error")
+
+
+@mcp.tool()
+async def set_form_category(
+    form_name: str,
+    form_category: str,
+    ctx: Context | None = None,
+) -> vo.SetFormCategoryResponseVO:
+    """
+    Set or update the `form_category` tag on a form by form name.
+
+    Resolves the form via list_forms (GET /v1/forms), then loads the full definition with
+    POST /v1/forms/fetch (assignId empty) and PUT /v1/forms/{id} so elements are preserved.
+
+    Args:
+        form_name: Exact form name to update.
+        form_category: Category value to store (e.g. Compliance).
+
+    Returns:
+        - form (Optional[FormVO]): id, name, and merged tags on success.
+        - message (Optional[str]): Short success message.
+        - error (Optional[str]): Error message if resolution or update failed.
+    """
+    try:
+        logger.info("set_form_category: form_name=%s category=%s", form_name, form_category)
+        if not form_name.strip():
+            return vo.SetFormCategoryResponseVO(error="form_name is required")
+        if not form_category.strip():
+            return vo.SetFormCategoryResponseVO(error="form_category is required")
+
+        listed = await list_forms_impl(ctx=ctx)
+        if listed.error:
+            return vo.SetFormCategoryResponseVO(error=listed.error)
+        matches = [f for f in (listed.forms or []) if (f.name or "") == form_name]
+        if len(matches) == 0:
+            return vo.SetFormCategoryResponseVO(
+                error=f"No form found with name {form_name!r}."
+            )
+        if len(matches) > 1:
+            return vo.SetFormCategoryResponseVO(
+                error=f"Multiple forms match name {form_name!r}; resolve duplicates in the system."
+            )
+        form_id = matches[0].id or ""
+        if not form_id:
+            return vo.SetFormCategoryResponseVO(error="Form id missing for matched form.")
+
+        raw = await fetch_form_raw(form_id, ctx)
+        if isinstance(raw, str):
+            return vo.SetFormCategoryResponseVO(error=raw)
+
+        elements = elements_from_raw(raw.get("elements"))
+        if elements is None:
+            elements = []
+
+        existing_tags = parse_form_tags_from_raw(raw.get("tags"))
+        merged_tags = merge_form_category_tag(existing_tags, form_category.strip())
+
+        uf = vo.UpdateFormVO(
+            name=raw.get("name", "") or form_name,
+            title=raw.get("title"),
+            isQuiz=raw.get("isQuiz", False),
+            totalPoints=raw.get("totalPoints", 0),
+            elements=elements,
+            type=raw.get("type", "") or "",
+            tags=merged_tags,
+            configuration=raw.get("configuration"),
+        )
+
+        updated = await update_form_impl(form_id, uf, ctx=ctx)
+        if updated.error:
+            return vo.SetFormCategoryResponseVO(error=updated.error)
+
+        return vo.SetFormCategoryResponseVO(
+            form=vo.FormVO(
+                id=form_id,
+                name=uf.name or "",
+                tags=merged_tags,
+            ),
+            message="Form category updated.",
+        )
+    except Exception as e:
+        logger.error(traceback.format_exc())
+        logger.error("set_form_category error: %s", e)
+        return vo.SetFormCategoryResponseVO(error="Facing internal error")
 
 
 @mcp.tool()
@@ -263,7 +540,7 @@ async def list_dynamic_options(ctx: Context | None = None) -> vo.DynamicOptionLi
             if not isinstance(item, dict):
                 continue
             status = item.get("status")
-            if not _is_dynamic_option_active(status):
+            if not is_dynamic_option_active(status):
                 continue
             items.append(
                 vo.DynamicOptionVO(
@@ -318,7 +595,7 @@ async def fetch_dynamic_option(
             return vo.DynamicOptionDetailResponseVO(error="Invalid response")
 
         status = output.get("status")
-        if not _is_dynamic_option_active(status):
+        if not is_dynamic_option_active(status):
             return vo.DynamicOptionDetailResponseVO(
                 error="Dynamic option is not active; only active dynamic option sets can be used."
             )
@@ -457,17 +734,7 @@ async def fetch_complete_form(
                     except Exception:
                         pass
 
-        tags_raw = output.get("tags") or []
-        tags_list: List[vo.FormTagsItemVO] = []
-        if isinstance(tags_raw, list):
-            for t in tags_raw:
-                if isinstance(t, dict):
-                    tags_list.append(
-                        vo.FormTagsItemVO(
-                            key=t.get("key", ""),
-                            values=t.get("values") if t.get("values") is not None else [],
-                        )
-                    )
+        tags_list = parse_form_tags_from_raw(output.get("tags"))
 
         form_detail = vo.FormDetailVO(
             id=output.get("_id", ""),
@@ -476,7 +743,8 @@ async def fetch_complete_form(
             isQuiz=output.get("isQuiz", False),
             totalPoints=output.get("totalPoints", 0),
             type=output.get("type", ""),
-            tags=tags_list if tags_list else None,
+            tags=tags_list,
+            configuration=output.get("configuration"),
             elements=elements_list,
         )
         return vo.FormDetailResponseVO(form=form_detail)
@@ -765,5 +1033,273 @@ async def submit_user_form(
         logger.error(traceback.format_exc())
         logger.error("submit_user_form error: %s", e)
         return vo.SubmitUserFormResponseVO(error="Facing internal error")
+
+
+@mcp.tool()
+async def list_user_blocks(
+    ctx: Context | None = None,
+) -> list[vo.UserBlockVO] | str:
+    """
+    List active user blocks/groups.
+    Returns:
+        - List of items with:
+          - userBlockName
+          - userBlockDesc
+          - id
+          - users (list of user email ids)
+        - str on error
+    """
+    try:
+        logger.info("list_user_blocks")
+
+        payload = {"isStatusToBeIncluded": True, "state": "active"}
+        output = await utils.make_API_call_to_CCow_and_get_response(
+            constants.URL_USER_BLOCKS, "GET", payload, ctx=ctx
+        )
+        logger.debug("list_user_blocks output: %s", output)
+
+        if isinstance(output, str):
+            logger.error("list_user_blocks error: %s", output)
+            return output or "Facing internal error"
+
+        if not isinstance(output, dict):
+            return "Invalid response"
+
+        if output.get("error"):
+            return output.get("error", "Facing internal error")
+        if "Message" in output:
+            return output.get("Description") or output.get("Message", "Request failed")
+
+        items_raw = output.get("items", [])
+        if not isinstance(items_raw, list):
+            items_raw = []
+
+        result: list[vo.UserBlockVO] = []
+        for item in items_raw:
+            if not isinstance(item, dict):
+                continue
+
+            metadata = item.get("metadata", {})
+            if not isinstance(metadata, dict):
+                metadata = {}
+
+            status = item.get("status", {})
+            if not isinstance(status, dict):
+                status = {}
+
+            matching_users = status.get("matchingUsers", [])
+            if not isinstance(matching_users, list):
+                matching_users = []
+
+            result.append(
+                vo.UserBlockVO(
+                    userBlockName=metadata.get("name", "") or "",
+                    userBlockDesc=metadata.get("description", "") or "",
+                    id=item.get("id", "") or "",
+                    users=[str(u) for u in matching_users if u is not None],
+                )
+            )
+
+        return result
+    except Exception as e:
+        logger.error(traceback.format_exc())
+        logger.error("list_user_blocks error: %s", e)
+        return "Facing internal error"
+
+
+@mcp.tool()
+async def search_users_by_email_ids(
+    email_ids: List[str],
+    ctx: Context | None = None,
+) -> list[vo.UserSearchResultVO] | str:
+    """
+    Search users by email ids.
+    Args:
+        email_ids: List of email ids to search.
+
+    Returns:
+        - List of { id, username, emailId }
+        - str on error
+    """
+    try:
+        logger.info("search_users_by_email_ids")
+
+        normalized_emails = [e.strip() for e in email_ids if isinstance(e, str) and e.strip()]
+        if not normalized_emails:
+            return []
+
+        emails_csv = ",".join(normalized_emails)
+        payload = {"include_user_mediums": True, "emails": emails_csv}
+
+        output = await utils.make_API_call_to_CCow_and_get_response(
+            constants.URL_USERS_SEARCH_BY_EMAILS, "GET", payload, ctx=ctx
+        )
+        logger.debug("search_users_by_email_ids output: %s", output)
+
+        if isinstance(output, str):
+            logger.error("search_users_by_email_ids error: %s", output)
+            return output or "Facing internal error"
+
+        if not isinstance(output, dict):
+            return "Invalid response"
+
+        if output.get("error"):
+            return output.get("error", "Facing internal error")
+        if "Message" in output:
+            return output.get("Description") or output.get("Message", "Request failed")
+
+        items_raw = output.get("items", [])
+        if not isinstance(items_raw, list):
+            items_raw = []
+
+        result: list[vo.UserSearchResultVO] = []
+        for item in items_raw:
+            if not isinstance(item, dict):
+                continue
+
+            result.append(
+                vo.UserSearchResultVO(
+                    id=item.get("ID", "") or item.get("id", "") or "",
+                    username=item.get("username", "") or "",
+                    emailId=item.get("emailid", "") or item.get("emailId", "") or "",
+                )
+            )
+
+        return result
+    except Exception as e:
+        logger.error(traceback.format_exc())
+        logger.error("search_users_by_email_ids error: %s", e)
+        return "Facing internal error"
+
+
+@mcp.tool()
+async def validate_user_ids(
+    user_identifiers: List[str],
+    ctx: Context | None = None,
+) -> vo.ValidateUserIdentifiersResponseVO:
+    """
+    Validate user identifiers before assigning a form (step 3).
+
+    Args:
+        user_identifiers: User emails or identifiers to validate.
+        ctx: Optional request context.
+
+    Returns:
+        - validUserIds (List[str]): Resolved valid user IDs.
+        - inValidUserIdentifiers (List[str]): Identifiers that did not resolve.
+        - errorMsg (str): Optional backend validation message.
+        - error (Optional[str]): Error message if validation failed.
+    """
+    try:
+        logger.info("validate_user_ids")
+
+        cleaned = [u.strip() for u in user_identifiers if isinstance(u, str) and u.strip()]
+        payload = {"userIdentifiers": cleaned}
+
+        output = await utils.make_API_call_to_CCow_and_get_response(
+            constants.URL_USERS_CREATE_IDENTIFIERS, "POST", payload, ctx=ctx
+        )
+        logger.debug("validate_user_ids output: %s", output)
+
+        if isinstance(output, str):
+            return vo.ValidateUserIdentifiersResponseVO(error=output or "Facing internal error")
+
+        if not isinstance(output, dict):
+            return vo.ValidateUserIdentifiersResponseVO(error="Invalid response")
+
+        if output.get("error"):
+            return vo.ValidateUserIdentifiersResponseVO(
+                validUserIds=output.get("validUserIds", []),
+                inValidUserIdentifiers=output.get("inValidUserIdentifiers", []),
+                errorMsg=output.get("errorMsg", ""),
+                error=output.get("error", "Facing internal error"),
+            )
+
+        if "Message" in output:
+            return vo.ValidateUserIdentifiersResponseVO(
+                error=output.get("Description") or output.get("Message", "Request failed"),
+                validUserIds=output.get("validUserIds", []),
+                inValidUserIdentifiers=output.get("inValidUserIdentifiers", []),
+                errorMsg=output.get("errorMsg", ""),
+            )
+
+        valid_user_ids = output.get("validUserIds") or []
+        invalid_user_ids = output.get("inValidUserIdentifiers") or output.get("invalidUserIdentifiers") or []
+        error_msg = output.get("errorMsg") or ""
+
+        if not isinstance(valid_user_ids, list):
+            valid_user_ids = []
+        if not isinstance(invalid_user_ids, list):
+            invalid_user_ids = []
+
+        return vo.ValidateUserIdentifiersResponseVO(
+            validUserIds=[str(x) for x in valid_user_ids if x is not None],
+            inValidUserIdentifiers=[str(x) for x in invalid_user_ids if x is not None],
+            errorMsg=str(error_msg) if error_msg is not None else "",
+        )
+    except Exception as e:
+        logger.error(traceback.format_exc())
+        logger.error("validate_user_ids error: %s", e)
+        return vo.ValidateUserIdentifiersResponseVO(error="Facing internal error")
+
+
+@mcp.tool()
+async def assign_form(
+    user_ids: List[str],
+    form_id: str,
+    due_date: str,
+    purpose: str,
+    ctx: Context | None = None,
+) -> vo.AssignFormResponseVO:
+    """
+    Assign a form to users (step 4).
+
+    Args:
+        user_ids: User IDs to assign.
+        form_id: Target form ID.
+        due_date: Assignment due date string.
+        purpose: Assignment purpose text.
+        ctx: Optional request context.
+
+    Returns:
+        - ids (List[str]): Created assignment IDs.
+        - error (Optional[str]): Error message if assignment failed.
+    """
+    try:
+        logger.info("assign_form: form_id=%s, users=%d", form_id, len(user_ids or []))
+
+        normalized = normalize_assign_form_inputs(user_ids, due_date, purpose)
+        cleaned_user_ids, due_date_clean, purpose_clean = normalized
+        if cleaned_user_ids is None:
+            return vo.AssignFormResponseVO(error=purpose_clean or "Facing internal error")
+
+        elements_raw = await fetch_form_elements_for_assignment(form_id, ctx=ctx)
+        if isinstance(elements_raw, str):
+            return vo.AssignFormResponseVO(error=elements_raw or "Facing internal error")
+
+        element_ids = collect_assignable_element_ids(elements_raw)
+
+        payload = {
+            "userID": cleaned_user_ids,
+            "formID": form_id,
+            "dueDate": due_date_clean,
+            "shouldPreserveResponse": True,
+            "elementID": element_ids,
+            "freshAssignment": True,
+            "purpose": purpose_clean,
+            "enableSelfDelegate": True,
+        }
+
+        output = await utils.make_API_call_to_CCow_and_get_response(
+            constants.URL_USER_FORMS_ASSIGN, "POST", payload, ctx=ctx
+        )
+        logger.debug("assign_form output: %s", output)
+
+        ids, err = extract_assign_form_ids_and_error(output)
+        return vo.AssignFormResponseVO(ids=ids, error=err)
+    except Exception as e:
+        logger.error(traceback.format_exc())
+        logger.error("assign_form error: %s", e)
+        return vo.AssignFormResponseVO(error="Facing internal error")
 
 
