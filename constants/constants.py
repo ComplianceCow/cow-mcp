@@ -161,9 +161,15 @@ X_COW_SECURITY_CONTEXT = 'X-Cow-Security-Context'
 
 #forms
 URL_FORMS = "/v1/forms"
+URL_FORMS_CONFIGURATIONS = "/v1/forms/configurations"
 URL_FORMS_DYNAMIC_OPTIONS = "/v1/forms/dynamic-options"
 URL_MY_FORMS = "/v2/aggregator/my-forms"
 URL_FORMS_FETCH = "/v1/forms/fetch"
 URL_USERS_ME = "/v1/users/me"
+URL_USER_BLOCKS = "/v1/actions/userblocks"
+URL_USERS_SEARCH_BY_EMAILS = "/api/v1/users"
 URL_USER_FORMS_SUBMIT = "/v1/user-forms/submit-user-response"
+URL_USERS_CREATE_IDENTIFIERS = "/v1/users/create-user-identifiers"
+URL_USER_FORMS_ASSIGN = "/v1/user-forms"
+URL_CHECK_FORM_ASSIGNED = "/v1/user-forms/check-form-assigned"
 URL_FORMS_ELEMENTS_FILE_UPLOAD = "/v1/forms/elements-file-upload"
