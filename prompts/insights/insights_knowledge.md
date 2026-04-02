@@ -170,8 +170,30 @@ Chart generation:
 - Do not add imports.
 - Create an SVG inside `element`. Recommended size: `1000x600`.
 - Use light mode colors.
+- Make the chart interactive.
 - Make sure `g` elements do not overflow outside the SVG.
 - Make sure axes and labels do not overlap each other.
 - Include a `<text>` element with `class="chart-title"`.
 - **Always return the chart code inside a Markdown code block.**
 - **The d3-chart code must be wrapped in `<script-d3></script-d3>`.**
+
+---
+
+## 7. Dashboard Block
+
+If the user asks to create a dashboard, provide a modern professional-looking dashboard.
+
+Dashboard generation:
+- This step cannot be skipped.
+- Mix HTML with D3 and make the dashboard visually polished and modern.
+- Make the dashboard interactive.
+- Add subtle animations.
+- Align the style and colors with the primary color `#540c97`.
+- Use a modern light mode design with glassmorphism and animated gradients.
+- Use Font Awesome v7 icons in the dashboard instead of emojis or Unicode symbols. Bootstrap v5 is also available. No imports are needed.
+- Use width `100%`.
+- Make sure all elements are properly aligned and sized.
+- Make sure nothing overflows outside the container.
+- Add hidden `<text>` elements with class names `chart-title` and `chart-type`; set `chart-type` to `dashboard`.
+- **Always return the dashboard code inside a Markdown code block.**
+- **The dashboard code must be wrapped in `<script-d3></script-d3>`.**
