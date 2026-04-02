@@ -155,4 +155,23 @@ Offer instead:
   • Query the graph DB on their behalf, or
   • Provide the query/logic they can run themselves
 ```
- 
+
+---
+
+## 6. Analytics Chart Block
+
+If the user asks for any response that benefits from visualization, include a chart with the answer.
+- Use the same information for the summary and chart.
+- If a chart is not possible, do not invent one.
+
+Chart generation:
+- This step cannot be skipped.
+- Generate pure JavaScript D3 code for a React component using provided `d3` and `element` only.
+- Do not add imports.
+- Create an SVG inside `element`. Recommended size: `1000x600`.
+- Use light mode colors.
+- Make sure `g` elements do not overflow outside the SVG.
+- Make sure axes and labels do not overlap each other.
+- Include a `<text>` element with `class="chart-title"`.
+- **Always return the chart code inside a Markdown code block.**
+- **The d3-chart code must be wrapped in `<script-d3></script-d3>`.**
