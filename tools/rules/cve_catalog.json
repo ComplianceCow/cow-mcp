@@ -1,0 +1,85 @@
+[
+  {
+    "id": "CVE-2025-1974",
+    "alias": "IngressNightmare",
+    "component": "ingress-nginx Admission Controller",
+    "severity": "Critical",
+    "cvss_score": 9.8,
+    "description": "Unauthenticated RCE in the ingress-nginx validating admission webhook. Attacker on the Pod network can achieve code execution inside the controller pod with no credentials.",
+    "impact": [
+      "Arbitrary code execution in ingress-nginx pod",
+      "Cluster-wide Kubernetes Secret disclosure",
+      "Full cluster takeover with no credentials required"
+    ],
+    "affected_versions": [
+      "<= v1.11.4",
+      "<= v1.12.0"
+    ],
+    "remediation": [
+      {
+        "type": "Permanent Fix",
+        "action": "Upgrade ingress-nginx to v1.11.5 or v1.12.1 — this fixes all five IngressNightmare vulnerabilities at once"
+      },
+      {
+        "type": "Temporary Mitigation (Helm)",
+        "action": "Reinstall ingress-nginx via Helm with controller.admissionWebhooks.enabled=false to disable the Validating Admission Controller"
+      },
+      {
+        "type": "Temporary Mitigation (Manual)",
+        "action": "Delete the ValidatingWebhookConfiguration named ingress-nginx-admission, then edit the ingress-nginx-controller Deployment or DaemonSet and remove --validating-webhook from the controller container's argument list"
+      }
+    ]
+  },
+  {
+    "id": "CVE-2026-3288",
+    "alias": "IngressRewriteInjection",
+    "component": "ingress-nginx",
+    "severity": "High",
+    "cvss_score": 8.8,
+    "description": "A security issue was discovered in ingress-nginx where the nginx.ingress.kubernetes.io/rewrite-target Ingress annotation can be used to inject configuration into nginx. This can lead to arbitrary code execution in the context of the ingress-nginx controller and disclosure of Secrets accessible to the controller.",
+    "impact": [
+      "Arbitrary code execution in the ingress-nginx controller pod",
+      "Cluster-wide Kubernetes Secret disclosure",
+      "Potential full cluster compromise"
+    ],
+    "affected_versions": [
+      "< v1.13.8",
+      "< v1.14.4",
+      "< v1.15.0"
+    ],
+    "remediation": [
+      {
+        "type": "Permanent Fix",
+        "action": "Upgrade ingress-nginx to v1.13.8, v1.14.4, or v1.15.0 (or newer)"
+      },
+      {
+        "type": "Temporary Mitigation",
+        "action": "Restrict Ingress creation and modification permissions to highly trusted users only via RBAC"
+      }
+    ]
+  },
+  {
+    "id": "CVE-2026-4342",
+    "alias": "IngressCommentInjection",
+    "component": "ingress-nginx",
+    "severity": "High",
+    "cvss_score": 8.8,
+    "description": "A security issue was discovered in ingress-nginx where a combination of Ingress annotations can be used to inject configuration into nginx via comments. This can lead to arbitrary code execution in the context of the ingress-nginx controller and disclosure of Secrets accessible to the controller.",
+    "impact": [
+      "Arbitrary code execution in the ingress-nginx controller pod",
+      "Cluster-wide Kubernetes Secret disclosure",
+      "Potential full cluster compromise"
+    ],
+    "affected_versions": [
+      "< v1.13.9",
+      "< v1.14.5",
+      "< v1.15.1"
+    ],
+    "remediation": [
+      {
+        "type": "Permanent Fix",
+        "action": "Migrate to an alternative Ingress controller (such as Gateway API implementations) as ingress-nginx is retiring in March 2026 with no further security patches"
+      }
+    ]
+  }
+]

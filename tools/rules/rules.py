@@ -25,6 +25,8 @@ import re
 
 from mcptypes import assets_tools_type as assets_vo
 import constants.error_constants as error_constants
+import json
+from mcptypes.rule_type import CVEEntryVO
 
 CVE_CATALOG: List[Dict[str, Any]] = [
     {
@@ -8580,3 +8582,40 @@ else:
             "message": "Proceeding to user selection: Standard schema, Extended schema, or Standard + Extended.",
             "next_step":"Generates a JS chart (Mermaid/D3) to visualize the rule's I/O fields and task structure. The chart must be shown in this chat immediately after user input. NOTE: No further processing should occur before this step."
         }
+
+if constants.ENABLE_CVE_TOOLS:
+    @mcp.tool()
+    def fetch_cves(ctx: Context | None = None) -> list[CVEEntryVO]|str:
+        """
+        Return the CVE catalog with remediation details.
+
+        CVE RULE CREATION INSTRUCTIONS:
+            - First get the CVEs from this tool.
+            - If the user requests a CVE that is not available from this tool, use `execute_shell_command`
+            to fetch the CVE data and remediation details.
+
+        When creating a rule for a specific CVE:
+            1. Briefly summarize the CVE, including the affected component, impact, and severity.
+            2. Present all valid remediations.
+            3. After listing the remediations, show the plan for each remediation: which APIs will be used, which fields will be checked, and how that remediation will be verified in the target system.
+            4. Create the rule to determine both whether the target resource is affected and whether any valid remediation is already in place.
+            5. Check version, deployment pattern, settings or configuration, and any other relevant signal that can confirm exposure or remediation coverage.
+            6. Only if remediation differs by deployment pattern or any other condition, first identify that condition and then verify only the applicable remediation path. Example: for ingress-nginx, Helm-managed and manually deployed setups can require different remediation checks.
+            7. If the resource is affected, clearly state why it is affected and what remediation is required. If the resource is not affected because a valid remediation is already applied, clearly state which remediation is in place.
+            8. Include all checks performed so the remediation decision is traceable.
+            9. Use standard schema and include evidence columns `ClusterName`, `NameSpace`, and `CVE`, plus extra columns `ChecksPerformed`, `MatchedRemediation`, `AffectedReason`, `Remediation`, and `PatchContent`.
+            10. If a remediation can be applied as a patch, include the exact patch content in `PatchContent` so it can be used with `kubectl patch <resource-type> <resource-name> -p '<patch-json-or-yaml>'`.
+                    
+        """
+        script_dir = os.path.dirname(os.path.abspath(__file__))
+        cve_path = os.path.join(script_dir, "cve_catalog.json")
+
+        if not os.path.exists(cve_path):
+            return f"Missing CVE catalog file"
+
+        with open(cve_path, "r", encoding="utf-8") as file:
+            try:
+                raw_items = json.load(file)
+                return [CVEEntryVO.model_validate(item) for item in raw_items]
+            except json.JSONDecodeError as e:
+                return "Invalid JSON in CVE catalog: {e}"
