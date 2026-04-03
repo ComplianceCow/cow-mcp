@@ -20,6 +20,9 @@ ENABLE_CONTEXTUAL_VECTOR_SEARCH = os.environ.get("ENABLE_CONTEXTUAL_VECTOR_SEARC
 ENABLE_CCOW_API_TOOLS = os.environ.get("ENABLE_CCOW_API_TOOLS", "true").lower() == "true"
 ENABLE_RULE_CREATION_TASK_CHAIN_PROCESS = os.environ.get("ENABLE_RULE_CREATION_TASK_CHAIN_PROCESS", "false").lower() == "true"
 
+ENABLE_CVE_TOOLS = os.environ.get("ENABLE_CVE_TOOLS", "false").lower() == "true"
+ENABLE_SHELL_EXECUTION= os.environ.get("ENABLE_SHELL_EXECUTION", "false").lower() == "true"
+
 # DASHBOARD
 URL_CCF_DASHBOARD_CONTROL_DETAILS = "/v2/aggregator/ccf-dashboard-control-details"
 URL_CCF_DASHBOARD_FRAMEWORK_SUMMARY = "/v2/aggregator/ccf-dashboard-framework-summary"
@@ -169,7 +172,10 @@ URL_USERS_ME = "/v1/users/me"
 URL_USER_BLOCKS = "/v1/actions/userblocks"
 URL_USERS_SEARCH_BY_EMAILS = "/api/v1/users"
 URL_USER_FORMS_SUBMIT = "/v1/user-forms/submit-user-response"
+
 URL_USERS_CREATE_IDENTIFIERS = "/v1/users/create-user-identifiers"
 URL_USER_FORMS_ASSIGN = "/v1/user-forms"
 URL_CHECK_FORM_ASSIGNED = "/v1/user-forms/check-form-assigned"
 URL_FORMS_ELEMENTS_FILE_UPLOAD = "/v1/forms/elements-file-upload"
+
+SANDBOX_EXECUTE_URL = "/v1/sandbox/execute-shell-cmd"
