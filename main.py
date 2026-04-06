@@ -7,7 +7,7 @@ import traceback
 
 from constants.constants import host
 from mcpconfig.config import mcp
-from tools.general import general
+from tools.general import command, general
 from utils.auth import CCowOAuthProvider
 from utils.debug import logger
 
