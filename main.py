@@ -7,11 +7,11 @@ import traceback
 
 from constants.constants import host
 from mcpconfig.config import mcp
-from tools.general import general
+# from tools.general import general
 from utils.auth import CCowOAuthProvider
 from utils.debug import logger
 
-mcp_tools_to_be_included = os.getenv("MCP_TOOLS_TO_BE_INCLUDED", "rules,insights,workflow").lower().strip()
+mcp_tools_to_be_included = os.getenv("MCP_TOOLS_TO_BE_INCLUDED", "rules,insights,workflow,assessment").lower().strip()
 
 MCP_TOOLS = [t.strip() for t in mcp_tools_to_be_included.split(",") if t.strip()]
 
@@ -43,6 +43,10 @@ if "metric" in MCP_TOOLS:
 if "forms" in MCP_TOOLS:
     from prompts.forms import forms
     from tools.forms import forms
+    
+if "assessment" in MCP_TOOLS:
+    from prompts.assessments import assessment_creation
+    from tools.assessmentv2 import assessmentv2
 
 def signal_handler(sig, frame):
     print("Shutting down...")
