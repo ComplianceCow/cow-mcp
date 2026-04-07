@@ -11,10 +11,7 @@
       "Cluster-wide Kubernetes Secret disclosure",
       "Full cluster takeover with no credentials required"
     ],
-    "affected_versions": [
-      "<= v1.11.4",
-      "<= v1.12.0"
-    ],
+    "affected_versions": ["<= v1.11.4", "<= v1.12.0"],
     "remediation": [
       {
         "type": "Permanent Fix",
@@ -42,11 +39,7 @@
       "Cluster-wide Kubernetes Secret disclosure",
       "Potential full cluster compromise"
     ],
-    "affected_versions": [
-      "< v1.13.8",
-      "< v1.14.4",
-      "< v1.15.0"
-    ],
+    "affected_versions": ["< v1.13.8", "< v1.14.4", "< v1.15.0"],
     "remediation": [
       {
         "type": "Permanent Fix",
@@ -70,15 +63,112 @@
       "Cluster-wide Kubernetes Secret disclosure",
       "Potential full cluster compromise"
     ],
-    "affected_versions": [
-      "< v1.13.9",
-      "< v1.14.5",
-      "< v1.15.1"
-    ],
+    "affected_versions": ["< v1.13.9", "< v1.14.5", "< v1.15.1"],
     "remediation": [
       {
         "type": "Permanent Fix",
         "action": "Migrate to an alternative Ingress controller (such as Gateway API implementations) as ingress-nginx is retiring in March 2026 with no further security patches"
+      }
+    ]
+  },
+  {
+    "id": "CVE-2025-55182",
+    "alias": "React2Shell",
+    "component": "React Server Components (RSC) — Flight Protocol",
+    "severity": "Critical",
+    "cvss_score": 10.0,
+    "description": "A critical pre-authentication RCE vulnerability in the React Server Components Flight protocol. The server fails to validate the structure of incoming RSC payloads, trusting attacker-supplied serialized objects and deserializing them unsafely. A single crafted HTTP POST to an RSC Server Function endpoint is sufficient to achieve arbitrary code execution on the server — no credentials or user interaction required. Affects React, Next.js (App Router), React Router (RSC mode), Waku, @parcel/rsc, @vitejs/plugin-rsc, and any framework embedding the vulnerable RSC packages.",
+    "impact": [
+      "Unauthenticated arbitrary code execution on the Node.js server process",
+      "Full server compromise with no credentials required",
+      "Observed in-the-wild campaigns deploying coin miners, SNOWLIGHT downloader, HISONIC and COMPOOD backdoors, and Cobalt Strike beacons",
+      "Active exploitation by suspected nation-state espionage groups and cybercrime clusters confirmed by Google GTIG and Unit 42"
+    ],
+    "affected_versions": [
+      "react (react-server / react-server-dom-*): 19.0, 19.1.0, 19.1.1, 19.2.0",
+      "Next.js: versions using the above React packages via App Router"
+    ],
+    "remediation": [
+      {
+        "type": "Permanent Fix",
+        "action": "Upgrade React Server Components packages to patched versions: 19.0.1, 19.1.2, or 19.2.1 (minimum). Upgrade to 19.2.2 to also address information disclosure (CVE-2025-55183), and 19.2.3 to additionally address DoS (CVE-2025-55184). For Next.js, upgrade to the latest stable patched release per https://nextjs.org/blog/CVE-2025-66478. Note: the vulnerable package (react-server-dom-webpack) may be bundled internally by Next.js and not appear in package.json — scan dependency lockfiles explicitly."
+      },
+      {
+        "type": "Temporary Mitigation (WAF)",
+        "action": "Deploy a WAF rule to detect and block exploitation attempts. Google Cloud Armor, Azure WAF (DRS 2.1), AWS WAF, and Cloudflare have all published managed or custom rules targeting this CVE. These are compensating controls only — patching is the definitive fix."
+      }
+    ]
+  },
+  {
+    "id": "CVE-2025-3248 / CVE-2026-33017",
+    "alias": "LangflowCodeInjection",
+    "component": "Langflow (open-source AI agent/workflow platform)",
+    "severity": "Critical",
+    "cvss_score": 9.8,
+    "description": "Two structurally related but distinct unauthenticated RCE vulnerabilities in Langflow, a popular open-source visual framework for building AI agents and LLM workflows (145,000+ GitHub stars). CVE-2025-3248 (CVSS 9.8, patched in v1.3.0): The /api/v1/validate/code endpoint accepted arbitrary user-supplied Python code and passed it to exec() without authentication or sandboxing. Malicious payloads embedded in function decorators executed immediately during AST parsing, granting full RCE. Added to CISA KEV on May 5, 2025. CVE-2026-33017 (CVSS 9.3, patched in v1.9.0): A structurally distinct sequel on the /api/v1/build_public_tmp/{flow_id}/flow endpoint, which is intentionally unauthenticated for public flows. When the optional data parameter is supplied, the endpoint ignores stored server-side flow data and uses attacker-controlled flow data instead, passing it to the same unsandboxed exec() call. Exploited in the wild within 20 hours of advisory publication on March 17, 2026 — before any public PoC existed. Added to CISA KEV with an April 8, 2026 remediation deadline.",
+    "impact": [
+      "Unauthenticated arbitrary code execution on the Langflow server",
+      "Exfiltration of all environment variables, including API keys for OpenAI, Anthropic, AWS, and other AI/cloud providers stored in Langflow",
+      "Credential harvesting from .env and .db files",
+      "Deployment of botnets (Flodrix), cryptocurrency miners, and persistent backdoors",
+      "Lateral movement into downstream AI pipelines, databases, and cloud infrastructure connected through Langflow"
+    ],
+    "affected_versions": [
+      "CVE-2025-3248: Langflow < 1.3.0 (all versions prior to March 31, 2025 release)",
+      "CVE-2026-33017: Langflow <= 1.8.1 (note: v1.8.2 was incorrectly reported as patched; actual fix is v1.9.0)"
+    ],
+    "remediation": [
+      {
+        "type": "Permanent Fix",
+        "action": "Upgrade Langflow to version 1.9.0 or later immediately. This is the only complete remediation for both CVE-2026-33017 and the related CVE-2026-33309 (file upload path traversal RCE, CVSS 9.9, also fixed in v1.9.0). Do not rely on v1.8.2 — it remains exploitable despite release notes suggesting otherwise."
+      },
+      {
+        "type": "Temporary Mitigation",
+        "action": "Restrict network access to Langflow instances using firewall rules or a reverse proxy with authentication. Set AUTO_LOGIN=false in production to prevent unauthenticated flow creation. Block or firewall the /api/v1/build_public_tmp/ endpoint path at the network level if immediate upgrade is not possible. Do not expose Langflow directly to the internet."
+      }
+    ]
+  },
+  {
+    "id": "CVE-2025-53770",
+    "alias": "ToolShell",
+    "component": "Microsoft SharePoint Server (on-premises) — ToolPane.aspx",
+    "severity": "Critical",
+    "cvss_score": 9.8,
+    "description": "A critical unauthenticated RCE vulnerability in on-premises Microsoft SharePoint Server, disclosed July 19, 2025 and exploited as a zero-day before disclosure. CVE-2025-53770 is an unsafe deserialization vulnerability in the ToolPane.aspx component, forming the code execution stage of the 'ToolShell' exploit chain. It is a patch bypass for CVE-2025-49704 (original ToolShell deserialization bug first demonstrated at Pwn2Own Berlin 2025). When chained with CVE-2025-53771 (authentication bypass via forged Referer header), attackers achieve full unauthenticated RCE. Attackers exploit this chain to upload a crafted .aspx web shell (spinstall0.aspx), extract ASP.NET machine keys, and forge valid signed VIEWSTATE payloads to sustain persistent access — even surviving initial patching if machine keys are not rotated. SharePoint Online (Microsoft 365) is not affected.",
+    "impact": [
+      "Unauthenticated arbitrary code execution on the SharePoint server as NT AUTHORITY\\IUSR",
+      "Extraction of ASP.NET machine cryptographic keys enabling persistent forged authentication tokens",
+      "Full server takeover with capability for lateral movement across the network",
+      "Observed deployment of Warlock ransomware by Storm-2603 (China-nexus threat actor)",
+      "Exploitation confirmed by Linen Typhoon and Violet Typhoon (Chinese nation-state actors per Microsoft)",
+      "Sectors impacted: Government, Education, Finance, Healthcare, Energy, Telecom, and large Enterprise"
+    ],
+    "affected_versions": [
+      "SharePoint Server 2016 (on-premises)",
+      "SharePoint Server 2019 (on-premises)",
+      "SharePoint Server Subscription Edition (on-premises)",
+      "SharePoint Server 2010 and 2013 (end-of-life; no patches will be issued — permanently vulnerable)"
+    ],
+    "remediation": [
+      {
+        "type": "Permanent Fix",
+        "action": "Apply Microsoft's emergency security updates for SharePoint Server 2016, 2019, and Subscription Edition immediately. Reference: https://msrc.microsoft.com/update-guide/vulnerability/CVE-2025-53770"
+      },
+      {
+        "type": "Post-Patch Key Rotation (Critical)",
+        "action": "After patching, rotate ASP.NET machine keys on all SharePoint servers and restart IIS. Failure to do so leaves previously extracted keys valid for forging authentication tokens, maintaining attacker persistence even on patched systems."
+      },
+      {
+        "type": "Enable AMSI (Compensating Control)",
+        "action": "Enable and configure the Antimalware Scan Interface (AMSI) integration in SharePoint in Full Mode, and deploy Microsoft Defender Antivirus on all SharePoint servers. Microsoft states this stops unauthenticated exploitation of this vulnerability."
+      },
+      {
+        "type": "Network Isolation (If Unable to Patch)",
+        "action": "Disconnect the SharePoint server from the internet immediately until the security update can be applied. For SharePoint 2010/2013 (end-of-life), implement permanent network-level isolation or segmentation as no patch will be issued."
+      },
+      {
+        "type": "Threat Hunting",
+        "action": "Search for the web shell spinstall0.aspx (SHA256: 92bb4ddb98eeaf11fc15bb32e71d0a63256a0ed826a03ba293ce3a8bf057a514) and any unusual POST requests to /_layouts/15/ToolPane.aspx. CISA and Microsoft have published hunting queries for CVE-2025-53770 IOCs."
       }
     ]
   }

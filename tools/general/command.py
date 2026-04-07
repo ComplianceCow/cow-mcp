@@ -2,10 +2,11 @@ from mcpconfig.config import mcp
 from utils.debug import logger
 from utils import utils
 from constants import constants
+from fastmcp import Context
 
 if constants.ENABLE_SHELL_EXECUTION:
     @mcp.tool()
-    async def execute_shell_command(cmd: str) -> dict:
+    async def execute_shell_command(cmd: str, ctx: Context | None = None) -> dict:
         """
         Execute exactly one shell command or one shell pipeline in an isolated sandbox.
 
@@ -32,6 +33,7 @@ if constants.ENABLE_SHELL_EXECUTION:
                 constants.SANDBOX_EXECUTE_URL,
                 "POST",
                 {"cmd": cmd},
+                ctx=ctx
             )
 
             if isinstance(resp, dict):
