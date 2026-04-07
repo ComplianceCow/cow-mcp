@@ -16,7 +16,7 @@ async def get_default_ccf_assessment(ctx: Context | None = None) -> vo.Assessmen
     try:
         logger.info("get_default_ccf_assessment: \n")
 
-        output=await utils.make_GET_API_call_to_CCow(constants.URL_ASSESSMENTS+"/35081fe5-c85d-4c69-812b-14e7361779fd", ctx)
+        output=await utils.make_API_call_to_CCow({},constants.URL_PLANS+"/fetch-ccf-assessment", ctx)
         
         if isinstance(output, str) or  "error" in output:
             logger.error("get_default_ccf_assessment error: {}\n".format(output))

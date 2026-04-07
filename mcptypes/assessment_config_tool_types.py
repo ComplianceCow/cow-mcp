@@ -39,7 +39,9 @@ class ControlVO(BaseModel):
     # cnPlanId: Optional[str] = None
     # cnPlanIds: Optional[List[str]] = None
     # configId: Optional[str] = None
+    activationStatus: Optional[str] = None
     leafControl: Optional[bool] = None
+    isAutomated: Optional[bool] = None
     reportingLevelControl: Optional[bool] = None
     # dueDays: Optional[int] = None
     # AssignTo: Optional[List[str]] = None
