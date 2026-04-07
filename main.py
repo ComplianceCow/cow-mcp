@@ -11,7 +11,7 @@ from mcpconfig.config import mcp
 from utils.auth import CCowOAuthProvider
 from utils.debug import logger
 
-mcp_tools_to_be_included = os.getenv("MCP_TOOLS_TO_BE_INCLUDED", "rules,insights,workflow,assessment").lower().strip()
+mcp_tools_to_be_included = os.getenv("MCP_TOOLS_TO_BE_INCLUDED", "rules,insights,workflow").lower().strip()
 
 MCP_TOOLS = [t.strip() for t in mcp_tools_to_be_included.split(",") if t.strip()]
 
@@ -44,7 +44,7 @@ if "forms" in MCP_TOOLS:
     from prompts.forms import forms
     from tools.forms import forms
     
-if "assessment" in MCP_TOOLS:
+if "policy" in MCP_TOOLS:
     from prompts.assessments import assessment_creation
     from tools.assessmentv2 import assessmentv2
 
