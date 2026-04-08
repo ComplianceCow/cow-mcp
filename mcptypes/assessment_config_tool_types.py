@@ -88,6 +88,8 @@ class AssessmentListVO(BaseModel):
 class ControlLastRunDate(BaseModel):
     controlId: Optional[str] = ""
     latestRunDate: Optional[str] = ""
+    executionId: Optional[str] = ""
+    id: Optional[str] = ""
     model_config = {
         "extra": "ignore",
     }

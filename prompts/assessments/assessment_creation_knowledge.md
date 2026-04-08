@@ -16,14 +16,15 @@ Write control narratives in CCF assessment format inline with the policy documen
 Produce the output in a tabular format.
 The table must include the following columns:
 
-   **From the Policy Document:**
+   - Control Number (use control displayable)
+   - Control Name
    - Control narrative & policy alignment
    - Policy section(s)
-
-   **From the Default CCF Assessment:**
-   - Assessment Control Displayable
-   - Assessment Control Name
-   - Citations
+   - Citations (show each citation as labels)
    - Is Automated
    - Activation Status
    - Last Run Date
+   - Link (https://dev.compliancecow.live/ui/assign-control/<<execution_id>>/<<id>>?src=controllist)
+
+After plotting the table
+Check how many points mentioned in policy docs is not covered by CCow and display it as gaps. Also create a downloadable file for those gaps.
