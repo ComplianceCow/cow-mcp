@@ -16,7 +16,7 @@ async def get_default_ccf_assessment(ctx: Context | None = None) -> vo.Assessmen
     try:
         logger.info("get_default_ccf_assessment: \n")
 
-        output=await utils.make_API_call_to_CCow({},constants.URL_PLANS+"/fetch-ccf-assessment", ctx)
+        output=await utils.make_API_call_to_CCow({},constants.URL_PLANS+"/fetch-ccf-assessment", ctx=ctx)
         
         if isinstance(output, str) or  "error" in output:
             logger.error("get_default_ccf_assessment error: {}\n".format(output))
@@ -41,7 +41,7 @@ async def get_ccf_control_last_run_date(ccfControlIDs: List[str], ctx: Context |
     try:
         logger.info("get_ccf_control_last_run_date: {} \n".format(ccfControlIDs))
 
-        output=await utils.make_API_call_to_CCow({"ControlIDs": ccfControlIDs},constants.URL_PLAN_INSTANCE_CONTROLS+"/fetch-latest-run-date", ctx)
+        output=await utils.make_API_call_to_CCow({"ControlIDs": ccfControlIDs},constants.URL_PLAN_INSTANCE_CONTROLS+"/fetch-latest-run-date", ctx=ctx)
         
         if isinstance(output, str) or  "error" in output:
             logger.error("get_ccf_control_last_run_date error: {}\n".format(output))
