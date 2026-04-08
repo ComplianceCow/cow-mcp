@@ -18,6 +18,13 @@ class CategoryListVO(BaseModel):
         "extra": "ignore",
     }
 
+class CitationVO(BaseModel):
+    authorityDocument: Optional[str] = ""
+    controlsInAuthorityDocument: Optional[List[str]] = None
+    model_config = {
+        "extra": "ignore",
+    }
+
 class ControlVO(BaseModel):
     id: Optional[str] = None
     # parentControlId: Optional[str] = None
@@ -42,6 +49,7 @@ class ControlVO(BaseModel):
     activationStatus: Optional[str] = None
     leafControl: Optional[bool] = None
     isAutomated: Optional[bool] = None
+    citations: Optional[List[CitationVO]] = None
     reportingLevelControl: Optional[bool] = None
     # dueDays: Optional[int] = None
     # AssignTo: Optional[List[str]] = None
@@ -72,6 +80,21 @@ class AssessmentVO(BaseModel):
 class AssessmentListVO(BaseModel):
     assessments: Optional[List[AssessmentVO]] = None
     error: Optional[str] = None
+    model_config = {
+        "extra": "ignore",
+    }
+    
+
+class ControlLastRunDate(BaseModel):
+    controlId: Optional[str] = ""
+    latestRunDate: Optional[str] = ""
+    model_config = {
+        "extra": "ignore",
+    }
+    
+class ControlsLastRunDate(BaseModel):
+    controls: Optional[List[ControlLastRunDate]] = Field(default="", validation_alias="controls")
+    error: Optional[str] = ""
     model_config = {
         "extra": "ignore",
     }

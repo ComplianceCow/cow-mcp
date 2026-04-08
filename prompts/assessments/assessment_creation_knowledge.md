@@ -21,7 +21,9 @@ The table must include the following columns:
    - Policy section(s)
 
    **From the Default CCF Assessment:**
-   - Assessment Control Display ID
+   - Assessment Control Displayable
    - Assessment Control Name
+   - Citations
    - Is Automated
    - Activation Status
+   - Last Run Date
