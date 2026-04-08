@@ -26,5 +26,5 @@ The table must include the following columns:
    - Last Run Date
    - Link (https://dev.compliancecow.live/ui/assign-control/<<execution_id>>/<<id>>?src=controllist)
 
-
+After plotting the table
 Check how many points mentioned in policy docs is not covered by CCow and display it as gaps. Also create a downloadable file for those gaps.
