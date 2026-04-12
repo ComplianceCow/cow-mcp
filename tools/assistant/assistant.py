@@ -352,7 +352,7 @@ async def list_assessments(
             - assessments (List[AssessmentVO]): A list of assessment objects, where each assessment includes:
                 - id (str): Unique identifier of the assessment.
                 - name (str): Name of the assessment.
-                - category_name (str): Name of the category.
+                - categoryName (str): Name of the category.
             - error (Optional[str]): An error message if any issues occurred during retrieval.
     """
     try:
@@ -377,7 +377,7 @@ async def list_assessments(
                     assessment_vo.AssessmentVO(
                         id=item.get("id"),
                         name=item.get("name"),
-                        category_name=item.get("categoryName")
+                        categoryName=item.get("categoryName")
                     )
                 )
         

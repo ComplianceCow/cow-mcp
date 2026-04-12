@@ -24,6 +24,7 @@
 
 **SQL SYNTAX REQUIREMENTS:**
 - Write SQL queries using SQLite SQL dialect.
+- Use string "true" or "false" values for boolean comparisons in SQL queries.
 
 When generating SQL from a control configuration:
 1. **Always create FOUR SQL QUERIES in this exact order:**, based on the requirement and the evidence configurations involved, also considering the context (control context and entity hierarchy):

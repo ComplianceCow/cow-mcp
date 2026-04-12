@@ -55,7 +55,7 @@ async def list_assessments(categoryId: str = "", categoryName: str = "", assessm
             - assessments (List[Assessments]): A list of assessments objects, where each assessment includes:
                 - id (str): Unique identifier of the assessment.
                 - name (str): Name of the assessment.
-                - category_name (str): Name of the category.
+                - categoryName (str): Name of the category.
             - error (Optional[str]): An error message if any issues occurred during retrieval.
     """
     try:
@@ -71,7 +71,7 @@ async def list_assessments(categoryId: str = "", categoryName: str = "", assessm
         assessments: List[vo.AssessmentVO]=[]
         for item in output["items"]:
             if "name" in item and "categoryName" in item:
-                assessments.append(vo.AssessmentVO(id=item["id"],name=item["name"],category_name=item["categoryName"]))
+                assessments.append(vo.AssessmentVO(id=item["id"],name=item["name"],categoryName=item["categoryName"]))
         
         logger.debug("assessments: {}\n".format(assessments))
 
