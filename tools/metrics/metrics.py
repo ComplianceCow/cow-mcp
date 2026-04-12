@@ -33,7 +33,7 @@ async def get_metrics_assessment(ctx: Context | None = None) -> dict:
         - assessments (AssessmentVO): A assessment objects containing:
             - id (str): Unique identifier of the assessment.
             - name (str): Name of the assessment.
-            - category_name (str): Name of the category.
+            - categoryName (str): Name of the category.
         - error (Optional[str]): An error message if any issues occurred during retrieval.
     
     """
@@ -69,7 +69,7 @@ async def get_metrics_assessment(ctx: Context | None = None) -> dict:
             assessment = assessment_vo.AssessmentVO(
                 id=first_item.get("id"),
                 name=first_item.get("name"),
-                category_name=first_item.get("categoryName")
+                categoryName=first_item.get("categoryName")
             )
         
         logger.debug(f"get_metrics_assessment: assessment:\n{assessment}")    
@@ -120,7 +120,7 @@ async def get_metrics_assessment(ctx: Context | None = None) -> dict:
                 assessment = assessment_vo.AssessmentVO(
                             id=create_output.get("id"),
                             name=METRICS_ASSESSMENT_NAME,
-                            category_name=METRICS_CATEGORY_NAME
+                            categoryName=METRICS_CATEGORY_NAME
                         )
                 return {"success": True, "data": assessment}
 

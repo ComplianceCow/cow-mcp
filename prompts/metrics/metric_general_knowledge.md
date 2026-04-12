@@ -71,6 +71,10 @@ Metric Display Rule:
   - `B` (`filteringExpression`) in metric-specific terms
 - Always verify and state that `A` is narrower than `B` (never equal).
 
+**SQL SYNTAX REQUIREMENTS:**
+- Write SQL queries using SQLite SQL dialect.
+- Use string "true" or "false" values for boolean comparisons in SQL queries.
+
 ============================================================
 ## METRIC NOTE DOCUMENTATION
 ============================================================

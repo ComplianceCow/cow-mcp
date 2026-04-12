@@ -70,8 +70,8 @@ class ControlVO(BaseModel):
 class AssessmentVO(BaseModel):
     id: Optional[str] = ""
     name: Optional[str] = ""
-    category_name: Optional[str] = Field(default="", validation_alias="categoryName")
-    controls: Optional[List[ControlVO]] = Field(default="", validation_alias="planControls")
+    categoryName: Optional[str] = Field(default="", validation_alias="categoryName")
+    controls: Optional[List[ControlVO]] = Field(default=None, validation_alias="planControls")
     error: Optional[str] = ""
     model_config = {
         "extra": "ignore",
