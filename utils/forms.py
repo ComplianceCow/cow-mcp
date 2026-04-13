@@ -150,7 +150,7 @@ async def list_forms_impl(ctx: Context | None = None) -> vo.FormListVO:
     try:
         logger.info("list_forms: \n")
 
-        output = await utils.make_API_call_to_CCow_and_get_response(constants.URL_FORMS, "GET", ctx)
+        output = await utils.make_API_call_to_CCow_and_get_response(constants.URL_FORMS, "GET", ctx=ctx)
         logger.debug("list_forms output: {}\n".format(output))
         if isinstance(output, str) or (isinstance(output, dict) and output.get("error")):
             logger.error("list_forms error: {}\n".format(output))
