@@ -1121,7 +1121,7 @@ if constants.ENABLE_CCOW_API_TOOLS:
         """
 
     @mcp.tool()
-    async def list_assets(ctx: Context | None = None) -> dict:
+    async def list_assets_cc(ctx: Context | None = None) -> dict:
         """
             Retrieve all available assets (integration plans).
             
@@ -1738,7 +1738,7 @@ if constants.ENABLE_CCOW_API_TOOLS:
             }
 
     @mcp.tool()
-    async def suggest_control_config_citations(
+    async def suggest_control_citations(
         controlName: str,
         description: str,
         controlId: str = "",
@@ -2260,7 +2260,7 @@ if constants.ENABLE_CCOW_API_TOOLS:
             return {"success": False, "error": f"Unexpected error listing control notes: {e}"}
 
     @mcp.tool()
-    async def update_control_config_note(
+    async def update_control_note(
         controlId: str,
         noteId: str,
         assessmentId: str,

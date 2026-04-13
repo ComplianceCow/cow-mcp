@@ -174,7 +174,7 @@ When showing any metric run, include for each metric:
 
 ### METRIC AUTOMATION STATUS CHECKING
 When the user asks whether a metric is automated:
-1. Use **`list_sql_query_evidence`** for the metric.
+1. Use **`list_metric_sql_query_evidence`** for the metric.
    - If any query exists →
      **Metric is automated**
    - Otherwise →  

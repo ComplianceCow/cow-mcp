@@ -348,7 +348,7 @@ SCHEDULING RULE
   - Proceed to the citation suggestion and attachment step.
 
 **Step 3: Citation Suggestion and Attachment**
-- Call `suggest_control_config_citations()` with the control name and description of the check's control.
+- Call `suggest_control_citations()` with the control name and description of the check's control.
 - Show all citation suggestions to the user.
 - Ask the user to select one citation from the suggestions.
 - Call `add_citation_to_asset_control()` to attach the selected citation to the control.

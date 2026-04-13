@@ -44,7 +44,7 @@ async def list_all_assessment_categories(ctx: Context | None = None) -> vo.Categ
         return vo.CategoryListVO(error="Facing internal error")
 
 @mcp.tool()
-async def list_assessments(categoryId: str = "", categoryName: str = "", assessmentName: str = "", ctx: Context | None = None) -> vo.AssessmentListVO:
+async def list_all_assessments(categoryId: str = "", categoryName: str = "", assessmentName: str = "", ctx: Context | None = None) -> vo.AssessmentListVO:
     """
         Get all assessments
         Args:
