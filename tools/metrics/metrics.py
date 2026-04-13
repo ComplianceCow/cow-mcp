@@ -1651,7 +1651,7 @@ async def validate_sql_query_and_cel(
         return {"success": False, "error": f"Unexpected error: {e}"}
 
 @mcp.tool()
-async def create_sql_query_evidence(
+async def create_metric_sql_query_evidence(
     metricsId: str,
     sqlquery: str,
     referedEvidenceNames: List[str],
@@ -1801,7 +1801,7 @@ async def create_sql_query_evidence(
         return {"success": False, "error": f"Unexpected error creating SQL query: {e}"}
 
 @mcp.tool()
-async def list_sql_query_evidence(
+async def list_metric_sql_query_evidence(
     metricsId: str,
     ctx: Context | None = None
 ) -> dict:
@@ -1865,7 +1865,7 @@ async def list_sql_query_evidence(
         return {"success": False, "error": f"Unexpected error listing SQL query evidences: {e}"}
 
 @mcp.tool()
-async def update_sql_query_evidence(
+async def update_metric_sql_query_evidence(
     metricsId: str,
     evidenceId: str,
     sqlquery: str,

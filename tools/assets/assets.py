@@ -16,7 +16,7 @@ from fastmcp import Context
 
 
 @mcp.tool()
-async def list_assets(ctx: Context | None = None) -> vo.AssetListVO:
+async def list_all_assets(ctx: Context | None = None) -> vo.AssetListVO:
     """
         Get all assets
         
@@ -33,7 +33,7 @@ async def list_assets(ctx: Context | None = None) -> vo.AssetListVO:
         logger.debug("assets output: {}\n".format(output))
         
         if isinstance(output, str) or  "error" in output:
-            logger.error("list_assets error: {}\n".format(output))
+            logger.error("list_all_assets error: {}\n".format(output))
             return vo.AssetListVO(error="Facing internal error")
         
         assets: List[vo.AssetVO]=[]
@@ -46,7 +46,7 @@ async def list_assets(ctx: Context | None = None) -> vo.AssetListVO:
         return vo.AssetListVO(assets=assets)
     except Exception as e:
         logger.error(traceback.format_exc())
-        logger.error("list_assets error: {}\n".format(e))
+        logger.error("list_all_assets error: {}\n".format(e))
         return vo.AssetListVO(error="Facing internal error")
 
 @mcp.tool()

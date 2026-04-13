@@ -23,6 +23,8 @@ ENABLE_RULE_CREATION_TASK_CHAIN_PROCESS = os.environ.get("ENABLE_RULE_CREATION_T
 ENABLE_CVE_TOOLS = os.environ.get("ENABLE_CVE_TOOLS", "false").lower() == "true"
 ENABLE_SHELL_EXECUTION= os.environ.get("ENABLE_SHELL_EXECUTION", "false").lower() == "true"
 
+ENABLE_DOWNLOADABLE_FILE = os.getenv("ENABLE_DOWNLOADABLE_FILE", "false").lower() == "true"
+
 # DASHBOARD
 URL_CCF_DASHBOARD_CONTROL_DETAILS = "/v2/aggregator/ccf-dashboard-control-details"
 URL_CCF_DASHBOARD_FRAMEWORK_SUMMARY = "/v2/aggregator/ccf-dashboard-framework-summary"

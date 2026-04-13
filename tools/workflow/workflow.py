@@ -396,7 +396,7 @@ async def fetch_task_readme(name: str, ctx: Context | None = None) -> vo.TaskRea
         return vo.TaskReadmeResponseVO(error="Facing internal error")
 
 @mcp.tool()
-async def fetch_rule_readme(name: str, ctx: Context | None = None) -> vo.RuleReadmeResponseVO:
+async def fetch_rule_readme_documentaion(name: str, ctx: Context | None = None) -> vo.RuleReadmeResponseVO:
     """
     Retrieve README documentation for a specific rule by name.
     
