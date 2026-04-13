@@ -160,20 +160,20 @@ Use this structure when defining a Radio Button question inside a form. Placehol
 ```json
 {
   "type": "Radio Button",
-  "title": "{{question_title}}",
-  "footer": "{{question_footer}}",
-  "isRequired": {{is_required}},
-  "sequence": {{sequence_index}},
-  "tags": ["{{tag_value_1}}", "{{tag_value_2}}"],
-  "points": {{question_points_max}},
-  "nextInSequence": {{question_level_jump_flag}},
+  "title": "{question_title}",
+  "footer": "{question_footer}",
+  "isRequired": {is_required},
+  "sequence": {sequence_index},
+  "tags": ["{tag_value_1}", "{tag_value_2}"],
+  "points": {question_points_max},
+  "nextInSequence": {question_level_jump_flag},
   "options": [
     {
-      "value": "{{option_value_string_index}}",
-      "label": "{{option_label}}",
-      "points": {{option_points}},
-      "defaultChecked": {{default_checked}},
-      "nextInSequence": {{option_level_jump_directive}}
+      "value": "{option_value_string_index}",
+      "label": "{option_label}",
+      "points": {option_points},
+      "defaultChecked": {default_checked},
+      "nextInSequence": {option_level_jump_directive}
     }
   ]
 }
@@ -181,19 +181,19 @@ Use this structure when defining a Radio Button question inside a form. Placehol
 
 Field meanings (placeholders):
 - `type`: Question type. Use `"Radio Button"`.
-- `title`: Question label shown to the user (`{{question_title}}`).
-- `footer`: Helper text shown under the question (`{{question_footer}}`).
-- `isRequired`: Whether the user must answer (`{{is_required}}`).
-- `sequence`: Zero-based index of this element within its parent's `elements` array (sibling order at that level; nested lists each start at `0` again) (`{{sequence_index}}`).
-- `tags`: Optional metadata list (`{{tag_value_1}}`, `{{tag_value_2}}`).
-- `points`: Maximum points for quiz scoring (`{{question_points_max}}`).
-- `nextInSequence`: Question-level jump configuration flag (`{{question_level_jump_flag}}`).
+- `title`: Question label shown to the user (`{question_title}`).
+- `footer`: Helper text shown under the question (`{question_footer}`).
+- `isRequired`: Whether the user must answer (`{is_required}`).
+- `sequence`: Zero-based index of this element within its parent's `elements` array (sibling order at that level; nested lists each start at `0` again) (`{sequence_index}`).
+- `tags`: Optional metadata list (`{tag_value_1}`, `{tag_value_2}`).
+- `points`: Maximum points for quiz scoring (`{question_points_max}`).
+- `nextInSequence`: Question-level jump configuration flag (`{question_level_jump_flag}`).
 - `options`: Selectable answers list.
-  - `value`: Stored option identifier saved as the answer (`{{option_value_string_index}}`). This is the string index/value.
-  - `label`: Option text shown to the user (`{{option_label}}`).
-  - `points`: Points awarded if selected in quiz mode (`{{option_points}}`).
-  - `defaultChecked`: Whether this option is pre-selected (`{{default_checked}}`).
-  - `nextInSequence`: Option-level navigation directive (`{{option_level_jump_directive}}`).
+  - `value`: Stored option identifier saved as the answer (`{option_value_string_index}`). This is the string index/value.
+  - `label`: Option text shown to the user (`{option_label}`).
+  - `points`: Points awarded if selected in quiz mode (`{option_points}`).
+  - `defaultChecked`: Whether this option is pre-selected (`{default_checked}`).
+  - `nextInSequence`: Option-level navigation directive (`{option_level_jump_directive}`).
 
 # OPERATIONAL RULES
 
@@ -206,13 +206,13 @@ Field meanings (placeholders):
 - Use only question types and structures documented in this file.
 - For `Radio Button`, `Checkbox`, and `Dropdown`, always provide options; use dynamic options only when intended; keep sequence consistent when adding/reordering.
 - For `Matrix`, ensure every child row uses the same option set; when you change an option label/meaning in one row, apply it to all rows in that matrix.
-- Once form is created ask the user to verify the form by showing a link to the created form `host+/ui/manage-forms?id={{form_id}}`.
+- Once form is created, you MUST show the full verification URL to the created form as a clickable HTML anchor tag: `<a href="{host}/ui/manage-forms?id={form_id}" target="_blank">{host}/ui/manage-forms?id={form_id}</a>`. Do not show a relative path.
 - After form creation optionally ask user for form configuration preferences.
 
 ## Form submission behavior
 
 ### Pre-submission confirmation
-- Before final submission, show a human-readable summary of what the user filled so far and a link to preview filled form `host+/ui/display-form?assign_id={{form_assign_id}}`.
+- Before final submission, you MUST show a human-readable summary of what the user filled so far and the full preview URL as a clickable HTML anchor tag: `<a href="{host}/ui/display-form?assign_id={form_assign_id}" target="_blank">{host}/ui/display-form?assign_id={form_assign_id}</a>`. Do not show a relative path.
 - Proceed with submission ONLY after the user explicitly confirms.
 
 ### Resume / start-over
@@ -255,7 +255,7 @@ Field meanings (placeholders):
 ### File upload behavior
 - Never request raw file bytes inside chat.
 - For the current `File Upload` question:
-  - Provide the user the UI upload URL: `host+"/ui/display-form?assign_id={{assign_id}}"`.
+  - Provide the user the UI upload URL: `host+"/ui/display-form?assign_id={assign_id}"`.
   - Ask the user to complete the upload in the UI.
   - After upload completion is confirmed by the user:
     - Reload saved progress.
@@ -264,6 +264,7 @@ Field meanings (placeholders):
 ### Final submit behavior
 - When traversal ends (or jump indicates submission):
   - Build a human-readable summary using the form's question labels and the user's saved selections.
+  - Always include the full preview URL in that summary as a clickable HTML anchor tag: `<a href="{host}/ui/display-form?assign_id={form_assign_id}" target="_blank">{host}/ui/display-form?assign_id={form_assign_id}</a>`.
   - Show the summary and request explicit confirmation.
   - If confirmed: submit the form for the current user + assignment.
   - If declined: ask whether to `continue editing` (resume) or `start over`.

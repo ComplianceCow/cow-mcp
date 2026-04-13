@@ -4,7 +4,7 @@ from mcpconfig.config import mcp
 
 
 @mcp.prompt()
-def assessment_knowledge() -> str:
+def assistant_knowledge() -> str:
     script_dir = os.path.dirname(os.path.abspath(__file__))
     
     general_path = os.path.join(script_dir, "assistant_general_knowledge.md")
