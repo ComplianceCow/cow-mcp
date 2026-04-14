@@ -90,7 +90,7 @@ def get_cc_headers(ctx: Optional[Context]) -> Optional[dict[str, str]]:
             print(f"cc_headers inside: {cc_headers}")
             logger.debug(f"[get_cc_headers] cc_headers (final): {cc_headers}")
 
-    if not bool(cc_headers):
+    if not bool(cc_headers) or (not cc_headers.get(constants.AUTH_HEADER_KEY) and not cc_headers.get(constants.AUTH_HEADER_KEY.lower())):
         http_req = None
         try:
             http_req = ctx.get_http_request() if ctx else None

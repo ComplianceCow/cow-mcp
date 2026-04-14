@@ -71,6 +71,10 @@ Metric Display Rule:
   - `B` (`filteringExpression`) in metric-specific terms
 - Always verify and state that `A` is narrower than `B` (never equal).
 
+**SQL SYNTAX REQUIREMENTS:**
+- Write SQL queries using SQLite SQL dialect.
+- Use string "true" or "false" values for boolean comparisons in SQL queries.
+
 ============================================================
 ## METRIC NOTE DOCUMENTATION
 ============================================================
@@ -170,7 +174,7 @@ When showing any metric run, include for each metric:
 
 ### METRIC AUTOMATION STATUS CHECKING
 When the user asks whether a metric is automated:
-1. Use **`list_sql_query_evidence`** for the metric.
+1. Use **`list_metric_sql_query_evidence`** for the metric.
    - If any query exists →
      **Metric is automated**
    - Otherwise →  

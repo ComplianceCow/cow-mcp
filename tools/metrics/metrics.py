@@ -33,7 +33,7 @@ async def get_metrics_assessment(ctx: Context | None = None) -> dict:
         - assessments (AssessmentVO): A assessment objects containing:
             - id (str): Unique identifier of the assessment.
             - name (str): Name of the assessment.
-            - category_name (str): Name of the category.
+            - categoryName (str): Name of the category.
         - error (Optional[str]): An error message if any issues occurred during retrieval.
     
     """
@@ -69,7 +69,7 @@ async def get_metrics_assessment(ctx: Context | None = None) -> dict:
             assessment = assessment_vo.AssessmentVO(
                 id=first_item.get("id"),
                 name=first_item.get("name"),
-                category_name=first_item.get("categoryName")
+                categoryName=first_item.get("categoryName")
             )
         
         logger.debug(f"get_metrics_assessment: assessment:\n{assessment}")    
@@ -120,7 +120,7 @@ async def get_metrics_assessment(ctx: Context | None = None) -> dict:
                 assessment = assessment_vo.AssessmentVO(
                             id=create_output.get("id"),
                             name=METRICS_ASSESSMENT_NAME,
-                            category_name=METRICS_CATEGORY_NAME
+                            categoryName=METRICS_CATEGORY_NAME
                         )
                 return {"success": True, "data": assessment}
 
@@ -1651,7 +1651,7 @@ async def validate_sql_query_and_cel(
         return {"success": False, "error": f"Unexpected error: {e}"}
 
 @mcp.tool()
-async def create_sql_query_evidence(
+async def create_metric_sql_query_evidence(
     metricsId: str,
     sqlquery: str,
     referedEvidenceNames: List[str],
@@ -1801,7 +1801,7 @@ async def create_sql_query_evidence(
         return {"success": False, "error": f"Unexpected error creating SQL query: {e}"}
 
 @mcp.tool()
-async def list_sql_query_evidence(
+async def list_metric_sql_query_evidence(
     metricsId: str,
     ctx: Context | None = None
 ) -> dict:
@@ -1865,7 +1865,7 @@ async def list_sql_query_evidence(
         return {"success": False, "error": f"Unexpected error listing SQL query evidences: {e}"}
 
 @mcp.tool()
-async def update_sql_query_evidence(
+async def update_metric_sql_query_evidence(
     metricsId: str,
     evidenceId: str,
     sqlquery: str,

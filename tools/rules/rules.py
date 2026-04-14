@@ -25,6 +25,83 @@ import re
 
 from mcptypes import assets_tools_type as assets_vo
 import constants.error_constants as error_constants
+import json
+from mcptypes.rule_type import CVEEntryVO
+
+CVE_CATALOG: List[Dict[str, Any]] = [
+    {
+        "id": "CVE-2025-1974",
+        "alias": "IngressNightmare",
+        "component": "ingress-nginx Admission Controller",
+        "severity": "Critical",
+        "cvss_score": 9.8,
+        "description": "Unauthenticated RCE in the ingress-nginx validating admission webhook. Attacker on the Pod network can achieve code execution inside the controller pod with no credentials.",
+        "impact": [
+            "Arbitrary code execution in ingress-nginx pod",
+            "Cluster-wide Kubernetes Secret disclosure",
+            "Full cluster takeover with no credentials required",
+        ],
+        "affected_versions": ["<= v1.11.4", "<= v1.12.0"],
+        "remediation": [
+            {
+                "type": "Permanent Fix",
+                "action": "Upgrade ingress-nginx to v1.11.5 or v1.12.1 — this fixes all five IngressNightmare vulnerabilities at once",
+            },
+            {
+                "type": "Temporary Mitigation (Helm)",
+                "action": "Reinstall ingress-nginx via Helm with controller.admissionWebhooks.enabled=false to disable the Validating Admission Controller",
+            },
+            {
+                "type": "Temporary Mitigation (Manual)",
+                "action": "Delete the ValidatingWebhookConfiguration named ingress-nginx-admission, then edit the ingress-nginx-controller Deployment or DaemonSet and remove --validating-webhook from the controller container's argument list",
+            },
+        ],
+    },
+    {
+        "id": "CVE-2026-3288",
+        "alias": "IngressRewriteInjection",
+        "component": "ingress-nginx",
+        "severity": "High",
+        "cvss_score": 8.8,
+        "description": "A security issue was discovered in ingress-nginx where the nginx.ingress.kubernetes.io/rewrite-target Ingress annotation can be used to inject configuration into nginx. This can lead to arbitrary code execution in the context of the ingress-nginx controller and disclosure of Secrets accessible to the controller.",
+        "impact": [
+            "Arbitrary code execution in the ingress-nginx controller pod",
+            "Cluster-wide Kubernetes Secret disclosure",
+            "Potential full cluster compromise",
+        ],
+        "affected_versions": ["< v1.13.8", "< v1.14.4", "< v1.15.0"],
+        "remediation": [
+            {
+                "type": "Permanent Fix",
+                "action": "Upgrade ingress-nginx to v1.13.8, v1.14.4, or v1.15.0 (or newer)",
+            },
+            {
+                "type": "Temporary Mitigation",
+                "action": "Restrict Ingress creation and modification permissions to highly trusted users only via RBAC",
+            },
+        ],
+    },
+    {
+        "id": "CVE-2026-4342",
+        "alias": "IngressCommentInjection",
+        "component": "ingress-nginx",
+        "severity": "High",
+        "cvss_score": 8.8,
+        "description": "A security issue was discovered in ingress-nginx where a combination of Ingress annotations can be used to inject configuration into nginx via comments. This can lead to arbitrary code execution in the context of the ingress-nginx controller and disclosure of Secrets accessible to the controller.",
+        "impact": [
+            "Arbitrary code execution in the ingress-nginx controller pod",
+            "Cluster-wide Kubernetes Secret disclosure",
+            "Potential full cluster compromise",
+        ],
+        "affected_versions": ["< v1.13.9", "< v1.14.5", "< v1.15.1"],
+        "remediation": [
+            {
+                "type": "Permanent Fix",
+                "action": "Migrate to an alternative Ingress controller (such as Gateway API implementations) as ingress-nginx is retiring in March 2026 with no further security patches",
+            }
+        ],
+    },
+]
 
 
 # Phase 1: Lightweight task summary resource
@@ -1044,7 +1121,7 @@ if constants.ENABLE_CCOW_API_TOOLS:
         """
 
     @mcp.tool()
-    async def list_assets(ctx: Context | None = None) -> dict:
+    async def list_assets_cc(ctx: Context | None = None) -> dict:
         """
             Retrieve all available assets (integration plans).
             
@@ -1661,7 +1738,7 @@ if constants.ENABLE_CCOW_API_TOOLS:
             }
 
     @mcp.tool()
-    async def suggest_control_config_citations(
+    async def suggest_control_citations(
         controlName: str,
         description: str,
         controlId: str = "",
@@ -2183,7 +2260,7 @@ if constants.ENABLE_CCOW_API_TOOLS:
             return {"success": False, "error": f"Unexpected error listing control notes: {e}"}
 
     @mcp.tool()
-    async def update_control_config_note(
+    async def update_control_note(
         controlId: str,
         noteId: str,
         assessmentId: str,
@@ -2312,6 +2389,13 @@ if constants.ENABLE_CCOW_API_TOOLS:
             logger.error("update_control_config_note error: {}\n".format(e))
             return {"success": False, "error": f"Unexpected error updating control note: {e}"}
 
+
+@mcp.tool()
+def fetch_cves(ctx: Context | None = None) -> List[Dict[str, Any]]:
+    """
+    Return the supported CVE catalog with remediation details.
+    """
+    return CVE_CATALOG
 
 @mcp.tool()
 def get_tasks_summary(ctx: Context | None = None) -> str:
@@ -8498,3 +8582,40 @@ else:
             "message": "Proceeding to user selection: Standard schema, Extended schema, or Standard + Extended.",
             "next_step":"Generates a JS chart (Mermaid/D3) to visualize the rule's I/O fields and task structure. The chart must be shown in this chat immediately after user input. NOTE: No further processing should occur before this step."
         }
+
+if constants.ENABLE_CVE_TOOLS:
+    @mcp.tool()
+    def fetch_cves(ctx: Context | None = None) -> list[CVEEntryVO]|str:
+        """
+        Return the CVE catalog with remediation details.
+
+        CVE RULE CREATION INSTRUCTIONS:
+            - First get the CVEs from this tool.
+            - If the user requests a CVE that is not available from this tool, use `execute_shell_command`
+            to fetch the CVE data and remediation details.
+
+        When creating a rule for a specific CVE:
+            1. Briefly summarize the CVE, including the affected component, impact, and severity.
+            2. Present all valid remediations.
+            3. After listing the remediations, show the plan for each remediation: which APIs will be used, which fields will be checked, and how that remediation will be verified in the target system.
+            4. Create the rule to determine both whether the target resource is affected and whether any valid remediation is already in place.
+            5. Check version, deployment pattern, settings or configuration, and any other relevant signal that can confirm exposure or remediation coverage.
+            6. Only if remediation differs by deployment pattern or any other condition, first identify that condition and then verify only the applicable remediation path. Example: for ingress-nginx, Helm-managed and manually deployed setups can require different remediation checks.
+            7. If the resource is affected, clearly state why it is affected and what remediation is required. If the resource is not affected because a valid remediation is already applied, clearly state which remediation is in place.
+            8. Include all checks performed so the remediation decision is traceable.
+            9. Use standard schema and include evidence columns `ClusterName`, `NameSpace`, and `CVE`, plus extra columns `ChecksPerformed`, `MatchedRemediation`, `AffectedReason`, `Remediation`, and `PatchContent`.
+            10. If a remediation can be applied as a patch, include the exact patch content in `PatchContent` so it can be used with `kubectl patch <resource-type> <resource-name> -p '<patch-json-or-yaml>'`.
+                    
+        """
+        script_dir = os.path.dirname(os.path.abspath(__file__))
+        cve_path = os.path.join(script_dir, "cve_catalog.json")
+
+        if not os.path.exists(cve_path):
+            return f"Missing CVE catalog file"
+
+        with open(cve_path, "r", encoding="utf-8") as file:
+            try:
+                raw_items = json.load(file)
+                return [CVEEntryVO.model_validate(item) for item in raw_items]
+            except json.JSONDecodeError as e:
+                return "Invalid JSON in CVE catalog: {e}"

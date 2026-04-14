@@ -12,10 +12,9 @@ from typing import Any
 import traceback
 from fastmcp import Context
 
-mcp_tools_to_be_included = os.getenv("MCP_TOOLS_TO_BE_INCLUDED", "").lower().strip()
 
 
-@mcp.tool()
+# @mcp.tool()
 def read_file(uri: str, max_chars: int = 8000) -> dict:
     """
     Read content from a local file given a file:// URI or file path.
@@ -86,7 +85,7 @@ def read_file(uri: str, max_chars: int = 8000) -> dict:
     except Exception as e:
         return {"error": f"Failed to read file: {str(e)}", "uri": uri}
 
-@mcp.tool()
+# @mcp.tool()
 def read_resource(uri: str, max_chars: int = 8000) -> dict:
     """
     Read content from a resource URI (primarily for local files).
@@ -100,7 +99,7 @@ def read_resource(uri: str, max_chars: int = 8000) -> dict:
     """
     return read_file(uri, max_chars)
 
-if mcp_tools_to_be_included:
+if constants.ENABLE_DOWNLOADABLE_FILE:
     @mcp.tool()
     async def create_downloadable_file(filename: str, content: str, ctx: Context | None = None) -> dict:
         """
