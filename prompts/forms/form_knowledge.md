@@ -187,13 +187,13 @@ Field meanings (placeholders):
 - `sequence`: Zero-based index of this element within its parent's `elements` array (sibling order at that level; nested lists each start at `0` again) (`{sequence_index}`).
 - `tags`: Optional metadata list (`{tag_value_1}`, `{tag_value_2}`).
 - `points`: Maximum points for quiz scoring (`{question_points_max}`).
-- `nextInSequence`: Question-level jump configuration flag (`{question_level_jump_flag}`).
+- `nextInSequence`: Question-level jump configuration flag (`{question_level_jump_flag}`) default value should be -1.
 - `options`: Selectable answers list.
   - `value`: Stored option identifier saved as the answer (`{option_value_string_index}`). This is the string index/value.
   - `label`: Option text shown to the user (`{option_label}`).
   - `points`: Points awarded if selected in quiz mode (`{option_points}`).
   - `defaultChecked`: Whether this option is pre-selected (`{default_checked}`).
-  - `nextInSequence`: Option-level navigation directive (`{option_level_jump_directive}`).
+  - `nextInSequence`: Option-level navigation directive (`{option_level_jump_directive}`) default value should be -3.
 
 # OPERATIONAL RULES
 
@@ -206,7 +206,9 @@ Field meanings (placeholders):
 - Use only question types and structures documented in this file.
 - For `Radio Button`, `Checkbox`, and `Dropdown`, always provide options; use dynamic options only when intended; keep sequence consistent when adding/reordering.
 - For `Matrix`, ensure every child row uses the same option set; when you change an option label/meaning in one row, apply it to all rows in that matrix.
-- Once form is created, you MUST show the full verification URL to the created form as a clickable HTML anchor tag: `<a href="{host}/ui/manage-forms?id={form_id}" target="_blank">{host}/ui/manage-forms?id={form_id}</a>`. Do not show a relative path.
+- The `create_form`, `update_form`, and `assign_form` tools return a `host` field in their response. Use this `host` value to build any URLs shown to the user.
+- Once form is created, you MUST show the full verification URL to the created form as a clickable HTML anchor tag: `<a href="{host}/ui/manage-forms?id={form_id}" target="_blank">{host}/ui/manage-forms?id={form_id}</a>`. Use the `host` from the create_form response. Do not show a relative path.
+- Once form is updated, you MUST show the full verification URL to the updated form as a clickable HTML anchor tag: `<a href="{host}/ui/manage-forms?id={form_id}" target="_blank">{host}/ui/manage-forms?id={form_id}</a>`. Use the `host` from the update_form response. Do not show a relative path.
 - After form creation optionally ask user for form configuration preferences.
 
 ## Form submission behavior

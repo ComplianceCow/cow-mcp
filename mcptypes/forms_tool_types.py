@@ -266,6 +266,7 @@ class CreateFormVO(BaseModel):
 
 class CreateFormResponseVO(BaseModel):
     form: Optional[FormVO] = None
+    host: Optional[str] = ""
     error: Optional[str] = ""
 
 
@@ -333,6 +334,7 @@ class UpdateFormVO(BaseModel):
 
 class UpdateFormResponseVO(BaseModel):
     form: Optional[FormVO] = None
+    host: Optional[str] = ""
     error: Optional[str] = ""
 
 
@@ -568,6 +570,7 @@ class AssignFormResponseVO(BaseModel):
     """
 
     ids: Optional[List[str]] = None
+    host: Optional[str] = ""
     error: Optional[str] = ""
 
     model_config = {"extra": "ignore"}

@@ -12,6 +12,11 @@ from utils import utils
 from utils.debug import logger
 
 
+def _base_host() -> str:
+    raw = getattr(constants, "host", "") or ""
+    return raw.rstrip("/api") if isinstance(raw, str) else raw
+
+
 def normalize_matrix_options(elements: List[Any]) -> None:
     """Sync all Matrix child rows to the first row's options. Mutates in place, recurses into nested containers."""
     if not elements:
@@ -214,7 +219,8 @@ async def update_form_impl(
             form=vo.FormVO(
                 id=form_id,
                 name=form.name or form.title or "",
-            )
+            ),
+            host=_base_host(),
         )
     except Exception as e:
         logger.error(traceback.format_exc())
@@ -231,53 +237,23 @@ def is_dynamic_option_active(status) -> bool:
     return False
 
 
-def should_collect_assignable_element_id(elem_type: str, children_value: Any) -> bool:
-    """Return True if this element type contributes its own ID to the assignment elementID list."""
-    if elem_type == "Statement Block":
-        return False
-    # Block is a container: recurse into its children, but do not collect block id itself.
-    if elem_type == "Block":
-        return False
-    # Prefer collecting Matrix child row IDs (already recursed into) rather than the Matrix container id.
-    if elem_type == "Matrix" and isinstance(children_value, list):
-        return False
-    return True
-
-
 def collect_assignable_element_ids(elements: Any) -> list[str]:
-    """Recursively collect answerable element IDs, skipping containers and statement blocks."""
+    """Collect top-level element IDs, skipping Statement Blocks."""
 
     if not isinstance(elements, list):
         return []
 
-    collected: list[str] = []
+    seen: set[str] = set()
+    out: list[str] = []
     for elem in elements:
         if not isinstance(elem, dict):
             continue
-
-        elem_type = elem.get("type") or ""
-        elem_id = elem.get("_id") or elem.get("id") or ""
-        children = elem.get("elements")
-
-        if elem_type == "Statement Block":
-            # Statement-only container; skip for assignment element collection.
+        if (elem.get("type") or "") == "Statement Block":
             continue
-
-        # Recurse first so child rows are captured.
-        if isinstance(children, list):
-            collected.extend(collect_assignable_element_ids(children))
-
-        # Add leaf/question elements only.
-        if elem_id and should_collect_assignable_element_id(elem_type, children):
-            collected.append(str(elem_id))
-
-    # Dedupe while preserving order.
-    seen: set[str] = set()
-    out: list[str] = []
-    for _id in collected:
-        if _id and _id not in seen:
-            out.append(_id)
-            seen.add(_id)
+        elem_id = elem.get("_id") or elem.get("id") or ""
+        if elem_id and elem_id not in seen:
+            out.append(str(elem_id))
+            seen.add(elem_id)
     return out
 
 
