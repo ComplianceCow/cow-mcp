@@ -12,7 +12,7 @@ class CategoryVO(BaseModel):
     }
 
 class CategoryListVO(BaseModel):
-    categories: Optional[List[CategoryVO]] = None
+    categories: Optional[list[CategoryVO]] = None
     error: Optional[str] = None
     model_config = {
         "extra": "ignore",
@@ -20,7 +20,7 @@ class CategoryListVO(BaseModel):
 
 class CitationVO(BaseModel):
     authorityDocument: Optional[str] = ""
-    controlsInAuthorityDocument: Optional[List[str]] = None
+    controlsInAuthorityDocument: Optional[list[str]] = None
     model_config = {
         "extra": "ignore",
     }
@@ -38,21 +38,21 @@ class ControlVO(BaseModel):
     # type: Optional[str] = None
     # weight: Optional[int] = None
     # tags: Optional[dict] = None
-    controls: Optional[List[ControlVO]] = Field(default=None, validation_alias="planControls")
-    # dependsOn: Optional[List[str]]  = None
+    controls: Optional[list[ControlVO]] = Field(default=None, validation_alias="planControls")
+    # dependsOn: Optional[list[str]]  = None
     # cnControlId: Optional[str] = None
     # cnControlAlias: Optional[str] = None
     # cnControlDisplayable: Optional[str] = None
     # cnPlanId: Optional[str] = None
-    # cnPlanIds: Optional[List[str]] = None
+    # cnPlanIds: Optional[list[str]] = None
     # configId: Optional[str] = None
     activationStatus: Optional[str] = None
     leafControl: Optional[bool] = None
     isAutomated: Optional[bool] = None
-    citations: Optional[List[CitationVO]] = None
+    citations: Optional[list[CitationVO]] = None
     reportingLevelControl: Optional[bool] = None
     # dueDays: Optional[int] = None
-    # AssignTo: Optional[List[str]] = None
+    # AssignTo: Optional[list[str]] = None
     ccfSortID: Optional[str] = None
     ccfID: Optional[str] = None
     ccfImpactZone: Optional[str] = None
@@ -71,14 +71,14 @@ class AssessmentVO(BaseModel):
     id: Optional[str] = ""
     name: Optional[str] = ""
     categoryName: Optional[str] = Field(default="", validation_alias="categoryName")
-    controls: Optional[List[ControlVO]] = Field(default=None, validation_alias="planControls")
+    controls: Optional[list[ControlVO]] = Field(default=None, validation_alias="planControls")
     error: Optional[str] = ""
     model_config = {
         "extra": "ignore",
     }
 
 class AssessmentListVO(BaseModel):
-    assessments: Optional[List[AssessmentVO]] = None
+    assessments: Optional[list[AssessmentVO]] = None
     error: Optional[str] = None
     model_config = {
         "extra": "ignore",
@@ -95,7 +95,7 @@ class ControlLastRunDate(BaseModel):
     }
     
 class ControlsLastRunDate(BaseModel):
-    controls: Optional[List[ControlLastRunDate]] = Field(default="", validation_alias="controls")
+    controls: Optional[list[ControlLastRunDate]] = Field(default="", validation_alias="controls")
     error: Optional[str] = ""
     model_config = {
         "extra": "ignore",

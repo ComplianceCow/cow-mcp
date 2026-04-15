@@ -27,7 +27,7 @@ class EvidenceVO(BaseModel):
     name: Optional[str] = ""
     description: Optional[str] = ""
     fileName: Optional[str] = ""
-    columnsInfo: Optional[List[ColumnInfoVO]] = None
+    columnsInfo: Optional[list[ColumnInfoVO]] = None
     
     model_config = {
         "extra": "ignore"
@@ -37,7 +37,7 @@ class EvidenceVO(BaseModel):
 class LineageVO(BaseModel):
     originType: Optional[str] = ""
     recursionLevel: Optional[int] = 0
-    linkedFrom: Optional[List['LinkedControlVO']] = None
+    linkedFrom: Optional[list['LinkedControlVO']] = None
     model_config = {
         "extra": "ignore"
     }
@@ -49,8 +49,8 @@ class LinkedControlVO(BaseModel):
     controlName: Optional[str] = ""
     controlDescription: Optional[str] = ""
     referenceType: Optional[str] = ""
-    lineage: Optional[List[LineageVO]] = None
-    evidences: Optional[List[EvidenceVO]] = None
+    lineage: Optional[list[LineageVO]] = None
+    evidences: Optional[list[EvidenceVO]] = None
     rule: Optional[RuleVO] = None
     model_config = {
         "extra": "ignore"
@@ -66,7 +66,7 @@ class ControlSourceSummaryVO(BaseModel):
     assessmentName: Optional[str] = ""
     controlId: Optional[str] = ""
     controlName: Optional[str] = ""
-    lineage: Optional[List[LineageVO]] = None
+    lineage: Optional[list[LineageVO]] = None
     model_config = {
         "extra": "ignore"
     }

@@ -28,7 +28,7 @@ import constants.error_constants as error_constants
 import json
 from mcptypes.rule_type import CVEEntryVO
 
-CVE_CATALOG: List[Dict[str, Any]] = [
+CVE_CATALOG: list[dict[str, Any]] = [
     {
         "id": "CVE-2025-1974",
         "alias": "IngressNightmare",
@@ -2391,7 +2391,7 @@ if constants.ENABLE_CCOW_API_TOOLS:
 
 
 @mcp.tool()
-def fetch_cves(ctx: Context | None = None) -> List[Dict[str, Any]]:
+def fetch_cves(ctx: Context | None = None) -> list[dict[str, Any]]:
     """
     Return the supported CVE catalog with remediation details.
     """

@@ -11,4 +11,4 @@ class ErrorResponseVO (BaseModel) :
 
 class ErrorWorkflowVO (BaseModel):
     Message: Optional[str] = ""
-    ErrorDetails: Optional[List[object]] = None
+    ErrorDetails: Optional[list[object]] = None

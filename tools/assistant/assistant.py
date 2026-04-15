@@ -220,10 +220,10 @@ async def suggest_control_config_citations(
     Returns:
         Dict with success status and suggestions:
         - success (bool): Whether the request was successful
-        - items (List[dict]): List of suggestion items, each containing:
+        - items (list[dict]): List of suggestion items, each containing:
             - inputControlName (str): The input control name
             - controlId (str): The control ID (empty if control doesn't exist yet)
-            - suggestions (List[dict]): List of suggested controls, each containing:
+            - suggestions (list[dict]): List of suggested controls, each containing:
                 - Name (str): Control name
                 - Control ID (int): Control ID number
                 - Control Classification (str): Classification type
@@ -349,7 +349,7 @@ async def list_assessments(
     
     Returns:
         AssessmentListVO containing:
-            - assessments (List[AssessmentVO]): A list of assessment objects, where each assessment includes:
+            - assessments (list[AssessmentVO]): A list of assessment objects, where each assessment includes:
                 - id (str): Unique identifier of the assessment.
                 - name (str): Name of the assessment.
                 - categoryName (str): Name of the category.
@@ -364,7 +364,7 @@ async def list_assessments(
             logger.error("list_assessments error: {}\n".format(output))
             return assessment_vo.AssessmentListVO(error="Facing internal error")
         
-        assessments: List[assessment_vo.AssessmentVO] = []
+        assessments: list[assessment_vo.AssessmentVO] = []
         
         if isinstance(output, dict) and "items" in output:
             items = output["items"]
@@ -408,7 +408,7 @@ async def list_assessment_control_configs(
     Returns:
         Dict with success status and controls:
         - success (bool): Whether the request was successful
-        - controls (List[dict]): List of control objects, each containing:
+        - controls (list[dict]): List of control objects, each containing:
             - id (str): Control ID
             - name (str): Control name
             - alias (str): Control alias
@@ -593,9 +593,9 @@ async def attach_citation_to_control_config(
     assessmentId: str,
     controlId: str,
     authorityDocument: str,
-    controlIdsInAuthorityDocument: List[str],
+    controlIdsInAuthorityDocument: list[str],
     sortId: str,
-    controlNames: List[str],
+    controlNames: list[str],
     confirm: bool = False,
     ctx: Context | None = None
 ) -> dict:
@@ -623,21 +623,21 @@ async def attach_citation_to_control_config(
         assessmentId (str): The assessment ID (plan ID) - MUST be user-selected.
         controlId (str): The control ID to attach citations to - MUST be user-selected.
         authorityDocument (str): The authority document name (e.g., "Trial1 CF").
-        controlIdsInAuthorityDocument (List[str]): List of control IDs from the authority document (e.g., ["10014"]).
+        controlIdsInAuthorityDocument (list[str]): List of control IDs from the authority document (e.g., ["10014"]).
         sortId (str): Sort ID from the suggestion (e.g., "010 014").
-        controlNames (List[str]): List of control names from the suggestion (e.g., ["Multifactor Authentication"]).
+        controlNames (list[str]): List of control names from the suggestion (e.g., ["Multifactor Authentication"]).
         confirm (bool, optional): If False, shows preview with assessment and control IDs for confirmation.
                                   If True, proceeds with attachment. Defaults to False.
     
     Returns:
         Dict with success status and citation data:
         - success (bool): Whether the request was successful
-        - citations (List[dict], optional): List of attached citation objects (only when confirm=True), each containing:
+        - citations (list[dict], optional): List of attached citation objects (only when confirm=True), each containing:
             - id (str): Citation ID
             - planControlID (str): Plan control ID
             - authorityDocument (str): Authority document name
-            - controlNames (List[str]): Control names
-            - controlsInAuthorityDocument (List[str]): Control IDs in authority document
+            - controlNames (list[str]): Control names
+            - controlsInAuthorityDocument (list[str]): Control IDs in authority document
             - sortID (str): Sort ID
             - status (str): Citation status
         - assessmentId (str, optional): Assessment ID for confirmation (only when confirm=False)
@@ -793,7 +793,7 @@ async def attach_citation_to_control_config(
 async def create_sql_query_evidence(
     controlConfigId: str,
     sqlquery: str,
-    referedEvidenceNames: List[str],
+    referedEvidenceNames: list[str],
     newEvidenceName: str,
     confirm: bool = False,
     entityHierarchyReferenceName: str = None,
@@ -840,7 +840,7 @@ async def create_sql_query_evidence(
         controlConfigId (str): The control config ID where the query is to be attached (required).
         sqlquery (str): The SQL query definition (required). The query should reference evidenceConfigNames as table names.
                       When confirm=False, this will be displayed in the preview. When confirm=True, the SQL query will be created and attached.
-        referedEvidenceNames (List[str]): List of evidenceConfigNames that are referenced as table names in the SQL query (required, non-empty).
+        referedEvidenceNames (list[str]): List of evidenceConfigNames that are referenced as table names in the SQL query (required, non-empty).
         newEvidenceName (str): Name of the new evidence config to be created (required).
         confirm (bool, optional): If False, returns preview with the SQL query displayed for review (and optional modification).
                                  If True, proceeds with SQL query creation using the provided sqlquery.
@@ -964,13 +964,13 @@ async def list_sql_query_evidence(
     Returns:
         Dict with success status and evidences:
         - success (bool): Whether the request was successful
-        - evidences (List[dict]): List of SQL query evidence objects, each containing:
+        - evidences (list[dict]): List of SQL query evidence objects, each containing:
             - id (str): Evidence ID
             - evidenceId (str): Evidence config ID
             - ruleId (str): Rule ID
             - sqlQuery (str): SQL query string
             - evidenceName (str): Evidence config name
-            - referedEvidenceNames (List[str]): List of referenced evidence names
+            - referedEvidenceNames (list[str]): List of referenced evidence names
         - totalCount (int): Total number of evidences found
         - error (str, optional): Error message if request failed
     """
@@ -1017,7 +1017,7 @@ async def update_sql_query_evidence(
     controlConfigId: str,
     evidenceId: str,
     sqlquery: str,
-    referedEvidenceNames: List[str],
+    referedEvidenceNames: list[str],
     newEvidenceName: str,
     confirm: bool = False,
     entityHierarchyReferenceName: str = None,
@@ -1044,7 +1044,7 @@ async def update_sql_query_evidence(
         evidenceId (str): The evidence ID of the SQL query evidence to update (required).
         sqlquery (str): The updated SQL query definition (required). The query should reference evidenceConfigNames as table names.
                       When confirm=False, this will be displayed in the preview. When confirm=True, the SQL query will be updated.
-        referedEvidenceNames (List[str]): List of evidenceConfigNames that are referenced as table names in the SQL query (required, non-empty).
+        referedEvidenceNames (list[str]): List of evidenceConfigNames that are referenced as table names in the SQL query (required, non-empty).
         newEvidenceName (str): Updated name of the evidence config (required).
         confirm (bool, optional): If False, returns preview with the updated SQL query displayed for review (and optional modification).
                                  If True, proceeds with SQL query evidence update using the provided sqlquery.
@@ -1254,7 +1254,7 @@ async def fetch_control_source_summary(controlId: str, ctx: Context | None = Non
         )
 
 @mcp.tool()
-async def get_evidence_sample_data(controlConfigId: str, evidenceNames: List[str] | None = None, records: int = 3, ctx: Context | None = None) -> dict:
+async def get_evidence_sample_data(controlConfigId: str, evidenceNames: list[str] | None = None, records: int = 3, ctx: Context | None = None) -> dict:
     """
     Fetch concrete evidence samples for a control config.
 
@@ -1265,7 +1265,7 @@ async def get_evidence_sample_data(controlConfigId: str, evidenceNames: List[str
 
     Args:
         controlConfigId (str): Control config ID where the SQL query will be attached (required).
-        evidenceNames (List[str], optional): Specific evidence config names (table names) to sample.
+        evidenceNames (list[str], optional): Specific evidence config names (table names) to sample.
             If omitted/empty, all evidences linked to the control are sampled.
         records (int, optional): Number of records per evidence (1-10, default 3).
 
@@ -1274,7 +1274,7 @@ async def get_evidence_sample_data(controlConfigId: str, evidenceNames: List[str
             - success (bool): API invocation status.
             - controlId (str): Echoed control ID.
             - recordCount (int): Number of rows requested (after validation).
-            - evidences (List[dict]): Evidence samples grouped by control/evidence. If an evidence
+            - evidences (list[dict]): Evidence samples grouped by control/evidence. If an evidence
               is missing from the response, no records exist for it in the latest run.
             - next_action (str): Recommended next step (typically "create sql query").
             - error (str, optional): Validation or API error.
@@ -1547,7 +1547,7 @@ async def list_control_config_notes(
     Returns:
         Dict with success status and notes:
         - success (bool): Whether the request was successful
-        - notes (List[dict]): List of note objects, each containing:
+        - notes (list[dict]): List of note objects, each containing:
             - id (str): Note ID
             - topic (str): Note topic
             - notes (str): Note content
@@ -1817,7 +1817,7 @@ async def fetch_rule_readme(name: str, ctx: Context | None = None) -> workflow_v
 @mcp.tool()
 async def validate_sql_query(
     sqlQuery: str,
-    referenceEvidences: List[dict],
+    referenceEvidences: list[dict],
     assessmentId: str,
     controlId :str,
     entityHierarchyReferenceName: str = None,
@@ -1839,7 +1839,7 @@ async def validate_sql_query(
     
     Args:
         sqlQuery (str): The SQL query to validate (required).
-        referenceEvidences (List[dict]): List of evidence objects, each containing:
+        referenceEvidences (list[dict]): List of evidence objects, each containing:
             - name (str): Evidence config name (table name used in SQL query) (required).
             - id (str, optional): runEvidenceId obtained from `get_evidence_sample_data` response.
             - file (dict, optional): File object containing:
@@ -2000,7 +2000,7 @@ async def fetch_sql_query_feedback(
     control_description: str, 
     control_context:str, 
     control_additional_context: dict[str, Any],
-    evidence_details: List[dict],
+    evidence_details: list[dict],
     assessment_context: dict,
     sql_query: str,
     query_type: Literal["primary", "supporting"],
@@ -2026,7 +2026,7 @@ async def fetch_sql_query_feedback(
         control_additional_context (dict):
             Additional supporting information not covered in control_context.
 
-        evidence_details (List[dict]): 
+        evidence_details (list[dict]): 
             DO NOT use the input context to determine evidences.
             DO NOT infer evidences from filter_query, control context, or additional context.
             DO NOT limit or filter evidences by relevance.
@@ -2401,7 +2401,7 @@ async def create_control_config(
         controlObjectiveDescription (str): Control objective description (required).
         controlObjectiveCategory (str): Parent control name that will be a first-level control (required).
         entityClass (str): Entity class name (required).
-        entities (List[str]): List of entity names (required).
+        entities (list[str]): List of entity names (required).
         controlContext (str, optional): Additional control context.
 
     Returns:
@@ -2518,7 +2518,7 @@ async def update_control_config_contexts(
     Args:
         controlConfigId (str): ID of the control config to update (required).
         entityClass (str): Entity class name (required).
-        entities (List[str]): List of entity names (required).
+        entities (list[str]): List of entity names (required).
         controlContext (str | None): New context value. If None/empty, context will be set to "".
 
     Returns:

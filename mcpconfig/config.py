@@ -28,7 +28,7 @@ if not constants.ENABLE_CCOW_API_TOOLS:
 
 mcp = fastmcp.FastMCP("ComplianceCow")
 
-def get_header_value(headers: Dict[str, Any], key: str, default: str = "") -> str:
+def get_header_value(headers: dict[str, Any], key: str, default: str = "") -> str:
     try:
         if not isinstance(headers, dict):
             return default

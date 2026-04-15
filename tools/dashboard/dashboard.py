@@ -18,7 +18,7 @@ async def get_dashboard_review_periods(ctx: Context | None = None) -> vo.CCFDash
     """
     Fetch list of review periods
     Returns:
-        - items (List[str]): list of review periods
+        - items (list[str]): list of review periods
         - error (Optional[str]): An error message if any issues occurred during retrieval. 
     """
     try:
@@ -55,22 +55,22 @@ async def get_dashboard_data(period: str = "Q1 2024", ctx: Context | None = None
         
     Returns:
         - totalControls (int): Total number of controls in the dashboard.
-        - controlStatus (List[ComplianceStatusSummaryVO]): Summary of control statuses.
+        - controlStatus (list[ComplianceStatusSummaryVO]): Summary of control statuses.
             - status (str): Compliance status of the control.
             - count (int): Number of controls with the given status.
-        - controlAssignmentStatus (List[ControlAssignmentStatusVO]): Assignment status categorized by control.
+        - controlAssignmentStatus (list[ControlAssignmentStatusVO]): Assignment status categorized by control.
             - categoryName (str): Name of the control category.
-            - controlStatus (List[ComplianceStatusSummaryVO]): Status summary within the category.
+            - controlStatus (list[ComplianceStatusSummaryVO]): Status summary within the category.
                 - status (str): Compliance status.
                 - count (int): Number of controls with this status.
         - compliancePCT (float): Overall compliance percentage across all controls.
-        - controlSummary (List[ControlSummaryVO]): Detailed summary of each control.
+        - controlSummary (list[ControlSummaryVO]): Detailed summary of each control.
             - category (str): Category name of the control.
             - status (str): Compliance status of the control.
             - dueDate (str): Due date for the control, if applicable.
             - compliancePCT (float): Compliance percentage for the control.
             - leafControls (int): Number of leaf-level controls in the category.
-        - complianceStatusSummary (List[ComplianceStatusSummaryVO]): Summary of control statuses.
+        - complianceStatusSummary (list[ComplianceStatusSummaryVO]): Summary of control statuses.
             - status (str): Compliance status.
             - count (int): Number of controls with the given status.
         - error (Optional[str]): An error message if any issues occurred during retrieval. 
@@ -126,7 +126,7 @@ async def fetch_dashboard_framework_controls(period: str, framework_name : str, 
 
 
     Returns:
-        - controls (List[FramworkControlVO]): A list of framework controls.
+        - controls (list[FramworkControlVO]): A list of framework controls.
             - name (str): Name of the control.
             - assignedTo (str): Email ID of the user the control is assigned to.
             - assignmentStatus (str): Status of the control assignment.
@@ -161,7 +161,7 @@ async def fetch_dashboard_framework_controls(period: str, framework_name : str, 
             logger.error("fetch_dashboard_framework_controls error: {}\n".format(output))
             return vo.FrameworkControlListVO(error="Facing internal error")
         
-        controls: List[vo.FramworkControlVO] = []
+        controls: list[vo.FramworkControlVO] = []
         if output["items"]:
             for item in output["items"]:
                 if "controlName" in item:
@@ -200,7 +200,7 @@ async def fetch_dashboard_framework_summary(period: str, framework_name : str, c
     It includes key information such as assignment status, compliance progress, due dates, and risk scoring to help stakeholders monitor and manage compliance posture.
 
     Returns:
-        - controls (List[FramworkControlVO]): A list of framework controls.
+        - controls (list[FramworkControlVO]): A list of framework controls.
             - name (str): Name of the control.
             - assignedTo (str): Email ID of the user the control is assigned to.
             - assignmentStatus (str): Status of the control assignment.
@@ -235,7 +235,7 @@ async def fetch_dashboard_framework_summary(period: str, framework_name : str, c
             logger.error("fetch_dashboard_framework_summary error: {}\n".format(output))
             return vo.FrameworkControlListVO(error="Facing internal error")
         
-        controls: List[vo.FramworkControlVO] = []
+        controls: list[vo.FramworkControlVO] = []
         if output["items"]:
             for item in output["items"]:
                 if "controlName" in item:
@@ -269,7 +269,7 @@ async def get_dashboard_common_controls_details(period: str, complianceStatus: s
         - pageSize (int): Number of items per page (Optional). Default is 50.
 
     Returns:
-        - controls (List[CommonControlVO]): A list of common controls.
+        - controls (list[CommonControlVO]): A list of common controls.
             - id (str): Unique identifier of the control.
             - planInstanceID (str): ID of the associated plan instance.
             - alias (str): Alias or alternate name for the control.
@@ -319,7 +319,7 @@ async def get_dashboard_common_controls_details(period: str, complianceStatus: s
             logger.error("get_dashboard_common_controls_details error: {}\n".format(output))
             return vo.CommonControlListVO(error="Facing internal error")
         
-        controls: List[vo.CommonControlVO] = []
+        controls: list[vo.CommonControlVO] = []
         if output["items"]:
             for item in output["items"]:
                 if "controlName" in item:
@@ -372,9 +372,9 @@ async def get_top_over_due_controls_detail(period: str = "Q1 2024", count: int =
             - count (int, required) - page content size, defaults to 10
             
         Returns:
-            - controls (List[OverdueControlVO]): A list of overdue controls.
+            - controls (list[OverdueControlVO]): A list of overdue controls.
                 - name (str): Name of the control.
-                - assignedTo (List[UserVO]): List of users assigned to the control.
+                - assignedTo (list[UserVO]): List of users assigned to the control.
                     - emailid (str): Email ID of the assigned user.
                 - assignmentStatus (str): Assignment status of the control.
                 - complianceStatus (str): Compliance status of the control.
@@ -403,7 +403,7 @@ async def get_top_over_due_controls_detail(period: str = "Q1 2024", count: int =
             logger.error("get_top_over_due_controls_detail error: {}\n".format(output))
             return vo.OverdueControlListVO(error="Facing internal error")
         
-        controls: List[vo.OverdueControlVO] = []
+        controls: list[vo.OverdueControlVO] = []
         if output["items"]:
             for item in output["items"]:
                 if "controlName" in item:
@@ -426,9 +426,9 @@ async def get_top_non_compliant_controls_detail(period: str, count= 1, page=1, c
         3. page: If the user asks of next page use smartly decide the page.
         
         Returns:
-        - controls (List[NonCompliantControlVO]): A list of non-compliant controls.
+        - controls (list[NonCompliantControlVO]): A list of non-compliant controls.
             - name (str): Name of the control.
-            - lastAssignedTo (List[UserVO]): List of users to whom the control was last assigned.
+            - lastAssignedTo (list[UserVO]): List of users to whom the control was last assigned.
                 - emailid (str): Email ID of the assigned user.
             - score (float): Score assigned to the control.
             - priority (str): Priority level of the control.
@@ -452,7 +452,7 @@ async def get_top_non_compliant_controls_detail(period: str, count= 1, page=1, c
             logger.error("get_top_non_compliant_controls_detail error: {}\n".format(output))
             return vo.NonCompliantControlListVO(error="Facing internal error")
         
-        controls: List[vo.NonCompliantControlVO] = []
+        controls: list[vo.NonCompliantControlVO] = []
         if output["items"]:
             for item in output["items"]:
                 if "controlName" in item:
