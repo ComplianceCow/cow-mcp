@@ -9,6 +9,7 @@ from mcptypes import forms_tool_types as vo
 from utils import utils
 from utils.debug import logger
 from utils.forms import (
+    _base_host,
     collect_assignable_element_ids,
     elements_from_raw,
     extract_assign_form_ids_and_error,
@@ -116,6 +117,7 @@ async def create_form(form: vo.CreateFormVO, ctx: Context | None = None) -> vo.C
 
     Returns:
         - form (Optional[FormVO]): Created form with id and name.
+        - host (Optional[str]): Platform host URL for building UI links.
         - error (Optional[str]): Error message if creation failed.
     """
     try:
@@ -145,7 +147,8 @@ async def create_form(form: vo.CreateFormVO, ctx: Context | None = None) -> vo.C
         form_name = created.get("name") or created.get("title", "")
 
         return vo.CreateFormResponseVO(
-            form=vo.FormVO(id=form_id, name=form_name)
+            form=vo.FormVO(id=form_id, name=form_name),
+            host=_base_host(),
         )
     except Exception as e:
         logger.error(traceback.format_exc())
@@ -281,6 +284,7 @@ async def update_form(
 
     Returns:
         - form (Optional[FormVO]): Updated form with id and name (from request; API returns no body).
+        - host (Optional[str]): Platform host URL for building UI links.
         - error (Optional[str]): Error message if update failed.
     """
     assigned_state = await is_form_assigned(form_id, ctx)
@@ -919,6 +923,7 @@ async def get_current_user(ctx: Context | None = None) -> vo.CurrentUserResponse
 @mcp.tool()
 async def save_form_responses(
     form_id: str,
+    assign_id: str,
     form_response_id: str,
     form_responses: Dict[str, Any],
     ctx: Context | None = None,
@@ -929,7 +934,8 @@ async def save_form_responses(
 
     Args:
         form_id: The form id.
-        form_response_id: The form response id (from create_form_response).
+        assign_id: The form assignment id.
+        form_response_id: The form response id (from create_form_response). 
         form_responses: Map of element id -> answer value.
             - String value for text/date answers. For option-type questions, pass the string index of the selected option (Radio Button, Checkbox, Dropdown).
             - Date Range object: {toDate, fromDate}.
@@ -941,13 +947,15 @@ async def save_form_responses(
     """
     try:
         logger.info(
-            "save_form_responses: form_id=%s, form_response_id=%s",
+            "save_form_responses: form_id=%s, assign_id=%s, form_response_id=%s",
             form_id,
+            assign_id,
             form_response_id,
         )
 
         url = f"{constants.URL_FORMS}/{form_id}/responses/{form_response_id}/elements"
         payload = {
+            "assignId": assign_id,
             "formResponseId": form_response_id,
             "formResponses": form_responses,
         }
@@ -1263,6 +1271,7 @@ async def assign_form(
 
     Returns:
         - ids (List[str]): Created assignment IDs.
+        - host (Optional[str]): Platform host URL for building UI links.
         - error (Optional[str]): Error message if assignment failed.
     """
     try:
@@ -1296,7 +1305,7 @@ async def assign_form(
         logger.debug("assign_form output: %s", output)
 
         ids, err = extract_assign_form_ids_and_error(output)
-        return vo.AssignFormResponseVO(ids=ids, error=err)
+        return vo.AssignFormResponseVO(ids=ids, host=_base_host(), error=err)
     except Exception as e:
         logger.error(traceback.format_exc())
         logger.error("assign_form error: %s", e)
