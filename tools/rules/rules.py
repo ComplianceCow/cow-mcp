@@ -2793,7 +2793,7 @@ def confirm_template_input(rule_name: str, task_name: str, rule_input_name: str,
             file_name = f"{task_name}_{input_name}{file_extension}"
 
             # Upload the file and get URL
-            upload_result = upload_file.fn(rule_name=rule_name, file_name=file_name, content=confirmed_content, ctx=ctx)
+            upload_result = upload_file(rule_name=rule_name, file_name=file_name, content=confirmed_content, ctx=ctx)
 
             if upload_result["success"]:
                 input_value = upload_result["file_url"]
@@ -2812,7 +2812,7 @@ def confirm_template_input(rule_name: str, task_name: str, rule_input_name: str,
         
         try:
             # Fetch current rule
-            current_rule = fetch_rule.fn(rule_name, ctx)
+            current_rule = fetch_rule(rule_name, ctx)
             logger.info(f"current_rule ::{current_rule}")
             if current_rule["success"]:
                 rule_structure = current_rule["rule_structure"]
@@ -2849,7 +2849,7 @@ def confirm_template_input(rule_name: str, task_name: str, rule_input_name: str,
                 logger.info(f"rule_structure 3333 ::{rule_structure}")
                 
                 # Update rule - status will be auto-detected
-                update_result = create_rule.fn(rule_structure, ctx)
+                update_result = create_rule(rule_structure, ctx)
                 logger.info(f"update_result ::{update_result}")
                 rule_update_success = update_result["success"]
                 rule_status = update_result.get("detected_status", "UNKNOWN")
@@ -3232,7 +3232,7 @@ def confirm_parameter_input(task_name: str, input_name: str, rule_input_name:str
         if rule_name:
             try:
                 # Fetch current rule
-                current_rule = fetch_rule.fn(rule_name, ctx)
+                current_rule = fetch_rule(rule_name, ctx)
                 if current_rule["success"]:
                     rule_structure = current_rule["rule_structure"]
                     
@@ -3262,7 +3262,7 @@ def confirm_parameter_input(task_name: str, input_name: str, rule_input_name:str
                     rule_structure["spec"]["inputsMeta__"].append(input_meta)
                     
                     # Update rule - status auto-detected
-                    update_result = create_rule.fn(rule_structure, ctx)
+                    update_result = create_rule(rule_structure, ctx)
                     rule_update_success = update_result["success"]
                     rule_status = update_result.get("detected_status", "UNKNOWN")
                     rule_progress = update_result.get("progress_percentage", 0)
@@ -4067,7 +4067,7 @@ def execute_task(task_name: str, task_inputs: dict[str, Any], application: dict[
 
     try:
         # Step 1: Get task details to understand expected input/output structure
-        task_details = get_task_details.fn(task_name, ctx)
+        task_details = get_task_details(task_name, ctx)
         if task_details.get("error"):
             return {
                 "success": False,
@@ -5458,7 +5458,7 @@ def prepare_applications_for_execution(rule_name: str, ctx: Context | None = Non
     """
     try:
         # Fetch the rule
-        rule_result = fetch_rule.fn(rule_name, ctx)
+        rule_result = fetch_rule(rule_name, ctx)
         if not rule_result.get("success"):
             return {
                 "success": False,
@@ -5588,7 +5588,7 @@ def add_unique_identifier_to_task(rule_name: str, task_alias: str, identifier_ke
     """
     try:
         # Fetch the rule
-        rule_result = fetch_rule.fn(rule_name, ctx)
+        rule_result = fetch_rule(rule_name, ctx)
         if not rule_result.get("success"):
             return {
                 "success": False,
@@ -5635,9 +5635,9 @@ def add_unique_identifier_to_task(rule_name: str, task_alias: str, identifier_ke
         
         # Save the updated rule
         if constants.ENABLE_RULE_CREATION_TASK_CHAIN_PROCESS:
-            update_result = create_rule.fn(rule_structure, True, ctx)
+            update_result = create_rule(rule_structure, True, ctx)
         else:
-            update_result = create_rule.fn(rule_structure, ctx)
+            update_result = create_rule(rule_structure, ctx)
         
         if not update_result.get("success"):
             return {
@@ -5701,7 +5701,7 @@ def check_rule_status(rule_name: str, ctx: Context | None = None) -> dict[str, A
     """
     
     try:
-        current_rule = fetch_rule.fn(rule_name, ctx)
+        current_rule = fetch_rule(rule_name, ctx)
         if not current_rule["success"]:
             return {
                 "success": False, 
@@ -5916,7 +5916,7 @@ def create_initial_rule_from_planning(rule_name: str, purpose: str, description:
     if not primary_app_type:
         app_types = []
         for task_info in selected_tasks:
-            task_details = get_task_details.fn(task_info["task_name"], None)  # No context available in this helper function
+            task_details = get_task_details(task_info["task_name"], None)  # No context available in this helper function
             if task_details.get("appTags", {}).get("appType"):
                 app_types.extend(task_details["appTags"]["appType"])
         unique_app_types = list(set([t for t in app_types if t != "nocredapp"]))
@@ -5954,7 +5954,7 @@ def create_initial_rule_from_planning(rule_name: str, purpose: str, description:
                     "name": task_info["task_name"],
                     "alias": task_info["task_alias"],
                     "type": "task",
-                    "appTags": get_task_details.fn(task_info["task_name"], None).get("appTags", {}),  # No context available in this helper function
+                    "appTags": get_task_details(task_info["task_name"], None).get("appTags", {}),  # No context available in this helper function
                     "purpose": task_info.get("purpose", f"Task {task_info['task_alias']}")
                 }
                 for task_info in selected_tasks
@@ -5964,7 +5964,7 @@ def create_initial_rule_from_planning(rule_name: str, purpose: str, description:
     }
     
     # Create rule - status will be auto-detected as DRAFT
-    return create_rule.fn(initial_rule_structure)
+    return create_rule(initial_rule_structure)
 
 def finalize_rule_with_io_mapping(rule_name: str, task_input_mapping: dict = None, ctx: Context | None = None) -> dict[str, Any]:
     """
@@ -5976,7 +5976,7 @@ def finalize_rule_with_io_mapping(rule_name: str, task_input_mapping: dict = Non
     
     try:
         # Fetch current rule
-        current_rule = fetch_rule.fn(rule_name, ctx)
+        current_rule = fetch_rule(rule_name, ctx)
         if not current_rule["success"]:
             return {"success": False, "error": f"Rule '{rule_name}' not found"}
         
@@ -6020,7 +6020,7 @@ def finalize_rule_with_io_mapping(rule_name: str, task_input_mapping: dict = Non
         rule_structure["spec"]["ioMap"] = io_map
         
         # Update rule - status will be auto-detected as ACTIVE
-        return create_rule.fn(rule_structure, ctx)
+        return create_rule(rule_structure, ctx)
         
     except Exception as e:
         return {"success": False, "error": f"Failed to finalize rule: {e}"}
@@ -6598,7 +6598,7 @@ if constants.ENABLE_RULE_CREATION_TASK_CHAIN_PROCESS:
                                 if source_task:
                                     # Get task details to validate output exists
                                     task_name = source_task.get("name")
-                                    task_details= get_task_details.fn(task_name, ctx)
+                                    task_details= get_task_details(task_name, ctx)
                                     if task_details.get("error"):
                                         io_mapping_errors.append(f"Could not validate task '{task_name}': {task_details['error']}")
                                     else:
@@ -6628,7 +6628,7 @@ if constants.ENABLE_RULE_CREATION_TASK_CHAIN_PROCESS:
             # MANDATORY: Fetch application class name for the primary app type
             primary_app_type_array = meta.get("labels", {}).get("appType", [])
             primary_app_type = primary_app_type_array[0] if primary_app_type_array else None
-            applications_response = fetch_applications.fn(ctx)
+            applications_response = fetch_applications(ctx)
             application_class_name = None
 
             # Find matching application class name for primary app type
@@ -6742,7 +6742,7 @@ if constants.ENABLE_RULE_CREATION_TASK_CHAIN_PROCESS:
             }
 
             # Check if rule already exists (for updates vs creation)
-            # existing_rule = fetch_rule.fn(rule_structure["meta"]["name"], ctx)
+            # existing_rule = fetch_rule(rule_structure["meta"]["name"], ctx)
             # is_update = existing_rule["success"]
 
             # Generate YAML preview for user confirmation (preserved from original)
@@ -7463,7 +7463,7 @@ if constants.ENABLE_RULE_CREATION_TASK_CHAIN_PROCESS:
         logger.debug(f"rule_structure ::: {rule_structure}")
         logger.debug(f"existing_rule_name ::: {existing_rule_name}")
         rule_structure['existingRuleName'] = existing_rule_name
-        return create_rule.fn(rule_structure,True,ctx)
+        return create_rule(rule_structure,True,ctx)
 
 else:
     @mcp.tool()
@@ -7869,7 +7869,7 @@ else:
                                 if source_task:
                                     # Get task details to validate output exists
                                     task_name = source_task.get("name")
-                                    task_details= get_task_details.fn(task_name, ctx)
+                                    task_details= get_task_details(task_name, ctx)
                                     if task_details.get("error"):
                                         io_mapping_errors.append(f"Could not validate task '{task_name}': {task_details['error']}")
                                     else:
@@ -7899,7 +7899,7 @@ else:
             # MANDATORY: Fetch application class name for the primary app type
             primary_app_type_array = meta.get("labels", {}).get("appType", [])
             primary_app_type = primary_app_type_array[0] if primary_app_type_array else None
-            applications_response = fetch_applications.fn(ctx)
+            applications_response = fetch_applications(ctx)
             application_class_name = None
 
             # Find matching application class name for primary app type
@@ -8013,7 +8013,7 @@ else:
             }
 
             # Check if rule already exists (for updates vs creation)
-            existing_rule = fetch_rule.fn(rule_structure["meta"]["name"], ctx)
+            existing_rule = fetch_rule(rule_structure["meta"]["name"], ctx)
             is_update = existing_rule["success"]
 
             # Generate YAML preview for user confirmation (preserved from original)
