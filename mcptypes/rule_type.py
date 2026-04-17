@@ -73,15 +73,15 @@ class TaskInputVO:
     showField: bool
     required: bool
     allowUserValues: bool = True
-    allowedValues: List[Any] = None
+    allowedValues: list[Any] = None
     templateFile: str = ""
     format: str = ""
 
-    def to_dict(self) -> Dict[str, Any]:
+    def to_dict(self) -> dict[str, Any]:
         return _to_dict(self)
 
     @classmethod
-    def from_dict(cls, data: Dict[str, Any]) -> "TaskInputVO":
+    def from_dict(cls, data: dict[str, Any]) -> "TaskInputVO":
         return _from_dict(cls, data)
 
 
@@ -91,11 +91,11 @@ class TaskOutputVO:
     description: str
     dataType: str
 
-    def to_dict(self) -> Dict[str, Any]:
+    def to_dict(self) -> dict[str, Any]:
         return _to_dict(self)
 
     @classmethod
-    def from_dict(cls, data: Dict[str, Any]) -> "TaskOutputVO":
+    def from_dict(cls, data: dict[str, Any]) -> "TaskOutputVO":
         return _from_dict(cls, data)
 
 
@@ -106,18 +106,18 @@ class TaskVO:
     version: str
     description: str
     type: str
-    tags: List[str]
+    tags: list[str]
     applicationType: str
-    inputs: List[TaskInputVO]
-    outputs: List[TaskOutputVO]
-    appTags: Dict[str, List[str]]
+    inputs: list[TaskInputVO]
+    outputs: list[TaskOutputVO]
+    appTags: dict[str, list[str]]
     readmeData: str
 
-    def to_dict(self) -> Dict[str, Any]:
+    def to_dict(self) -> dict[str, Any]:
         return _to_dict(self)
 
     @classmethod
-    def from_dict(cls, data: Dict[str, Any]) -> "TaskVO":
+    def from_dict(cls, data: dict[str, Any]) -> "TaskVO":
         return _from_dict(cls, data)
 
         
@@ -141,7 +141,7 @@ class SimplifiedRulesAndTasksSuggestionVO(BaseModel):
     }
 
 class SimplifiedRuleListVO(BaseModel):
-    rules: Optional[List[SimplifiedRuleVO]] = None
+    rules: Optional[list[SimplifiedRuleVO]] = None
 
 class AssessmentVO(BaseModel):
     id: Optional[str] = ""
@@ -153,7 +153,7 @@ class AssessmentVO(BaseModel):
     }
 
 class AssessmentListVO:
-    assessments: Optional[List[AssessmentVO]] = None
+    assessments: Optional[list[AssessmentVO]] = None
     error: Optional[str] = ""
 
 class AssessmentControlVO(BaseModel):
@@ -177,7 +177,7 @@ class CVEEntryVO(BaseModel):
     severity: str
     cvss_score: float
     description: str
-    impact: List[str]
-    affected_versions: List[str]
-    remediation: List[CVERemediationVO]
+    impact: list[str]
+    affected_versions: list[str]
+    remediation: list[CVERemediationVO]
 

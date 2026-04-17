@@ -11,7 +11,7 @@ class WorkflowEventCategoryItemVO(BaseModel):
     }
 
 class WorkflowEventCategoryListVO(BaseModel):
-    eventCategories: Optional[List[WorkflowEventCategoryItemVO]] = None
+    eventCategories: Optional[list[WorkflowEventCategoryItemVO]] = None
     error: Optional[str] = ""
 
 
@@ -22,7 +22,7 @@ class WorkflowActivityCategoryItemVO(BaseModel):
     }
 
 class WorkflowActivityCategoryListVO(BaseModel):
-    activityCategories: Optional[List[WorkflowActivityCategoryItemVO]] = None
+    activityCategories: Optional[list[WorkflowActivityCategoryItemVO]] = None
     error: Optional[str] = ""
 
     
@@ -33,7 +33,7 @@ class WorkflowConditionCategoryItemVO(BaseModel):
     }
 
 class WorkflowConditionCategoryListVO(BaseModel):
-    conditionCategories: Optional[List[WorkflowConditionCategoryItemVO]] = None
+    conditionCategories: Optional[list[WorkflowConditionCategoryItemVO]] = None
     error: Optional[str] = ""
 
 class WorkflowInputsVO(BaseModel):
@@ -51,7 +51,7 @@ class WorkflowOutputsVO(BaseModel):
     name: Optional[str] = ""
     desc: Optional[str] = ""
     type: Optional[str] = ""
-    possible_values: Optional[List[str]] = None
+    possible_values: Optional[list[str]] = None
     isPrimaryOutcome: Optional[bool] = False
     model_config = {
         "extra": "ignore"
@@ -61,7 +61,7 @@ class WorkflowPayloadVO(BaseModel):
     name: Optional[str] = ""
     desc: Optional[str] = ""
     type: Optional[str] = ""
-    possible_values: Optional[List[str]] = None
+    possible_values: Optional[list[str]] = None
     model_config = {
         "extra": "ignore"
     }
@@ -71,7 +71,7 @@ class WorkflowEventVO(BaseModel):
     categoryId: Optional[str] = ""
     desc: Optional[str] = ""
     displayable: Optional[str] = ""
-    payload: Optional[List[WorkflowPayloadVO]] = None
+    payload: Optional[list[WorkflowPayloadVO]] = None
     status: Optional[str] = ""
     type: Optional[str] = ""
     model_config = {
@@ -79,8 +79,8 @@ class WorkflowEventVO(BaseModel):
     }
 
 class WorkflowEventListVO(BaseModel):
-    systemEvents: Optional[List[WorkflowEventVO]] = None
-    customEvents: Optional[List[WorkflowEventVO]] = None
+    systemEvents: Optional[list[WorkflowEventVO]] = None
+    customEvents: Optional[list[WorkflowEventVO]] = None
     error: Optional[str] = ""
 
 
@@ -90,15 +90,15 @@ class WorkflowActivityVO(BaseModel):
     desc: Optional[str] = ""
     displayable: Optional[str] = ""
     name: Optional[str] = ""
-    inputs: Optional[List[WorkflowInputsVO]] = None
-    outputs: Optional[List[WorkflowOutputsVO]] = None
+    inputs: Optional[list[WorkflowInputsVO]] = None
+    outputs: Optional[list[WorkflowOutputsVO]] = None
     status: Optional[str] = ""
     model_config = {
         "extra": "ignore"
     }
 
 class WorkflowActivityListVO(BaseModel):
-    activities: Optional[List[WorkflowActivityVO]] = None
+    activities: Optional[list[WorkflowActivityVO]] = None
     error: Optional[str] = ""
 
 class WorkflowConditionVO(BaseModel):
@@ -107,15 +107,15 @@ class WorkflowConditionVO(BaseModel):
     desc: Optional[str] = ""
     name: Optional[str] = ""
     displayable: Optional[str] = ""
-    inputs: Optional[List[WorkflowInputsVO]] = None
-    outputs: Optional[List[WorkflowOutputsVO]] = None
+    inputs: Optional[list[WorkflowInputsVO]] = None
+    outputs: Optional[list[WorkflowOutputsVO]] = None
     status: Optional[str] = ""
     model_config = {
         "extra": "ignore"
     }
 
 class WorkflowConditionListVO(BaseModel):
-    conditions: Optional[List[WorkflowConditionVO]] = None
+    conditions: Optional[list[WorkflowConditionVO]] = None
     error: Optional[str] = ""
 
 class WorkflowTaskInputsVO(BaseModel):
@@ -140,14 +140,14 @@ class WorkflowTaskVO(BaseModel):
     name: Optional[str] = ""
     displayable: Optional[str] = ""
     description: Optional[str] = ""
-    inputs: Optional[List[WorkflowTaskInputsVO]] = None
-    outputs: Optional[List[WorkflowTaskOutputsVO]] = None
+    inputs: Optional[list[WorkflowTaskInputsVO]] = None
+    outputs: Optional[list[WorkflowTaskOutputsVO]] = None
     model_config = {
         "extra": "ignore"
     }
 
 class WorkflowTaskListVO(BaseModel):
-    tasks: Optional[List[WorkflowTaskVO]] = None
+    tasks: Optional[list[WorkflowTaskVO]] = None
     error: Optional[str] = ""
 
 class WorkflowRuleInputsVO(BaseModel):
@@ -173,15 +173,15 @@ class WorkflowRuleVO(BaseModel):
     id: Optional[str] = ""
     name: Optional[str] = ""
     description: Optional[str] = ""
-    ruleInputs: Optional[List[WorkflowRuleInputsVO]] = None
-    ruleOutputs: Optional[List[WorkflowRuleOutputsVO]] = None
+    ruleInputs: Optional[list[WorkflowRuleInputsVO]] = None
+    ruleOutputs: Optional[list[WorkflowRuleOutputsVO]] = None
     appScopeName: Optional[str] = ""
     model_config = {
         "extra": "ignore"
     }
 
 class WorkflowRuleListVO(BaseModel):
-    rules: Optional[List[WorkflowRuleVO]] = None
+    rules: Optional[list[WorkflowRuleVO]] = None
     error: Optional[str] = ""
 
 class WorkflowPredefinedVariableVO(BaseModel):
@@ -191,7 +191,7 @@ class WorkflowPredefinedVariableVO(BaseModel):
     desc: Optional[str] = ""
 
 class WorkflowPredefinedVariableListVO(BaseModel):
-    items: Optional[List[WorkflowPredefinedVariableVO]] = None
+    items: Optional[list[WorkflowPredefinedVariableVO]] = None
     error: Optional[str] = ""
 
 class EventPayloadTypeEnum(str, Enum):
@@ -216,7 +216,7 @@ class WorkflowCustomEventCreateVO(BaseModel):
     displayable: str
     desc: str
     categoryId: str
-    payload: List[WorkflowCustomEventPayloadVO]
+    payload: list[WorkflowCustomEventPayloadVO]
     type: str = "CUSTOM_EVENT"
     model_config = {
         "extra": "ignore"

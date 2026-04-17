@@ -21,7 +21,7 @@ async def list_all_assets(ctx: Context | None = None) -> vo.AssetListVO:
         Get all assets
         
         Returns:
-            - assets (List[AssetsVo]): A list of assets.
+            - assets (list[AssetsVo]): A list of assets.
                 - id (str):  Asset id.
                 - name (str): Name of the asset.
             - error (Optional[str]): An error message if any issues occurred during retrieval. 
@@ -36,7 +36,7 @@ async def list_all_assets(ctx: Context | None = None) -> vo.AssetListVO:
             logger.error("list_all_assets error: {}\n".format(output))
             return vo.AssetListVO(error="Facing internal error")
         
-        assets: List[vo.AssetVO]=[]
+        assets: list[vo.AssetVO]=[]
         for item in output["items"]:
             if "name" in item:
                 assets.append(vo.AssetVO.model_validate(item))
@@ -102,7 +102,7 @@ async def fetch_resource_types(id: str, page: int=1, pageSize: int=0, ctx: Conte
             - id(str): Asset run id
             
         Returns:
-            - resourceTypes (List[AssetsVo]): A list of resource types.
+            - resourceTypes (list[AssetsVo]): A list of resource types.
                 - resourceType (str):  Resource type.
                 - totalResources (int): Total number of resources.               
             - error (Optional[str]): An error message if any issues occurred during retrieval. 
@@ -131,7 +131,7 @@ async def fetch_resource_types(id: str, page: int=1, pageSize: int=0, ctx: Conte
             logger.error("fetch_resource_types error: {}\n".format(output))
             return vo.ResourceTypeListVO(error="Facing internal error")
     
-        resourceTypes : List[vo.ResourceTypeVO] = []
+        resourceTypes : list[vo.ResourceTypeVO] = []
         for item in output["items"]:
             resourceTypes.append(vo.ResourceTypeVO.model_validate(item))
 
@@ -165,7 +165,7 @@ async def fetch_checks(id: str, resourceType: str, page: int=1, pageSize: int=0,
             - complianceStatus (str): Compliance status
             
         Returns:
-            - checks (List[CheckVO]): A list of checks.
+            - checks (list[CheckVO]): A list of checks.
                 - name (str): Name of the check.
                 - description (str): Description of the check.
                 - rule (RuleVO): Rule associated with the check.
@@ -206,7 +206,7 @@ async def fetch_checks(id: str, resourceType: str, page: int=1, pageSize: int=0,
             logger.error("fetch_checks error: {}\n".format(output))
             return vo.ChecksListVO(error="Facing internal error")
         
-        checks: List[vo.CheckVO] = []
+        checks: list[vo.CheckVO] = []
         for item in output["items"]:
             checks.append(vo.CheckVO.model_validate(item))
             
@@ -241,11 +241,11 @@ async def fetch_resources(id: str, resourceType: str, page: int=1, pageSize: int
             - complianceStatus (str): Compliance status
             
         Returns:
-            - resources (List[ResourceVO]): A list of resources.
+            - resources (list[ResourceVO]): A list of resources.
                 - name (str): Name of the resource.
                 - resourceType (str): Type of the resource.
                 - complianceStatus (str): Compliance status of the resource.
-                - checks (List[ResourceCheckVO]): List of checks associated with the resource.
+                - checks (list[ResourceCheckVO]): List of checks associated with the resource.
                     - name (str): Name of the check.
                     - description (str): Description of the check.
                     - rule (RuleVO): Rule applied in the check.
@@ -286,7 +286,7 @@ async def fetch_resources(id: str, resourceType: str, page: int=1, pageSize: int
             return vo.ResourceListVO(error="Facing internal error")
 
         output=utils.formatResources(output,True)
-        resources: List[vo.ResourceVO] = []
+        resources: list[vo.ResourceVO] = []
         for item in output["items"]:
             resources.append(vo.ResourceVO.model_validate(item))
             
@@ -321,7 +321,7 @@ async def fetch_resources_by_check_name(id: str,  checkName: str, page: int=1, p
             - checkName: Check name.
 
         Returns:
-            - resources (List[ResourceVO]): A list of resources.
+            - resources (list[ResourceVO]): A list of resources.
                 - name (str): Name of the resource.
                 - resourceType (str): Type of the resource.
                 - complianceStatus (str): Compliance status of the resource.
@@ -351,7 +351,7 @@ async def fetch_resources_by_check_name(id: str,  checkName: str, page: int=1, p
             logger.error("fetch_resources_by_check_name error: {}\n".format(output))
             return vo.ResourceListVO(error="Facing internal error")
         
-        resources: List[vo.ResourceVO] = []
+        resources: list[vo.ResourceVO] = []
         for item in output["items"]:
             if "checks" in item:
                 del item['checks']
@@ -401,7 +401,7 @@ async def fetch_resource_types_summary(id: str, ctx: Context | None = None) -> d
             }, constants.URL_FETCH_RESOURCE_TYPES, ctx=ctx)
         )
 
-        resource_types: List[vo.ResourceTypeVO] = []
+        resource_types: list[vo.ResourceTypeVO] = []
         total_items = None
 
         for output in responses:

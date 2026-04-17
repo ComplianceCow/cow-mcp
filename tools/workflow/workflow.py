@@ -41,7 +41,7 @@ async def list_workflow_event_categories(ctx: Context | None = None) -> vo.Workf
             logger.error("workflow event categories error: {}\n".format(output))
             return vo.WorkflowEventCategoryListVO(error="Facing internal error")
         
-        eventCategories: List[vo.WorkflowEventCategoryItemVO]=[]
+        eventCategories: list[vo.WorkflowEventCategoryItemVO]=[]
         for item in output["items"]:
             if "type" in item and "displayable" in item:
                 eventCategories.append(vo.WorkflowEventCategoryItemVO.model_validate(item))
@@ -74,20 +74,20 @@ async def list_workflow_events(ctx: Context | None = None) -> vo.WorkflowEventLi
     - Enable manual workflow execution
     
     Returns:
-        - systemEvents (List[WorkflowEventVO]): A list of system events that are automatically triggered.
+        - systemEvents (list[WorkflowEventVO]): A list of system events that are automatically triggered.
             - id (str)
             - categoryId (str)
             - desc (str)
             - displayable (str)
-            - payload [List[WorkflowPayloadVO]]
+            - payload [list[WorkflowPayloadVO]]
             - status (str)
             - type (str)
-        - customEvents (List[WorkflowEventVO]): A list of custom events that can be manually triggered.
+        - customEvents (list[WorkflowEventVO]): A list of custom events that can be manually triggered.
             - id (str)
             - categoryId (str)
             - desc (str)
             - displayable (str)
-            - payload [List[WorkflowPayloadVO]]
+            - payload [list[WorkflowPayloadVO]]
             - status (str)
             - type (str)
         - error (Optional[str]): An error message if any issues occurred during retrieval. 
@@ -102,8 +102,8 @@ async def list_workflow_events(ctx: Context | None = None) -> vo.WorkflowEventLi
             logger.error(f"Failed to fetch events: {output}")
             return vo.WorkflowEventListVO(error="Failed to retrieve events")
         
-        systemEvents: List[vo.WorkflowEventVO] = []
-        customEvents: List[vo.WorkflowEventVO] = []
+        systemEvents: list[vo.WorkflowEventVO] = []
+        customEvents: list[vo.WorkflowEventVO] = []
         
         for item in output.get("items", []):
             if "type" in item and "displayable" in item and item.get("status") == "Active":
@@ -125,7 +125,7 @@ async def list_workflow_events(ctx: Context | None = None) -> vo.WorkflowEventLi
         return vo.WorkflowEventListVO(error="Facing internal error")
 
 @mcp.tool()
-async def list_workflow_activity_types(ctx: Context | None = None) -> List[str]:
+async def list_workflow_activity_types(ctx: Context | None = None) -> list[str]:
     """
     Get available workflow activity types.
     
@@ -153,7 +153,7 @@ async def list_workflow_function_categories(ctx: Context | None = None) -> vo.Wo
     for filtering and selecting appropriate functions when building workflows.
     
     Returns:
-        - activity categories (List[WorkflowActivityCategoryItemVO]): List of activity categories.
+        - activity categories (list[WorkflowActivityCategoryItemVO]): List of activity categories.
             - name (str): Name of the category.
         - error (Optional[str]): An error message if any issues occurred during retrieval. 
     """
@@ -167,7 +167,7 @@ async def list_workflow_function_categories(ctx: Context | None = None) -> vo.Wo
             logger.error("workflow activity categories error: {}\n".format(output))
             return vo.WorkflowActivityCategoryListVO(error="Facing internal error")
         
-        activityCategories: List[vo.WorkflowActivityCategoryItemVO]=[]
+        activityCategories: list[vo.WorkflowActivityCategoryItemVO]=[]
         for item in output["items"]:
             if "displayable" in item:
                 activityCategories.append(vo.WorkflowActivityCategoryItemVO.model_validate(item))
@@ -190,14 +190,14 @@ async def list_workflow_functions(ctx: Context | None = None) -> vo.WorkflowActi
     active functions are returned.
     
     Returns:
-        - activities (List[WorkflowActivityVO]): List of active workflow functions with input/output specifications
+        - activities (list[WorkflowActivityVO]): List of active workflow functions with input/output specifications
             - id: Optional[str] = ""
             - categoryId (str)
             - desc (str)
             - displayable Optional[str] = ""
             - name (str)
-            - inputs [List[WorkflowInputsVO]]
-            - outputs [List[WorkflowOutputsVO]]
+            - inputs [list[WorkflowInputsVO]]
+            - outputs [list[WorkflowOutputsVO]]
             - status (str)
 
         - error (Optional[str]): An error message if any issues occurred during retrieval. 
@@ -212,7 +212,7 @@ async def list_workflow_functions(ctx: Context | None = None) -> vo.WorkflowActi
             logger.error("workflow activities error: {}\n".format(output))
             return vo.WorkflowActivityListVO(error="Facing internal error")
         
-        activities: List[vo.WorkflowActivityVO]=[]
+        activities: list[vo.WorkflowActivityVO]=[]
         for item in output["items"]:
             if "displayable" in item and item.get("status") == "Active":
                 activities.append(vo.WorkflowActivityVO.model_validate(item))
@@ -235,12 +235,12 @@ async def list_workflow_rules(ctx: Context | None = None) -> vo.WorkflowRuleList
     outputs that can be mapped to other workflow components.
     
     Returns:
-        - rules (List[WorkflowRuleVO]): List of available workflow rules with input/output specifications
+        - rules (list[WorkflowRuleVO]): List of available workflow rules with input/output specifications
             - id (str)
             - name: (str)
             - description (str)
-            - ruleInputs: [List[WorkflowRuleInputsVO]]
-            - ruleOutputs: [List[WorkflowRuleOutputsVO]]
+            - ruleInputs: [list[WorkflowRuleInputsVO]]
+            - ruleOutputs: [list[WorkflowRuleOutputsVO]]
 
         - error (Optional[str]): An error message if any issues occurred during retrieval. 
     """
@@ -270,7 +270,7 @@ async def list_workflow_rules(ctx: Context | None = None) -> vo.WorkflowRuleList
 
         logger.error("Transformed rules output: {}\n".format(output))
 
-        rules: List[vo.WorkflowRuleVO]=[]
+        rules: list[vo.WorkflowRuleVO]=[]
         for item in output["items"]:
             if "name" in item:
                 rules.append(vo.WorkflowRuleVO.model_validate(item))
@@ -295,12 +295,12 @@ async def fetch_workflow_rule(name: str, ctx: Context | None = None) -> vo.Workf
         name (str): The name of the workflow rule to retrieve
         
     Returns:
-        - rules (List[WorkflowRuleVO]): List containing the single matched workflow rule with input/output specifications
+        - rules (list[WorkflowRuleVO]): List containing the single matched workflow rule with input/output specifications
             - id: (str)
             - name: (str) 
             - description: (str)
-            - ruleInputs: [List[WorkflowRuleInputsVO]]
-            - ruleOutputs: [List[WorkflowRuleOutputsVO]]
+            - ruleInputs: [list[WorkflowRuleInputsVO]]
+            - ruleOutputs: [list[WorkflowRuleOutputsVO]]
 
         - error (Optional[str]): An error message if any issues occurred during retrieval.
     """
@@ -483,13 +483,13 @@ async def list_workflow_tasks(ctx: Context | None = None) -> vo.WorkflowTaskList
     Tasks have inputs and outputs that can be mapped to other workflow components.
     
     Returns:
-        - tasks (List[WorkflowTaskVO]): List of available workflow tasks with input/output specifications
+        - tasks (list[WorkflowTaskVO]): List of available workflow tasks with input/output specifications
             - id (str)
             - name (str)
             - displayable (str)
             - description (str)
-            - inputs: [List[WorkflowTaskInputsVO]]
-            - outputs: [List[WorkflowTaskOutputsVO]]
+            - inputs: [list[WorkflowTaskInputsVO]]
+            - outputs: [list[WorkflowTaskOutputsVO]]
 
         - error (Optional[str]): An error message if any issues occurred during retrieval. 
     """
@@ -503,7 +503,7 @@ async def list_workflow_tasks(ctx: Context | None = None) -> vo.WorkflowTaskList
             logger.error("workflow prebuild tasks error: {}\n".format(output))
             return vo.WorkflowTaskListVO(error="Facing internal error")
 
-        tasks: List[vo.WorkflowTaskVO]=[]
+        tasks: list[vo.WorkflowTaskVO]=[]
         for item in output["items"]:
             if "name" in item:
                 tasks.append(vo.WorkflowTaskVO.model_validate(item))
@@ -525,7 +525,7 @@ async def list_workflow_condition_categories(ctx: Context | None = None) -> vo.W
     useful for filtering and selecting appropriate conditions when building workflows.
     
     Returns:
-        - Condition categories (List[WorkflowConditionCategoryItemVO]): List of condition categories
+        - Condition categories (list[WorkflowConditionCategoryItemVO]): List of condition categories
             - name (str): Name of the category.
         - error (Optional[str]): An error message if any issues occurred during retrieval. 
     """
@@ -539,7 +539,7 @@ async def list_workflow_condition_categories(ctx: Context | None = None) -> vo.W
             logger.error("workflow condition categories error: {}\n".format(output))
             return vo.WorkflowConditionCategoryListVO(error="Facing internal error")
         
-        conditionCategories: List[vo.WorkflowConditionCategoryItemVO]=[]
+        conditionCategories: list[vo.WorkflowConditionCategoryItemVO]=[]
         for item in output["items"]:
             if "displayable" in item:
                 conditionCategories.append(vo.WorkflowConditionCategoryItemVO.model_validate(item))
@@ -562,12 +562,12 @@ async def list_workflow_conditions(ctx: Context | None = None) -> vo.WorkflowCon
     to make branching decisions. Only active conditions are returned.
     
     Returns:
-        - conditions (List[WorkflowConditionVO]): List of active workflow conditions with input/output specifications
+        - conditions (list[WorkflowConditionVO]): List of active workflow conditions with input/output specifications
             - categoryId (str)
             - desc (str)
             - displayable: (str)
-            - inputs: [List[WorkflowInputsVO]]
-            - outputs: [List[WorkflowOutputsVO]]
+            - inputs: [list[WorkflowInputsVO]]
+            - outputs: [list[WorkflowOutputsVO]]
             - status: (str)
 
         - error (Optional[str]): An error message if any issues occurred during retrieval.
@@ -582,7 +582,7 @@ async def list_workflow_conditions(ctx: Context | None = None) -> vo.WorkflowCon
             logger.error("workflow conditions error: {}\n".format(output))
             return vo.WorkflowConditionListVO(error="Facing internal error")
         
-        conditions: List[vo.WorkflowConditionVO]=[]
+        conditions: list[vo.WorkflowConditionVO]=[]
         for item in output["items"]:
             if "displayable" in item and item.get("status") == "Active":
                 conditions.append(vo.WorkflowConditionVO.model_validate(item))
@@ -990,7 +990,7 @@ async def list_workflow_predefined_variables(ctx: Context | None = None) -> vo.W
         - Sending workflow failure notifications to specific users
         - Sending workflow failure notifications to admin
     Returns:
-        - items (List[WorkflowPredefinedVariableVO]): A list of predefined variables.
+        - items (list[WorkflowPredefinedVariableVO]): A list of predefined variables.
             - id (str): Unique identifier of the predefined variable
             - type (str): Data type of the variable (e.g., Text, Boolean)
             - name (str): Name of the predefined variable
@@ -1024,7 +1024,7 @@ async def list_workflow_predefined_variables(ctx: Context | None = None) -> vo.W
 async def create_workflow_custom_event(
     displayable: str,
     desc: str,
-    payload: List[vo.WorkflowCustomEventPayloadVO],
+    payload: list[vo.WorkflowCustomEventPayloadVO],
     categoryId: str = "7",
     eventType: str = "CUSTOM_EVENT",
     confirm: bool = False,
@@ -1053,7 +1053,7 @@ async def create_workflow_custom_event(
     try:
         logger.info("create_workflow_custom_event: validating inputs")
 
-        sanitized_payload: List[dict] = []
+        sanitized_payload: list[dict] = []
         for idx, item in enumerate(payload):
             if not isinstance(item, vo.WorkflowCustomEventPayloadVO):
                 try:
@@ -1159,7 +1159,7 @@ async def trigger_workflow(
             logger.error("Missing or invalid event in inputs")
             return "Starting event is required"
 
-        required_fields: List[str] = []
+        required_fields: list[str] = []
         try:
             logger.info("Fetching workflow events to validate required fields")
             events_resp = await utils.make_GET_API_call_to_CCow(constants.URL_WORKFLOW_EVENTS, ctx)

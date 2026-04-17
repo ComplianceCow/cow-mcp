@@ -23,7 +23,7 @@ async def fetch_unique_node_data_and_schema(question: str, ctx: Context | None =
         question (str): The user's input question.
 
     Returns:
-        - node_names (List[str]): List of unique node names involved.
+        - node_names (list[str]): List of unique node names involved.
         - unique_property_values (list[any]): Unique property values per node.
         - neo4j_schema (str): The Neo4j schema associated with the nodes.
         - error (Optional[str]): Error message if any issues occurred during processing.

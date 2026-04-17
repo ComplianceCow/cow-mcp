@@ -31,7 +31,7 @@ async def get_default_ccf_assessment(ctx: Context | None = None) -> vo.Assessmen
     
 
 @mcp.tool()
-async def get_ccf_control_last_run_date(ccfControlIDs: List[str], ctx: Context | None = None) -> vo.ControlsLastRunDate:
+async def get_ccf_control_last_run_date(ccfControlIDs: list[str], ctx: Context | None = None) -> vo.ControlsLastRunDate:
     """
         Get the ccf assessment controls last run date. 
         

@@ -52,7 +52,7 @@ def decode_content(content: str) -> str:
         return ""
 
 
-def extract_capabilities_from_readme(readme_content: str) -> List[str]:
+def extract_capabilities_from_readme(readme_content: str) -> list[str]:
     """Extract capabilities from README content"""
     if not readme_content:
         return []
@@ -85,7 +85,7 @@ def extract_purpose_from_description(description: str) -> str:
     return description[:100] + "..." if len(description) > 100 else description
 
 
-def categorize_tasks_by_tags(tasks_info: List[Dict[str, Any]]) -> Dict[str, List[str]]:
+def categorize_tasks_by_tags(tasks_info: list[dict[str, Any]]) -> dict[str, list[str]]:
     """Categorize tasks by their tags"""
     categories = {}
     for task in tasks_info:
@@ -96,7 +96,7 @@ def categorize_tasks_by_tags(tasks_info: List[Dict[str, Any]]) -> Dict[str, List
     return categories
 
 
-def extract_use_cases_from_readme(readme_content: str) -> List[str]:
+def extract_use_cases_from_readme(readme_content: str) -> list[str]:
     """Extract use cases from README content"""
     if not readme_content:
         return []
@@ -112,7 +112,7 @@ def extract_use_cases_from_readme(readme_content: str) -> List[str]:
     return use_cases[:3]
 
 
-def generate_detailed_template_guidance(template_content: str, task_input: vo.TaskInputVO) -> Dict[str, Any]:
+def generate_detailed_template_guidance(template_content: str, task_input: vo.TaskInputVO) -> dict[str, Any]:
     """Generate detailed guidance for filling out a template"""
     guidance = {"overview": f"This template is for {task_input.description}", "format": f"Please provide content in {task_input.format.upper()} format", "structure_explanation": explain_template_structure(
         template_content, task_input.format), "required_fields": extract_required_fields(template_content, task_input.format), "field_descriptions": generate_field_descriptions(template_content, task_input.format), "tips": generate_format_tips(task_input.format)}
@@ -134,7 +134,7 @@ def explain_template_structure(template_content: str, format_type: str) -> str:
         return f"This {format_type} file contains configuration data. Follow the template structure."
 
 
-def extract_required_fields(template_content: str, format_type: str) -> List[str]:
+def extract_required_fields(template_content: str, format_type: str) -> list[str]:
     """Extract required fields from template content"""
     required_fields = []
 
@@ -168,7 +168,7 @@ def extract_required_fields(template_content: str, format_type: str) -> List[str
     return list(set(required_fields))
 
 
-def generate_field_descriptions(template_content: str, format_type: str) -> Dict[str, str]:
+def generate_field_descriptions(template_content: str, format_type: str) -> dict[str, str]:
     """Generate descriptions for template fields"""
     descriptions = {}
     required_fields = extract_required_fields(
@@ -180,7 +180,7 @@ def generate_field_descriptions(template_content: str, format_type: str) -> Dict
     return descriptions
 
 
-def generate_format_tips(format_type: str) -> List[str]:
+def generate_format_tips(format_type: str) -> list[str]:
     """Generate format-specific tips"""
     tips = {"json": ["Use double quotes for strings", "Don't forget commas between items", "Use proper brackets: {} for objects, [] for arrays"], "toml": ["Use [section] headers for grouping",
                                                                                                                                                            "Strings can use single or double quotes", "Use # for comments"], "yaml": ["Indentation is important - use spaces, not tabs", "Use # for comments", "Strings usually don't need quotes unless they contain special characters"]}
@@ -202,14 +202,14 @@ def generate_example_content(template_content: str, format_type: str) -> str:
         return f"Example {format_type} content based on template structure"
 
 
-def get_template_validation_rules(format_type: str) -> Dict[str, Any]:
+def get_template_validation_rules(format_type: str) -> dict[str, Any]:
     """Get validation rules for the format type"""
     rules = {"json": {"syntax": "Must be valid JSON with proper brackets and quotes", "required": "All template fields should be present"}, "toml": {"syntax": "Must follow TOML syntax with proper sections",
                                                                                                                                                      "required": "All template keys should have values"}, "yaml": {"syntax": "Must have correct YAML indentation and structure", "required": "All template fields should be provided"}}
     return rules.get(format_type.lower(), {"syntax": "Follow template format"})
 
 
-def check_missing_fields(user_content: str, required_fields: List[str]) -> List[str]:
+def check_missing_fields(user_content: str, required_fields: list[str]) -> list[str]:
     """Check which required fields are missing from user content"""
     if not required_fields:
         return []
@@ -259,7 +259,7 @@ def generate_content_preview(content: str, format_type: str) -> str:
     return preview
 
 
-def validate_template_content_enhanced(task_input: vo.TaskInputVO, user_content: str) -> Dict[str, Any]:
+def validate_template_content_enhanced(task_input: vo.TaskInputVO, user_content: str) -> dict[str, Any]:
     """Enhanced validation for template content including JSON arrays"""
     errors = []
     suggestions = []
@@ -337,7 +337,7 @@ def get_file_extension(format_type: str) -> str:
     return format_extensions.get(format_type.lower(), ".txt")
 
 
-def validate_parameter_value(value: str, data_type: str) -> Dict[str, Any]:
+def validate_parameter_value(value: str, data_type: str) -> dict[str, Any]:
     """Validate parameter value against expected data type"""
     errors = []
     converted_value = value
@@ -410,7 +410,7 @@ def generate_parameter_presentation(task_input: vo.TaskInputVO, task_name: str) 
     return presentation
 
 
-def generate_input_overview_presentation_with_unique_ids(input_analysis: Dict[str, Any]) -> str:
+def generate_input_overview_presentation_with_unique_ids(input_analysis: dict[str, Any]) -> str:
     """Generate user-friendly input overview presentation with unique IDs"""
 
     overview = "INPUT COLLECTION OVERVIEW:\n\n"
@@ -462,7 +462,7 @@ def generate_input_overview_presentation_with_unique_ids(input_analysis: Dict[st
     return overview
 
 
-def generate_verification_presentation_with_unique_ids(verification_summary: Dict[str, Any]) -> str:
+def generate_verification_presentation_with_unique_ids(verification_summary: dict[str, Any]) -> str:
     """Generate user-friendly verification presentation with unique IDs"""
 
     verification = "INPUT VERIFICATION SUMMARY:\n\n"
@@ -515,7 +515,7 @@ def generate_verification_presentation_with_unique_ids(verification_summary: Dic
     return verification
 
 
-def validate_rule_structure(rule_data: Dict[str, Any]) -> Dict[str, Any]:
+def validate_rule_structure(rule_data: dict[str, Any]) -> dict[str, Any]:
     """Validate rule structure"""
     errors = []
 
@@ -553,7 +553,7 @@ def validate_rule_structure(rule_data: Dict[str, Any]) -> Dict[str, Any]:
     return {"valid": len(errors) == 0, "errors": errors}
 
 
-def generate_yaml_preview(rule_structure: Dict[str, Any]) -> str:
+def generate_yaml_preview(rule_structure: dict[str, Any]) -> str:
     """Generate YAML preview of rule structure for user confirmation"""
     try:
         # Create a clean copy without internal flags
@@ -571,7 +571,7 @@ def generate_yaml_preview(rule_structure: Dict[str, Any]) -> str:
         return basic_yaml_format(rule_structure)
 
 
-def basic_yaml_format(data: Dict[str, Any], indent: int = 0) -> str:
+def basic_yaml_format(data: dict[str, Any], indent: int = 0) -> str:
     """Basic YAML formatting as fallback"""
     result = ""
     for key, value in data.items():
@@ -595,21 +595,21 @@ def basic_yaml_format(data: Dict[str, Any], indent: int = 0) -> str:
     return result
 
 
-def fetch_task_api(params: Dict[str, Any] = {}, ctx: Optional[Context] = None) -> Dict[str, Any]:
+def fetch_task_api(params: dict[str, Any] = {}, ctx: Optional[Context] = None) -> dict[str, Any]:
     headers = wsutils.create_header(ctx)
     tasks = wsutils.get(path=wsutils.build_api_url(
         endpoint=constants.URL_FETCH_TASKS), params=params, header=headers)
     return tasks
 
 
-def create_rule_api(rule_structure: Dict[str, Any], ctx: Optional[Context] = None) -> Dict[str, Any]:
+def create_rule_api(rule_structure: dict[str, Any], ctx: Optional[Context] = None) -> dict[str, Any]:
     headers = wsutils.create_header(ctx)
     rule_id = f"rule_{abs(hash(str(rule_structure))) % 10000}"
     wsutils.post(path=wsutils.build_api_url(
         endpoint=constants.URL_CREATE_RULE), data=json.dumps(rule_structure), header=headers)
     return {"rule_id": rule_id, "status": "created", "message": "Rule created successfully", "timestamp": datetime.now().isoformat()}
 
-def fetch_rule(rule_name: str, include_read_me: bool = False, ctx: Optional[Context] = None) -> Dict[str, Any]:
+def fetch_rule(rule_name: str, include_read_me: bool = False, ctx: Optional[Context] = None) -> dict[str, Any]:
     params = {
         "name":rule_name
     }
@@ -631,7 +631,7 @@ def fetch_rule(rule_name: str, include_read_me: bool = False, ctx: Optional[Cont
         return {"error": f"Failed to fetch the rule by name '{rule_name}': {str(e)}"}
 
 
-def encode_content(data: Union[Dict[str, Any], str]) -> str:
+def encode_content(data: Union[dict[str, Any], str]) -> str:
     """Base64 encode a dictionary or string"""
     try:
         if isinstance(data, dict):
@@ -643,7 +643,7 @@ def encode_content(data: Union[Dict[str, Any], str]) -> str:
     except Exception:
         return ""
 
-def fetch_rules_api(params: Dict[str, Any] = None, ctx: Optional[Context] = None ) -> List[vo.SimplifiedRuleVO]:
+def fetch_rules_api(params: dict[str, Any] = None, ctx: Optional[Context] = None ) -> list[vo.SimplifiedRuleVO]:
     if params is None:
         params = {}
 
@@ -686,7 +686,7 @@ def fetch_rules_api(params: Dict[str, Any] = None, ctx: Optional[Context] = None
 
     return combined_rules
 
-def fetch_rules_and_tasks_suggestions(query: str = None, identifierType: str = None, ctx: Optional[Context] = None) -> List[vo.SimplifiedRuleVO]:
+def fetch_rules_and_tasks_suggestions(query: str = None, identifierType: str = None, ctx: Optional[Context] = None) -> list[vo.SimplifiedRuleVO]:
     req_data = {
         "query": query,
         "identifierType": identifierType
@@ -708,7 +708,7 @@ def fetch_rules_and_tasks_suggestions(query: str = None, identifierType: str = N
     except Exception as e:
         return {"error": f"Failed to fetch {identifierType} suggestions : {str(e)}"}
 
-def create_support_ticket_api(body: Dict[str, Any] = None, ctx: Optional[Context] = None ) -> Dict[str, Any]:
+def create_support_ticket_api(body: dict[str, Any] = None, ctx: Optional[Context] = None ) -> dict[str, Any]:
     headers = wsutils.create_header(ctx)
     try:
         ticket_details = wsutils.post(
@@ -829,7 +829,7 @@ def get_parquet_preview(content: str, file_size_kb: float) -> tuple[str, str]:
     except Exception as e:
         return f"Error processing Parquet: {e}", "Processing failed"
     
-def get_assessment_controls(params: Dict[str, Any] = None, ctx: Optional[Context] = None ) -> List[vo.AssessmentControlVO]:
+def get_assessment_controls(params: dict[str, Any] = None, ctx: Optional[Context] = None ) -> list[vo.AssessmentControlVO]:
     if params is None:
         params = {}
 
@@ -867,7 +867,7 @@ def get_assessment_controls(params: Dict[str, Any] = None, ctx: Optional[Context
 
     return combined_leaf_controls
 
-def get_assessments(params: Dict[str, Any] = None, ctx: Optional[Context] = None ) -> List[vo.AssessmentVO]:
+def get_assessments(params: dict[str, Any] = None, ctx: Optional[Context] = None ) -> list[vo.AssessmentVO]:
     headers = wsutils.create_header(ctx)
     assessment_response = wsutils.get(
         path=wsutils.build_api_url(endpoint=constants.URL_PLANS),
@@ -885,7 +885,7 @@ def get_assessments(params: Dict[str, Any] = None, ctx: Optional[Context] = None
     return assessments
 
 
-def fetch_cc_rule_by_id(rule_id: str, ctx: Optional[Context] = None) -> Dict[str, Any]:
+def fetch_cc_rule_by_id(rule_id: str, ctx: Optional[Context] = None) -> dict[str, Any]:
 
     headers = wsutils.create_header(ctx)
     try:
@@ -897,7 +897,7 @@ def fetch_cc_rule_by_id(rule_id: str, ctx: Optional[Context] = None) -> Dict[str
     except Exception as e:
         return {"error": f"Failed to fetch the rule: {e}"}
     
-def fetch_cc_rule_by_name(rule_name: str, ctx: Optional[Context] = None) -> Dict[str, Any]:
+def fetch_cc_rule_by_name(rule_name: str, ctx: Optional[Context] = None) -> dict[str, Any]:
     params={
         "name":rule_name,
         "page_size":10,
@@ -919,7 +919,7 @@ def fetch_cc_rule_by_name(rule_name: str, ctx: Optional[Context] = None) -> Dict
     except Exception as e:
         return {"error": f"Failed to fetch the rule: {e}"}
     
-def attach_rule_to_control_api(control_id: str, body:dict, ctx: Optional[Context] = None) -> Dict[str, Any]:
+def attach_rule_to_control_api(control_id: str, body:dict, ctx: Optional[Context] = None) -> dict[str, Any]:
 
     headers = wsutils.create_header(ctx)
     try:
@@ -1054,7 +1054,7 @@ def fix_json_string(content: str) -> str:
 
     return content.strip()    
 
-def execute_task_api(body: Dict[str, Any] = None, ctx: Optional[Context] = None ) -> Dict[str, Any]:
+def execute_task_api(body: dict[str, Any] = None, ctx: Optional[Context] = None ) -> dict[str, Any]:
     headers = wsutils.create_header(ctx)
     try:
         execute_response = wsutils.post(
@@ -1085,7 +1085,7 @@ def execute_task_api(body: Dict[str, Any] = None, ctx: Optional[Context] = None 
         return {"error": f"Failed to execute task: {e}"}
 
 
-def execute_task(body: Dict[str, Any] = None, ctx: Optional[Context] = None ) -> Dict[str, Any]:
+def execute_task(body: dict[str, Any] = None, ctx: Optional[Context] = None ) -> dict[str, Any]:
     headers = wsutils.create_header(ctx)
     try:
         execute_response = wsutils.post(
@@ -1210,7 +1210,7 @@ def generate_input_overview_presentation_with_validation_checkpoints(input_analy
     
     return "\n".join(presentation)
  
-def update_rule_api(rule_structure: Dict[str, Any], ctx: Optional[Context] = None) -> Dict[str, Any]:
+def update_rule_api(rule_structure: dict[str, Any], ctx: Optional[Context] = None) -> dict[str, Any]:
     headers = wsutils.create_header(ctx)
     rule_id = f"rule_{abs(hash(str(rule_structure))) % 10000}"
     wsutils.post(path=wsutils.build_api_url(
