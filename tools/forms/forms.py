@@ -1,3 +1,4 @@
+import json
 import traceback
 from typing import Any, Dict, List, Optional
 
@@ -1257,6 +1258,7 @@ async def assign_form(
     form_id: str,
     due_date: str,
     purpose: str,
+    assign_tags: Optional[list[vo.FormTagVO] | str] = None,
     ctx: Context | None = None,
 ) -> vo.AssignFormResponseVO:
     """
@@ -1267,6 +1269,12 @@ async def assign_form(
         form_id: Target form ID.
         due_date: Assignment due date string.
         purpose: Assignment purpose text.
+        assign_tags: Optional assignment tags. Ask the user explicitly whether they want to add tags while assigning.
+            Can be either a list of tag objects or a JSON string encoding that list. If there are more than one tag ask for primary tag.
+            Each item should follow:
+            - key (str): tag name.
+            - primary (bool): at most one tag can be true.
+            - values (list[str]): one or more values for that tag.
         ctx: Optional request context.
 
     Returns:
@@ -1281,7 +1289,6 @@ async def assign_form(
         cleaned_user_ids, due_date_clean, purpose_clean = normalized
         if cleaned_user_ids is None:
             return vo.AssignFormResponseVO(error=purpose_clean or "Facing internal error")
-
         elements_raw = await fetch_form_elements_for_assignment(form_id, ctx=ctx)
         if isinstance(elements_raw, str):
             return vo.AssignFormResponseVO(error=elements_raw or "Facing internal error")
@@ -1298,6 +1305,32 @@ async def assign_form(
             "purpose": purpose_clean,
             "enableSelfDelegate": True,
         }
+        parsed_assign_tags: list[vo.FormTagVO] = []
+        if isinstance(assign_tags, str):
+            try:
+                parsed_raw = json.loads(assign_tags)
+            except Exception:
+                return vo.AssignFormResponseVO(error="assign_tags must be valid JSON")
+            if not isinstance(parsed_raw, list):
+                return vo.AssignFormResponseVO(error="assign_tags must be a list")
+            try:
+                parsed_assign_tags = [vo.FormTagVO.model_validate(t) for t in parsed_raw]
+            except Exception:
+                return vo.AssignFormResponseVO(
+                    error="assign_tags items must have key, primary, and values"
+                )
+        elif assign_tags:
+            parsed_assign_tags = assign_tags
+
+        if parsed_assign_tags:
+            primary_count = sum(1 for tag in parsed_assign_tags if bool(tag.primary))
+            if primary_count > 1:
+                return vo.AssignFormResponseVO(
+                    error="Only one assign tag can have primary=true"
+                )
+            payload["tags"] = [
+                tag.model_dump(exclude_none=True) for tag in parsed_assign_tags
+            ]
 
         output = await utils.make_API_call_to_CCow_and_get_response(
             constants.URL_USER_FORMS_ASSIGN, "POST", payload, ctx=ctx

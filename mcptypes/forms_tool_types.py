@@ -68,10 +68,9 @@ class FormListVO(BaseModel):
 
 
 class FormTagVO(BaseModel):
-    index: Optional[int] = 0
     key: Optional[str] = ""
     primary: Optional[bool] = False
-    values: Optional[List[str]] = None
+    values: Optional[list[str]] = None
 
     model_config = {"extra": "ignore"}
 
