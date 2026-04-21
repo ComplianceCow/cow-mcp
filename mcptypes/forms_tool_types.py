@@ -424,6 +424,7 @@ class FormDetailVO(BaseModel):
 
 class FormDetailResponseVO(BaseModel):
     form: Optional[FormDetailVO] = None
+    host: Optional[str] = ""
     error: Optional[str] = ""
 
 
@@ -491,6 +492,7 @@ class SaveFormResponsesPayloadVO(BaseModel):
 
 class SaveFormResponsesResponseVO(BaseModel):
     success: Optional[bool] = None
+    host: Optional[str] = ""
     error: Optional[str] = ""
 
 
