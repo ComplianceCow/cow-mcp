@@ -239,7 +239,10 @@ async def clone_form(
         created = output if isinstance(output, dict) else {}
         created_id = created.get("_id") or created.get("id", "")
         created_name = created.get("name") or created.get("title", "")
-        return vo.CreateFormResponseVO(form=vo.FormVO(id=created_id, name=created_name))
+        return vo.CreateFormResponseVO(
+            form=vo.FormVO(id=created_id, name=created_name),
+            host=_base_host(),
+        )
     except Exception as e:
         logger.error(traceback.format_exc())
         logger.error("clone_form error: %s", e)
@@ -759,7 +762,7 @@ async def fetch_complete_form(
             configuration=output.get("configuration"),
             elements=elements_list,
         )
-        return vo.FormDetailResponseVO(form=form_detail)
+        return vo.FormDetailResponseVO(form=form_detail, host=_base_host())
     except Exception as e:
         logger.error(traceback.format_exc())
         logger.error("fetch_complete_form error: %s", e)
@@ -985,7 +988,7 @@ async def save_form_responses(
             )
 
         # 204 No Content returns {} from utils
-        return vo.SaveFormResponsesResponseVO(success=True)
+        return vo.SaveFormResponsesResponseVO(success=True, host=_base_host())
     except Exception as e:
         logger.error(traceback.format_exc())
         logger.error("save_form_responses error: %s", e)
