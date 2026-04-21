@@ -469,6 +469,13 @@ async def set_form_category(
         form_id = matches[0].id or ""
         if not form_id:
             return vo.SetFormCategoryResponseVO(error="Form id missing for matched form.")
+        assigned_state = await is_form_assigned(form_id, ctx)
+        if isinstance(assigned_state, str):
+            return vo.SetFormCategoryResponseVO(error=assigned_state)
+        if assigned_state is True:
+            return vo.SetFormCategoryResponseVO(
+                error="This form is already assigned and cannot be edited."
+            )
 
         raw = await fetch_form_raw(form_id, ctx)
         if isinstance(raw, str):
