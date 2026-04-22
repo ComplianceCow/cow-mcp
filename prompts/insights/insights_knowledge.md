@@ -40,6 +40,7 @@ When interpreting or reporting compliance status:
 - Never assume a resource is compliant simply because it exists in the graph. Absence of a `NON_COMPLIANT` edge is not proof of compliance — the assessment edge may not exist yet.
 - When a user asks "is X compliant?", always look for the edge between X and the relevant control or CVE node, and read `compliance_status` from that edge.
 
+**ALWAYS round compliance percentages to the nearest whole number before displaying. Never show raw decimal values like 5.48%**
 ---
 
 ## 3. How to Work with the Graph
