@@ -165,3 +165,19 @@ class AssessmentControlVO(BaseModel):
     model_config = {
         "extra": "ignore"
     }
+
+class CVERemediationVO(BaseModel):
+    type: str
+    action: str
+
+class CVEEntryVO(BaseModel):
+    id: str
+    alias: str
+    component: str
+    severity: str
+    cvss_score: float
+    description: str
+    impact: List[str]
+    affected_versions: List[str]
+    remediation: List[CVERemediationVO]
+

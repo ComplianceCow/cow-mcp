@@ -24,6 +24,7 @@
 
 **SQL SYNTAX REQUIREMENTS:**
 - Write SQL queries using SQLite SQL dialect.
+- Use string "true" or "false" values for boolean comparisons in SQL queries.
 
 When generating SQL from a control configuration:
 1. **Always create FOUR SQL QUERIES in this exact order:**, based on the requirement and the evidence configurations involved, also considering the context (control context and entity hierarchy):
@@ -88,10 +89,10 @@ When generating SQL from a control configuration:
    - Never reference any evidenceConfig created for the supporting evidence query when generating the primary evidence query.
 
 3. **NAMING CONVENTION FOR NEW EVIDENCE CONFIGS**
-   - Query for matching entity hierarchy → `{{query-purpose}}_1_1_matching_entity_hierarchy`
-   - Query for control additional context → `{{query-purpose}}_1_1_control_additional_context`
-   - Query for supporting evidence → `{{query-purpose}}_{{control-no-replace-dot-by-underscore}}_supporting_evidence`
-   - Query for primary evidence → `{{query-purpose}}_{{control-no-replace-dot-by-underscore}}_primary_evidence`
+   - Query for matching entity hierarchy → `{query-purpose}_1_1_matching_entity_hierarchy`
+   - Query for control additional context → `{query-purpose}_1_1_control_additional_context`
+   - Query for supporting evidence → `{query-purpose}_{control-no-replace-dot-by-underscore}_supporting_evidence`
+   - Query for primary evidence → `{query-purpose}_{control-no-replace-dot-by-underscore}_primary_evidence`
 
 4. **SQL QUERY VALIDATION (MANDATORY BEFORE CREATION)**
    - **ALWAYS validate SQL queries using `validate_sql_query` BEFORE calling `create_sql_query_evidence`**

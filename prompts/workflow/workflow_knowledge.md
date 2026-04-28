@@ -236,8 +236,8 @@ inputs:
 EXAMPLE
 --------------------
 expr: '{{Activity.<<activity_customlabel>>.ExtractedValue}} == "FALSE"'
-value: Assessment {{Event.Assessment Run Completed.assessmentName}} has been completed.
-value: Form assigned with ID {{Activity.Assign Form.formAssignmentID}}.
+value: Assessment {{Event.<<event_customlabel>>.assessmentName}} has been completed.
+value: Form assigned with ID {{Activity.<<activity_customlabel>>.formAssignmentID}}.
 
 Note
 ------------------- 
