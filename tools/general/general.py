@@ -134,8 +134,7 @@ if constants.ENABLE_DOWNLOADABLE_FILE:
             
             timestamp = str(int(time.time()))
 
-            # Remove any special character or numbers
-            folder = re.sub(r"[^a-zA-Z]", "", mcp_tools_to_be_included)
+            folder = "mcp"
             
             updated_file_name = f'{name}_{timestamp}{ext}'
 
