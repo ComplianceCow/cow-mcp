@@ -35,7 +35,7 @@ When generating SQL from a control configuration:
    **STEP-BY-STEP QUERY GENERATION PROCESS:**
    
    **Step 1: Analyze Control Context and Prepare Data Tables**
-   - Identify control context, control additional context, and entity hierarchy (call tool `get_entity_hierarchy`)
+   - Identify control context, control additional context, and entity hierarchy (call tool `get_context_tables`)
    - Determine which evidence sources are required for the control context
    - **Context Tables in SQL Queries:**
      - `entity_hierarchy` and `control_additional_context` tables are dynamically created and available in the evidence source
