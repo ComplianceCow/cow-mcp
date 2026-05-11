@@ -1,3 +1,4 @@
+import json
 import traceback
 from typing import Any, Dict, List, Optional
 
@@ -9,6 +10,7 @@ from mcptypes import forms_tool_types as vo
 from utils import utils
 from utils.debug import logger
 from utils.forms import (
+    _base_host,
     collect_assignable_element_ids,
     elements_from_raw,
     extract_assign_form_ids_and_error,
@@ -116,6 +118,7 @@ async def create_form(form: vo.CreateFormVO, ctx: Context | None = None) -> vo.C
 
     Returns:
         - form (Optional[FormVO]): Created form with id and name.
+        - host (Optional[str]): Platform host URL for building UI links.
         - error (Optional[str]): Error message if creation failed.
     """
     try:
@@ -145,7 +148,8 @@ async def create_form(form: vo.CreateFormVO, ctx: Context | None = None) -> vo.C
         form_name = created.get("name") or created.get("title", "")
 
         return vo.CreateFormResponseVO(
-            form=vo.FormVO(id=form_id, name=form_name)
+            form=vo.FormVO(id=form_id, name=form_name),
+            host=_base_host(),
         )
     except Exception as e:
         logger.error(traceback.format_exc())
@@ -235,7 +239,10 @@ async def clone_form(
         created = output if isinstance(output, dict) else {}
         created_id = created.get("_id") or created.get("id", "")
         created_name = created.get("name") or created.get("title", "")
-        return vo.CreateFormResponseVO(form=vo.FormVO(id=created_id, name=created_name))
+        return vo.CreateFormResponseVO(
+            form=vo.FormVO(id=created_id, name=created_name),
+            host=_base_host(),
+        )
     except Exception as e:
         logger.error(traceback.format_exc())
         logger.error("clone_form error: %s", e)
@@ -281,6 +288,7 @@ async def update_form(
 
     Returns:
         - form (Optional[FormVO]): Updated form with id and name (from request; API returns no body).
+        - host (Optional[str]): Platform host URL for building UI links.
         - error (Optional[str]): Error message if update failed.
     """
     assigned_state = await is_form_assigned(form_id, ctx)
@@ -464,6 +472,13 @@ async def set_form_category(
         form_id = matches[0].id or ""
         if not form_id:
             return vo.SetFormCategoryResponseVO(error="Form id missing for matched form.")
+        assigned_state = await is_form_assigned(form_id, ctx)
+        if isinstance(assigned_state, str):
+            return vo.SetFormCategoryResponseVO(error=assigned_state)
+        if assigned_state is True:
+            return vo.SetFormCategoryResponseVO(
+                error="This form is already assigned and cannot be edited."
+            )
 
         raw = await fetch_form_raw(form_id, ctx)
         if isinstance(raw, str):
@@ -747,7 +762,7 @@ async def fetch_complete_form(
             configuration=output.get("configuration"),
             elements=elements_list,
         )
-        return vo.FormDetailResponseVO(form=form_detail)
+        return vo.FormDetailResponseVO(form=form_detail, host=_base_host())
     except Exception as e:
         logger.error(traceback.format_exc())
         logger.error("fetch_complete_form error: %s", e)
@@ -919,6 +934,7 @@ async def get_current_user(ctx: Context | None = None) -> vo.CurrentUserResponse
 @mcp.tool()
 async def save_form_responses(
     form_id: str,
+    assign_id: str,
     form_response_id: str,
     form_responses: dict[str, Any],
     ctx: Context | None = None,
@@ -929,7 +945,8 @@ async def save_form_responses(
 
     Args:
         form_id: The form id.
-        form_response_id: The form response id (from create_form_response).
+        assign_id: The form assignment id.
+        form_response_id: The form response id (from create_form_response). 
         form_responses: Map of element id -> answer value.
             - String value for text/date answers. For option-type questions, pass the string index of the selected option (Radio Button, Checkbox, Dropdown).
             - Date Range object: {toDate, fromDate}.
@@ -941,13 +958,15 @@ async def save_form_responses(
     """
     try:
         logger.info(
-            "save_form_responses: form_id=%s, form_response_id=%s",
+            "save_form_responses: form_id=%s, assign_id=%s, form_response_id=%s",
             form_id,
+            assign_id,
             form_response_id,
         )
 
         url = f"{constants.URL_FORMS}/{form_id}/responses/{form_response_id}/elements"
         payload = {
+            "assignId": assign_id,
             "formResponseId": form_response_id,
             "formResponses": form_responses,
         }
@@ -969,7 +988,7 @@ async def save_form_responses(
             )
 
         # 204 No Content returns {} from utils
-        return vo.SaveFormResponsesResponseVO(success=True)
+        return vo.SaveFormResponsesResponseVO(success=True, host=_base_host())
     except Exception as e:
         logger.error(traceback.format_exc())
         logger.error("save_form_responses error: %s", e)
@@ -1249,6 +1268,7 @@ async def assign_form(
     form_id: str,
     due_date: str,
     purpose: str,
+    assign_tags: Optional[list[vo.FormTagVO] | str] = None,
     ctx: Context | None = None,
 ) -> vo.AssignFormResponseVO:
     """
@@ -1259,10 +1279,17 @@ async def assign_form(
         form_id: Target form ID.
         due_date: Assignment due date string.
         purpose: Assignment purpose text.
+        assign_tags: Optional assignment tags. Ask the user explicitly whether they want to add tags while assigning.
+            Can be either a list of tag objects or a JSON string encoding that list. If there are more than one tag ask for primary tag.
+            Each item should follow:
+            - key (str): tag name.
+            - primary (bool): at most one tag can be true.
+            - values (list[str]): one or more values for that tag.
         ctx: Optional request context.
 
     Returns:
-        - ids (list[str]): Created assignment IDs.
+        - ids (List[str]): Created assignment IDs.
+        - host (Optional[str]): Platform host URL for building UI links.
         - error (Optional[str]): Error message if assignment failed.
     """
     try:
@@ -1272,7 +1299,6 @@ async def assign_form(
         cleaned_user_ids, due_date_clean, purpose_clean = normalized
         if cleaned_user_ids is None:
             return vo.AssignFormResponseVO(error=purpose_clean or "Facing internal error")
-
         elements_raw = await fetch_form_elements_for_assignment(form_id, ctx=ctx)
         if isinstance(elements_raw, str):
             return vo.AssignFormResponseVO(error=elements_raw or "Facing internal error")
@@ -1289,6 +1315,32 @@ async def assign_form(
             "purpose": purpose_clean,
             "enableSelfDelegate": True,
         }
+        parsed_assign_tags: list[vo.FormTagVO] = []
+        if isinstance(assign_tags, str):
+            try:
+                parsed_raw = json.loads(assign_tags)
+            except Exception:
+                return vo.AssignFormResponseVO(error="assign_tags must be valid JSON")
+            if not isinstance(parsed_raw, list):
+                return vo.AssignFormResponseVO(error="assign_tags must be a list")
+            try:
+                parsed_assign_tags = [vo.FormTagVO.model_validate(t) for t in parsed_raw]
+            except Exception:
+                return vo.AssignFormResponseVO(
+                    error="assign_tags items must have key, primary, and values"
+                )
+        elif assign_tags:
+            parsed_assign_tags = assign_tags
+
+        if parsed_assign_tags:
+            primary_count = sum(1 for tag in parsed_assign_tags if bool(tag.primary))
+            if primary_count > 1:
+                return vo.AssignFormResponseVO(
+                    error="Only one assign tag can have primary=true"
+                )
+            payload["tags"] = [
+                tag.model_dump(exclude_none=True) for tag in parsed_assign_tags
+            ]
 
         output = await utils.make_API_call_to_CCow_and_get_response(
             constants.URL_USER_FORMS_ASSIGN, "POST", payload, ctx=ctx
@@ -1296,7 +1348,7 @@ async def assign_form(
         logger.debug("assign_form output: %s", output)
 
         ids, err = extract_assign_form_ids_and_error(output)
-        return vo.AssignFormResponseVO(ids=ids, error=err)
+        return vo.AssignFormResponseVO(ids=ids, host=_base_host(), error=err)
     except Exception as e:
         logger.error(traceback.format_exc())
         logger.error("assign_form error: %s", e)

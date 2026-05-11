@@ -68,7 +68,6 @@ class FormListVO(BaseModel):
 
 
 class FormTagVO(BaseModel):
-    index: Optional[int] = 0
     key: Optional[str] = ""
     primary: Optional[bool] = False
     values: Optional[list[str]] = None
@@ -266,6 +265,7 @@ class CreateFormVO(BaseModel):
 
 class CreateFormResponseVO(BaseModel):
     form: Optional[FormVO] = None
+    host: Optional[str] = ""
     error: Optional[str] = ""
 
 
@@ -333,6 +333,7 @@ class UpdateFormVO(BaseModel):
 
 class UpdateFormResponseVO(BaseModel):
     form: Optional[FormVO] = None
+    host: Optional[str] = ""
     error: Optional[str] = ""
 
 
@@ -423,6 +424,7 @@ class FormDetailVO(BaseModel):
 
 class FormDetailResponseVO(BaseModel):
     form: Optional[FormDetailVO] = None
+    host: Optional[str] = ""
     error: Optional[str] = ""
 
 
@@ -490,6 +492,7 @@ class SaveFormResponsesPayloadVO(BaseModel):
 
 class SaveFormResponsesResponseVO(BaseModel):
     success: Optional[bool] = None
+    host: Optional[str] = ""
     error: Optional[str] = ""
 
 
@@ -567,7 +570,8 @@ class AssignFormResponseVO(BaseModel):
       { "ids": [...] }
     """
 
-    ids: Optional[list[str]] = None
+    ids: Optional[List[str]] = None
+    host: Optional[str] = ""
     error: Optional[str] = ""
 
     model_config = {"extra": "ignore"}
