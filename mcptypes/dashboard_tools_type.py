@@ -15,22 +15,22 @@ class ControlSummaryVO(BaseModel):
     
 class ControlAssignmentStatusVO(BaseModel):
     categoryName: Optional[str] = ""
-    controlStatus: Optional[List[ComplianceStatusSummaryVO]] = None
+    controlStatus: Optional[list[ComplianceStatusSummaryVO]] = None
     
 class FrameworkSummaryVO(BaseModel):
     name: Optional[str] = ""
     compliancePCT: Optional[float] = 0.0
     leafControls: Optional[int] = 0
-    complianceStatusSummary: Optional[List[ComplianceStatusSummaryVO]] = None
+    complianceStatusSummary: Optional[list[ComplianceStatusSummaryVO]] = None
 
 class DashboardSummaryVO(BaseModel): 
     totalControls: Optional[int] = 0
-    controlStatus: Optional[List[ComplianceStatusSummaryVO]] = None
-    controlAssignmentStatus: Optional[List[ControlAssignmentStatusVO]] = None
+    controlStatus: Optional[list[ComplianceStatusSummaryVO]] = None
+    controlAssignmentStatus: Optional[list[ControlAssignmentStatusVO]] = None
     compliancePCT: Optional[float] = 0.0
-    controlSummary: Optional[List[ControlSummaryVO]] = None
-    complianceStatusSummary: Optional[List[ComplianceStatusSummaryVO]] = None
-    frameworks: Optional[List[FrameworkSummaryVO]] = None
+    controlSummary: Optional[list[ControlSummaryVO]] = None
+    complianceStatusSummary: Optional[list[ComplianceStatusSummaryVO]] = None
+    frameworks: Optional[list[FrameworkSummaryVO]] = None
     error: Optional[str] = ""
 
 class UserVO(BaseModel):
@@ -45,7 +45,7 @@ class NonCompliantControlVO(BaseModel):
     # id: Optional[str] = ""
     # planInstanceID: Optional[str] = ""
     name: Optional[str] = Field(default="", alias="controlName")
-    lastAssignedTo: Optional[List[UserVO]] = None
+    lastAssignedTo: Optional[list[UserVO]] = None
     score: Optional[float] = 0
     priority: Optional[str] = ""
     model_config = {
@@ -53,13 +53,13 @@ class NonCompliantControlVO(BaseModel):
     }
 
 class NonCompliantControlListVO(BaseModel):
-    controls: Optional[List[NonCompliantControlVO]] = None
+    controls: Optional[list[NonCompliantControlVO]] = None
     error: Optional[str] = ""
 
 class OverdueControlVO(BaseModel):
     id: Optional[str] = ""
     name: Optional[str] = Field(default="", alias="controlName")
-    assignedTo: Optional[List[UserVO]] = None
+    assignedTo: Optional[list[UserVO]] = None
     dueDate: Optional[str] = ""
     daysOverDue: Optional[int] = 0
     score: Optional[float] = 0
@@ -69,13 +69,13 @@ class OverdueControlVO(BaseModel):
     }
 
 class OverdueControlListVO(BaseModel):
-    controls: Optional[List[OverdueControlVO]] = None
+    controls: Optional[list[OverdueControlVO]] = None
     error: Optional[str] = ""
 
 class FramworkControlVO(BaseModel):
     id: Optional[str] = ""
     name: Optional[str] = Field(default="", alias="controlName")
-    assignedTo: Optional[List[UserVO]] = None
+    assignedTo: Optional[list[UserVO]] = None
     assignmentStatus: Optional[str] = Field(default="", alias="status")
     complianceStatus: Optional[str] = Field(default="", alias="complianceStatus")
     dueDate: Optional[str] = ""
@@ -86,7 +86,7 @@ class FramworkControlVO(BaseModel):
     }
     
 class FrameworkControlListVO(BaseModel):
-    controls: Optional[List[FramworkControlVO]] = None
+    controls: Optional[list[FramworkControlVO]] = None
     page: Optional[int] = 0
     totalPage: Optional[int] = 0
     totalItems: Optional[int] = 0
@@ -106,14 +106,14 @@ class CommonControlVO(BaseModel):
     updatedAt: Optional[str] = ""
     
 class CommonControlListVO (BaseModel):
-    controls: Optional[List[CommonControlVO]] = None
+    controls: Optional[list[CommonControlVO]] = None
     page: Optional[int] = 0
     totalPage: Optional[int] = 0
     totalItems: Optional[int] = 0
     error: Optional[str] = ""    
 
 class CCFDashboardReviewPeriods (BaseModel):
-    items: Optional[List[str]] = None
+    items: Optional[list[str]] = None
     error: Optional[str] = ""
     
     

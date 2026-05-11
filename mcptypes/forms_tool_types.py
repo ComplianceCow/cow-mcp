@@ -37,12 +37,12 @@ class FormElementVO(BaseModel):
     title: Optional[str] = ""
     points: Optional[int] = 0
     footer: Optional[str] = ""
-    tags: Optional[List[Any]] = None
-    elements: Optional[List[FormElementVO]] = None
+    tags: Optional[list[Any]] = None
+    elements: Optional[list[FormElementVO]] = None
     value: Optional[str] = ""
     dynamicOptionsId: Optional[str] = ""
     videoUrl: Optional[str] = ""
-    options: Optional[List[FormElementOptionVO]] = None
+    options: Optional[list[FormElementOptionVO]] = None
     nextInSequence: Optional[int] = None
     isRequired: Optional[bool] = False
 
@@ -55,7 +55,7 @@ FormElementVO.model_rebuild()
 class FormVO(BaseModel):
     id: Optional[str] = ""
     name: Optional[str] = ""
-    tags: Optional[List["FormTagsItemVO"]] = None
+    tags: Optional[list["FormTagsItemVO"]] = None
 
     model_config = {
         "extra": "ignore"
@@ -63,7 +63,7 @@ class FormVO(BaseModel):
 
 
 class FormListVO(BaseModel):
-    forms: Optional[List[FormVO]] = None
+    forms: Optional[list[FormVO]] = None
     error: Optional[str] = ""
 
 
@@ -77,7 +77,7 @@ class FormTagVO(BaseModel):
 
 class FormTagsItemVO(BaseModel):
     key: Optional[str] = ""
-    values: Optional[List[str]] = None
+    values: Optional[list[str]] = None
     index: Optional[int] = None
     primary: Optional[bool] = None
 
@@ -170,17 +170,17 @@ class FormConfigSettingVO(BaseModel):
     value: Optional[str] = ""
     valueType: Optional[str] = "string"
     default: Optional[str] = "false"
-    context: Optional[List[str]] = None
+    context: Optional[list[str]] = None
 
     model_config = {"extra": "ignore"}
 
 
 class FormConfigurationsVO(BaseModel):
-    fontFamilies: Optional[List[FormConfigFontFamilyVO]] = None
-    fontSizes: Optional[List[FormConfigFontSizeVO]] = None
-    colors: Optional[List[FormConfigColorVO]] = None
-    layouts: Optional[List[FormConfigLayoutOptionVO]] = None
-    settings: Optional[List[FormConfigSettingVO]] = None
+    fontFamilies: Optional[list[FormConfigFontFamilyVO]] = None
+    fontSizes: Optional[list[FormConfigFontSizeVO]] = None
+    colors: Optional[list[FormConfigColorVO]] = None
+    layouts: Optional[list[FormConfigLayoutOptionVO]] = None
+    settings: Optional[list[FormConfigSettingVO]] = None
 
     model_config = {"extra": "ignore"}
 
@@ -195,13 +195,13 @@ class GetFormConfigurationsResponseVO(BaseModel):
 class CreateFormVO(BaseModel):
     name: str  # required; keep same as form title
     title: Optional[str] = None
-    elements: Optional[List[Any]] = None
+    elements: Optional[list[Any]] = None
     type: Optional[str] = ""
-    tag: Optional[List[FormTagVO]] = None
+    tag: Optional[list[FormTagVO]] = None
     configuration: Optional[FormConfigurationVO] = None
     isQuiz: Optional[bool] = False
     totalPoints: Optional[int] = 0
-    # scoringLogic: Optional[List[Any]] = None
+    # scoringLogic: Optional[list[Any]] = None
 
     model_config = {"extra": "ignore"}
 
@@ -274,9 +274,9 @@ class UpdateFormVO(BaseModel):
     title: Optional[str] = None
     isQuiz: Optional[bool] = False
     totalPoints: Optional[int] = 0
-    elements: Optional[List[FormElementVO]] = None
+    elements: Optional[list[FormElementVO]] = None
     type: Optional[str] = ""
-    tags: Optional[List[FormTagsItemVO]] = None
+    tags: Optional[list[FormTagsItemVO]] = None
     configuration: Optional[FormConfigurationVO] = None
 
     model_config = {"extra": "ignore"}
@@ -338,7 +338,7 @@ class UpdateFormResponseVO(BaseModel):
 
 
 class FormCategoryListVO(BaseModel):
-    categories: Optional[List[str]] = None
+    categories: Optional[list[str]] = None
     error: Optional[str] = ""
 
     model_config = {"extra": "ignore"}
@@ -346,7 +346,7 @@ class FormCategoryListVO(BaseModel):
 
 class FormCategoryMembersVO(BaseModel):
     category: str = ""
-    forms: Optional[List[FormVO]] = None
+    forms: Optional[list[FormVO]] = None
     error: Optional[str] = ""
 
     model_config = {"extra": "ignore"}
@@ -369,7 +369,7 @@ class DynamicOptionVO(BaseModel):
 
 
 class DynamicOptionListVO(BaseModel):
-    items: Optional[List[DynamicOptionVO]] = None
+    items: Optional[list[DynamicOptionVO]] = None
     error: Optional[str] = ""
 
 
@@ -377,7 +377,7 @@ class DynamicOptionDetailVO(BaseModel):
     id: Optional[str] = ""
     name: Optional[str] = ""
     status: Optional[Any] = None
-    options: Optional[List[FormElementOptionVO]] = None
+    options: Optional[list[FormElementOptionVO]] = None
 
     model_config = {"extra": "ignore"}
 
@@ -398,13 +398,13 @@ class AssignedFormVO(BaseModel):
     purpose: Optional[str] = ""
     createdAt: Optional[str] = ""
     tags: Optional[Any] = None
-    elements: Optional[List[str]] = None 
+    elements: Optional[list[str]] = None 
 
     model_config = {"extra": "ignore"}
 
 
 class AssignedFormListVO(BaseModel):
-    items: Optional[List[AssignedFormVO]] = None
+    items: Optional[list[AssignedFormVO]] = None
     error: Optional[str] = ""
 
 
@@ -414,9 +414,9 @@ class FormDetailVO(BaseModel):
     title: Optional[str] = ""
     isQuiz: Optional[bool] = False
     totalPoints: Optional[int] = 0
-    elements: Optional[List[FormElementVO]] = None
+    elements: Optional[list[FormElementVO]] = None
     type: Optional[str] = ""
-    tags: Optional[List[FormTagsItemVO]] = None
+    tags: Optional[list[FormTagsItemVO]] = None
     configuration: Optional[FormConfigurationVO] = None
 
     model_config = {"extra": "ignore"}
@@ -520,7 +520,7 @@ class FormElementFileUploadResultVO(BaseModel):
 
 
 class FormElementFileUploadResponseVO(BaseModel):
-    files: Optional[List[FormElementFileUploadResultVO]] = None
+    files: Optional[list[FormElementFileUploadResultVO]] = None
     error: Optional[str] = ""
 
 
@@ -533,7 +533,7 @@ class UserBlockVO(BaseModel):
     userBlockName: Optional[str] = ""
     userBlockDesc: Optional[str] = ""
     id: Optional[str] = ""
-    users: Optional[List[str]] = None
+    users: Optional[list[str]] = None
 
     model_config = {"extra": "ignore"}
 
@@ -552,8 +552,8 @@ class ValidateUserIdentifiersResponseVO(BaseModel):
     Matches the expected payload in `tools/forms/form_assignment.md` (step 3).
     """
 
-    validUserIds: Optional[List[str]] = None
-    inValidUserIdentifiers: Optional[List[str]] = None
+    validUserIds: Optional[list[str]] = None
+    inValidUserIdentifiers: Optional[list[str]] = None
     errorMsg: Optional[str] = ""
 
     # For internal/unexpected errors.

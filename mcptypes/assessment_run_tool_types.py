@@ -16,7 +16,7 @@ class AutomatedControlVO(BaseModel):
     }
     
 class AutomatedControlListVO(BaseModel):
-    controls: Optional[List[AutomatedControlVO]] = None
+    controls: Optional[list[AutomatedControlVO]] = None
     error: Optional[str] = ""
     model_config = {
         "extra": "ignore"
@@ -35,7 +35,7 @@ class ActionsVO(BaseModel):
     }
 
 class ActionsListVO(BaseModel):
-    actions: Optional[List[ActionsVO]] = None
+    actions: Optional[list[ActionsVO]] = None
     error: Optional[str] = ""
     
 
@@ -60,7 +60,7 @@ class RecordListVO(BaseModel):
     compliantRecords:  Optional[int] = 0
     nonCompliantRecords:  Optional[int] = 0
     notDeterminedRecords:  Optional[int] = 0
-    records:  Optional[List[Any]] = None
+    records:  Optional[list[Any]] = None
 
 class RecordSchemaVO(BaseModel):
     name: Optional[str] = ""
@@ -71,7 +71,7 @@ class RecordSchemaVO(BaseModel):
     
 
 class RecordSchemaListVO(BaseModel):
-    schema: Optional[List[RecordSchemaVO]] = None
+    schema: Optional[list[RecordSchemaVO]] = None
     error: Optional[str] = ""
 
 @dataclass
@@ -106,7 +106,7 @@ class ControlVO(BaseModel):
     type: Optional[str] = ""
     executionStatus: Optional[str] = ""
     dueDate: Optional[str] = ""
-    assignedTo: Optional[List[str]] = field(default_factory=list)
+    assignedTo: Optional[list[str]] = field(default_factory=list)
     assignedBy: Optional[str] = ""
     assignedDate: Optional[str] = ""
     checkedOut: Optional[bool] = False
@@ -122,7 +122,7 @@ class ControlVO(BaseModel):
     
 # @dataclass
 class ControlListVO(BaseModel):
-    controls: Optional[List[ControlVO]] = None
+    controls: Optional[list[ControlVO]] = None
     error: Optional[str] = None
 
 @dataclass
@@ -148,7 +148,7 @@ class AssessmentRunVO:
 
 @dataclass
 class AssessmentRunListVO:
-    assessmentRuns: Optional[List[AssessmentRunVO]] = None
+    assessmentRuns: Optional[list[AssessmentRunVO]] = None
     error: Optional[str] = ""
     
     
@@ -162,7 +162,7 @@ class ControlEvidenceVO(BaseModel):
     }
     
 class ControlEvidenceListVO(BaseModel):
-    evidences: Optional[List[ControlEvidenceVO]] = None
+    evidences: Optional[list[ControlEvidenceVO]] = None
     error: Optional[str] = ""
     
 

@@ -14,7 +14,7 @@ async def list_all_assessment_categories(ctx: Context | None = None) -> vo.Categ
         Get all assessment categories
         
         Returns:
-            - categories (List[Category]): A list of category objects, where each category includes:
+            - categories (list[Category]): A list of category objects, where each category includes:
                 - id (str): Unique identifier of the assessment category.
                 - name (str): Name of the category.
             - error (Optional[str]): An error message if any issues occurred during retrieval.
@@ -32,7 +32,7 @@ async def list_all_assessment_categories(ctx: Context | None = None) -> vo.Categ
         # if isinstance(output, str):
         #     return output
 
-        category_list: List[vo.CategoryVO] = []
+        category_list: list[vo.CategoryVO] = []
         for item in output:
             if "name" in item:
                 category_list.append(vo.CategoryVO(id=item["id"],name=item["name"]))
@@ -52,7 +52,7 @@ async def list_all_assessments(categoryId: str = "", categoryName: str = "", ass
         categoryName: assessment category name (Optional)
         assessmentName: assessment name (Optional)
         Returns:
-            - assessments (List[Assessments]): A list of assessments objects, where each assessment includes:
+            - assessments (list[Assessments]): A list of assessments objects, where each assessment includes:
                 - id (str): Unique identifier of the assessment.
                 - name (str): Name of the assessment.
                 - categoryName (str): Name of the category.
@@ -68,7 +68,7 @@ async def list_all_assessments(categoryId: str = "", categoryName: str = "", ass
             logger.error("list_assessments error: {}\n".format(output))
             return vo.AssessmentListVO(error="Facing internal error")
                     
-        assessments: List[vo.AssessmentVO]=[]
+        assessments: list[vo.AssessmentVO]=[]
         for item in output["items"]:
             if "name" in item and "categoryName" in item:
                 assessments.append(vo.AssessmentVO(id=item["id"],name=item["name"],categoryName=item["categoryName"]))

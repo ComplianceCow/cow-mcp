@@ -9,7 +9,7 @@ import traceback
 import uuid
 from datetime import datetime
 from pathlib import Path
-from typing import Any, Dict, List, Optional, Tuple, get_type_hints
+from typing import Any, Optional, get_type_hints
 from urllib.parse import urlparse
 
 import mcptypes.rule_type as vo
@@ -35,7 +35,7 @@ from mcptypes.rule_type import CVEEntryVO
 if constants.ENABLE_CCOW_API_TOOLS:
     if constants.ENABLE_CONTEXTUAL_VECTOR_SEARCH:
         @mcp.tool()
-        def fetch_tasks_suggestions(user_requirement: str, summary_string: str, ctx: Context | None = None) -> Dict[str, Any]:
+        def fetch_tasks_suggestions(user_requirement: str, summary_string: str, ctx: Context | None = None) -> dict[str, Any]:
             
             """
             Resource for intelligent task suggestion based on user requirements.
@@ -117,7 +117,7 @@ if constants.ENABLE_CCOW_API_TOOLS:
 
 
     @mcp.tool()
-    def create_support_ticket(subject: str, description: str, priority: str, ctx: Context | None = None) -> Dict[str, Any]:
+    def create_support_ticket(subject: str, description: str, priority: str, ctx: Context | None = None) -> dict[str, Any]:
         """
         PURPOSE:  
         - Create structured support tickets only after strict user review and explicit approval of all descriptions.  
@@ -178,7 +178,7 @@ if constants.ENABLE_CCOW_API_TOOLS:
             }
     
     @mcp.tool()
-    def get_applications_for_tag(tag_name: str, additional_tags: Dict[str, List[str]] = None, ctx: Context | None = None) -> Dict[str, Any]:
+    def get_applications_for_tag( tag_name: str, additional_tags: dict[str, list[str]] | None = None, ctx: Context | None = None ) -> dict[str, Any]: 
         """
         Get available applications for a specific app tag.
 
@@ -191,7 +191,7 @@ if constants.ENABLE_CCOW_API_TOOLS:
         Args:
             tag_name (str): The app tag name to get applications for. 
                             This parameter is mandatory and must not be empty.
-            additional_tags (Dict[str, List[str]]): Optional additional tags to filter applications.
+            additional_tags (dict[str, list[str]]): Optional additional tags to filter applications.
                             Example: {"purpose": ["source-repo"]} to find apps with specific purpose.
 
         Returns:
@@ -288,7 +288,7 @@ if constants.ENABLE_CCOW_API_TOOLS:
             }
 
     @mcp.tool()
-    def attach_rule_to_control(rule_id: str, assessment_name: str, control_id: str,create_evidence: bool = True, ctx: Context | None = None ) -> Dict[str, Any]:
+    def attach_rule_to_control(rule_id: str, assessment_name: str, control_id: str,create_evidence: bool = True, ctx: Context | None = None ) -> dict[str, Any]:
 
         """
         Attach a rule to a specific control in an assessment.
@@ -398,7 +398,7 @@ if constants.ENABLE_CCOW_API_TOOLS:
             }
 
     @mcp.tool()
-    def fetch_cc_rule_by_id(rule_id: str, ctx: Context | None = None) -> Dict[str, Any]:
+    def fetch_cc_rule_by_id(rule_id: str, ctx: Context | None = None) -> dict[str, Any]:
         """
         Fetch rule details by rule id from the **compliancecow**.
 
@@ -406,7 +406,7 @@ if constants.ENABLE_CCOW_API_TOOLS:
             rule_id: Rule Id of the rule to retrieve
             
         Returns:
-            Dict containing complete rule structure and metadata
+            dict containing complete rule structure and metadata
         """
         
         try:
@@ -432,7 +432,7 @@ if constants.ENABLE_CCOW_API_TOOLS:
             }
 
     @mcp.tool()
-    def fetch_cc_rule_by_name(rule_name: str, ctx: Context | None = None) -> Dict[str, Any]:
+    def fetch_cc_rule_by_name(rule_name: str, ctx: Context | None = None) -> dict[str, Any]:
         """
         Fetch rule details by rule name from the **compliancecow**.
 
@@ -466,7 +466,7 @@ if constants.ENABLE_CCOW_API_TOOLS:
             }
     
     @mcp.tool()
-    def publish_rule(rule_name: str, cc_rule_name: str = None, ctx: Context | None = None) -> Dict[str, Any]:
+    def publish_rule(rule_name: str, cc_rule_name: str = None, ctx: Context | None = None) -> dict[str, Any]:
         """
         Publish a rule to make it available for ComplianceCow system.
 
@@ -640,7 +640,7 @@ if constants.ENABLE_CCOW_API_TOOLS:
             assessmentName (Optional[str]): Assessment name.  
 
         Returns:
-            - assessments (List[Assessments]): A list of assessment objects, each containing:  
+            - assessments (list[Assessments]): A list of assessment objects, each containing:  
                 - id (str): Unique identifier of the assessment.  
                 - name (str): Name of the assessment.  
                 - category_name (str): Name of the category.  
@@ -671,7 +671,7 @@ if constants.ENABLE_CCOW_API_TOOLS:
             - assessment_id (str, required): Assessment id or plan id.
 
         Returns:
-            - controls (List[AutomatedControlVO]): List of controls
+            - controls (list[AutomatedControlVO]): list of controls
                 - id (str): Control ID.
                 - displayable (str): Displayable name or label.
                 - alias (str): Alias of the control.
@@ -702,7 +702,7 @@ if constants.ENABLE_CCOW_API_TOOLS:
 
         
     @mcp.tool()
-    def verify_control_in_assessment(assessment_name: str, control_alias: str, ctx: Context | None = None) -> Dict[str, Any]:
+    def verify_control_in_assessment(assessment_name: str, control_alias: str, ctx: Context | None = None) -> dict[str, Any]:
         """
         Verify the existence of a specific control by alias within an assessment and confirm it is a leaf control.
 
@@ -801,7 +801,7 @@ if constants.ENABLE_CCOW_API_TOOLS:
             }
 
     @mcp.tool()
-    def check_applications_publish_status(app_info: List[Dict], ctx: Context | None = None) -> Dict[str, Any]:
+    def check_applications_publish_status(app_info: list[dict], ctx: Context | None = None) -> dict[str, Any]:
         """
             Check publication status for each application in the provided list.
 
@@ -844,7 +844,7 @@ if constants.ENABLE_CCOW_API_TOOLS:
 
 
     @mcp.tool()
-    def check_rule_publish_status(rule_name: str, ctx: Context | None = None) -> Dict[str, Any]:
+    def check_rule_publish_status(rule_name: str, ctx: Context | None = None) -> dict[str, Any]:
         """
         Check if a rule is already published.
 
@@ -901,7 +901,7 @@ if constants.ENABLE_CCOW_API_TOOLS:
 
 
     @mcp.tool()
-    def publish_application(rule_name: str, app_info: List[Dict], ctx: Context | None = None) -> Dict[str, Any]:
+    def publish_application(rule_name: str, app_info: list[dict], ctx: Context | None = None) -> dict[str, Any]:
         """
         Publish applications to make them available for rule execution.
         
@@ -1053,7 +1053,7 @@ if constants.ENABLE_CCOW_API_TOOLS:
             
             Returns:
                 - success (bool): Indicates if the operation completed successfully.
-                - assets (List[dict]): A list of assets.
+                - assets (list[dict]): A list of assets.
                     - id (str): Asset id.
                     - name (str): Name of the asset.
                 - error (Optional[str]): An error message if any issues occurred during retrieval. 
@@ -1078,7 +1078,7 @@ if constants.ENABLE_CCOW_API_TOOLS:
                     logger.error("list_assets error: {}\n".format(output.get("error")))
                     return {"success": False, "error": output.get("error", "Facing internal error"), "assets": []}
             
-            assets: List[vo.AssetVO] = []
+            assets: list[vo.AssetVO] = []
             if isinstance(output, dict) and "items" in output:
                 for item in output["items"]:
                     if "name" in item:
@@ -1103,7 +1103,7 @@ if constants.ENABLE_CCOW_API_TOOLS:
             
             Returns:
                 - success (bool): Indicates if the operation completed successfully.
-                - checks (List[dict]): A list of checks.
+                - checks (list[dict]): A list of checks.
                     - id (str): Check id.
                     - name (str): Name of the check.
                 - error (Optional[str]): An error message if any issues occurred during retrieval. 
@@ -1152,11 +1152,11 @@ if constants.ENABLE_CCOW_API_TOOLS:
             
             Returns:
                 - success (bool): Indicates if the operation completed successfully.
-                - planControls (List[dict]): Nested hierarchy of controls with only id and name.
+                - planControls (list[dict]): Nested hierarchy of controls with only id and name.
                     Each control contains:
                     - id (str): Control id.
                     - name (str): Name of the control.
-                    - planControls (List[dict]): Nested child controls (
+                    - planControls (list[dict]): Nested child controls (
                 - error (Optional[str]): An error message if any issues occurred during retrieval. 
         """
         def extract_control_hierarchy(control: dict) -> dict:
@@ -1548,7 +1548,7 @@ if constants.ENABLE_CCOW_API_TOOLS:
 
         Returns:
             - success (bool)
-            - items (list): List of schedules
+            - items (list): list of schedules
             - error (Optional[str])
         """
         try:
@@ -1691,10 +1691,10 @@ if constants.ENABLE_CCOW_API_TOOLS:
         Returns:
             Dict with success status and suggestions:
             - success (bool): Whether the request was successful
-            - items (List[dict]): List of suggestion items, each containing:
+            - items (list[dict]): list of suggestion items, each containing:
                 - inputControlName (str): The input control name
                 - controlId (str): The control ID (empty if control doesn't exist yet)
-                - suggestions (List[dict]): List of suggested controls, each containing:
+                - suggestions (list[dict]): list of suggested controls, each containing:
                     - Name (str): Control name
                     - Control ID (int): Control ID number
                     - Control Classification (str): Classification type
@@ -1831,7 +1831,7 @@ if constants.ENABLE_CCOW_API_TOOLS:
             return {"success": False, "error": f"Unexpected error adding citation to asset control: {e}"}
 
     @mcp.tool()
-    def verify_control_automation(control_id: str, ctx: Optional[Context] = None) -> Dict[str, Any]:
+    def verify_control_automation(control_id: str, ctx: Optional[Context] = None) -> dict[str, Any]:
         """
         Verify if a control is automated or not based on the presence of ruleId.
         If ruleId exists, fetch and return basic rule information.
@@ -1914,7 +1914,7 @@ if constants.ENABLE_CCOW_API_TOOLS:
             }
 
     @mcp.tool()
-    def fetch_cc_rules_list(params: Dict[str, Any] = None, ctx: Optional[Context] = None) -> List[vo.SimplifiedRuleVO]:
+    def fetch_cc_rules_list(params: dict[str, Any] = None, ctx: Optional[Context] = None) -> list[vo.SimplifiedRuleVO]:
         """
         Fetch list of CC rules with only name, description, and id.
         This tool should ONLY be used for attaching rules to control flows.
@@ -2128,7 +2128,7 @@ if constants.ENABLE_CCOW_API_TOOLS:
         Returns:
             Dict with success status and notes:
             - success (bool): Whether the request was successful
-            - notes (List[dict]): List of note objects, each containing:
+            - notes (list[dict]): list of note objects, each containing:
                 - id (str): Note ID
                 - topic (str): Note topic
                 - notes (str): Note content
@@ -2396,7 +2396,7 @@ def get_tasks_summary(ctx: Context | None = None) -> str:
 
 
 @mcp.tool()
-def get_template_guidance(task_name: str, input_name: str, ctx: Context | None = None) -> Dict[str, Any]:
+def get_template_guidance(task_name: str, input_name: str, ctx: Context | None = None) -> dict[str, Any]:
     """Get detailed guidance for filling out a template-based input.
 
     COMPLETE TEMPLATE HANDLING PROCESS:
@@ -2524,7 +2524,7 @@ def get_template_guidance(task_name: str, input_name: str, ctx: Context | None =
 
 
 @mcp.tool()
-def collect_template_input(task_name: str, input_name: str, user_content: Any, ctx: Context | None = None) -> Dict[str, Any]:
+def collect_template_input(task_name: str, input_name: str, user_content: Any, ctx: Context | None = None) -> dict[str, Any]:
     """Collect user input for template-based task inputs.
 
     TEMPLATE INPUT PROCESSING (Enhanced with Progressive Saving):
@@ -2644,7 +2644,7 @@ def collect_template_input(task_name: str, input_name: str, user_content: Any, c
 
 
 @mcp.tool()
-def confirm_template_input(rule_name: str, task_name: str, rule_input_name: str, input_name: str, confirmed_content: str, ctx: Context | None = None) -> Dict[str, Any]:
+def confirm_template_input(rule_name: str, task_name: str, rule_input_name: str, input_name: str, confirmed_content: str, ctx: Context | None = None) -> dict[str, Any]:
     """Confirm and process template input after user validation.
 
     CONFIRMATION PROCESSING (Enhanced with Automatic Rule Updates):
@@ -2712,7 +2712,7 @@ def confirm_template_input(rule_name: str, task_name: str, rule_input_name: str,
             file_name = f"{task_name}_{input_name}{file_extension}"
 
             # Upload the file and get URL
-            upload_result = upload_file.fn(rule_name=rule_name, file_name=file_name, content=confirmed_content, ctx=ctx)
+            upload_result = upload_file(rule_name=rule_name, file_name=file_name, content=confirmed_content, ctx=ctx)
 
             if upload_result["success"]:
                 input_value = upload_result["file_url"]
@@ -2731,7 +2731,7 @@ def confirm_template_input(rule_name: str, task_name: str, rule_input_name: str,
         
         try:
             # Fetch current rule
-            current_rule = fetch_rule.fn(rule_name, ctx)
+            current_rule = fetch_rule(rule_name, ctx)
             logger.info(f"current_rule ::{current_rule}")
             if current_rule["success"]:
                 rule_structure = current_rule["rule_structure"]
@@ -2768,7 +2768,7 @@ def confirm_template_input(rule_name: str, task_name: str, rule_input_name: str,
                 logger.info(f"rule_structure 3333 ::{rule_structure}")
                 
                 # Update rule - status will be auto-detected
-                update_result = create_rule.fn(rule_structure, ctx)
+                update_result = create_rule(rule_structure, ctx)
                 logger.info(f"update_result ::{update_result}")
                 rule_update_success = update_result["success"]
                 rule_status = update_result.get("detected_status", "UNKNOWN")
@@ -2802,7 +2802,7 @@ def confirm_template_input(rule_name: str, task_name: str, rule_input_name: str,
 
 
 @mcp.tool()
-def upload_file(rule_name: str, file_name: str, content: Any, content_encoding: str = "utf-8", ctx: Context | None = None) -> Dict[str, Any]:
+def upload_file(rule_name: str, file_name: str, content: Any, content_encoding: str = "utf-8", ctx: Context | None = None) -> dict[str, Any]:
     """
     Upload file content and return file URL for use in rules.
 
@@ -2958,7 +2958,7 @@ def upload_file(rule_name: str, file_name: str, content: Any, content_encoding: 
 
 
 @mcp.tool()
-def collect_parameter_input(task_name: str, input_name: str, user_value: str = None, use_default: bool = False, ctx: Context | None = None) -> Dict[str, Any]:
+def collect_parameter_input(task_name: str, input_name: str, user_value: str = None, use_default: bool = False, ctx: Context | None = None) -> dict[str, Any]:
     """Collect user input for non-template parameter inputs.
 
     PARAMETER INPUT PROCESSING:
@@ -3077,7 +3077,7 @@ def collect_parameter_input(task_name: str, input_name: str, user_value: str = N
 
 
 @mcp.tool()
-def confirm_parameter_input(task_name: str, input_name: str, rule_input_name:str, confirmed_value: str, explaination: str, confirmation_type: str = "final", rule_name: str = None, ctx: Context | None = None) -> Dict[str, Any]:
+def confirm_parameter_input(task_name: str, input_name: str, rule_input_name:str, confirmed_value: str, explaination: str, confirmation_type: str = "final", rule_name: str = None, ctx: Context | None = None) -> dict[str, Any]:
     """Confirm and store parameter input after user validation.
 
     CONFIRMATION PROCESSING (Enhanced with Automatic Rule Updates):
@@ -3151,7 +3151,7 @@ def confirm_parameter_input(task_name: str, input_name: str, rule_input_name:str
         if rule_name:
             try:
                 # Fetch current rule
-                current_rule = fetch_rule.fn(rule_name, ctx)
+                current_rule = fetch_rule(rule_name, ctx)
                 if current_rule["success"]:
                     rule_structure = current_rule["rule_structure"]
                     
@@ -3181,7 +3181,7 @@ def confirm_parameter_input(task_name: str, input_name: str, rule_input_name:str
                     rule_structure["spec"]["inputsMeta__"].append(input_meta)
                     
                     # Update rule - status auto-detected
-                    update_result = create_rule.fn(rule_structure, ctx)
+                    update_result = create_rule(rule_structure, ctx)
                     rule_update_success = update_result["success"]
                     rule_status = update_result.get("detected_status", "UNKNOWN")
                     rule_progress = update_result.get("progress_percentage", 0)
@@ -3214,7 +3214,7 @@ def confirm_parameter_input(task_name: str, input_name: str, rule_input_name:str
 
 # INPUT VERIFICATION TOOLS - MANDATORY WORKFLOW STEPS
 @mcp.tool()
-def prepare_input_collection_overview(selected_tasks: List[Dict[str, str]], ctx: Context | None = None) -> Dict[str, Any]:
+def prepare_input_collection_overview(selected_tasks: list[dict[str, str]], ctx: Context | None = None) -> dict[str, Any]:
     """
     INPUT COLLECTION OVERVIEW & RULE CREATION
 
@@ -3378,7 +3378,7 @@ def prepare_input_collection_overview(selected_tasks: List[Dict[str, str]], ctx:
     - If the previous task has not been executed yet, execute it first to obtain real outputs.
 
     ARGS:
-    - selected_tasks: List of dicts with 'task_name' and 'task_alias'
+    - selected_tasks: list of dicts with 'task_name' and 'task_alias'
     Example:
     [
         {"task_name": "data_validation", "task_alias": "step1"},
@@ -3619,7 +3619,7 @@ def prepare_input_collection_overview(selected_tasks: List[Dict[str, str]], ctx:
         return {"success": False, "error": f"Failed to prepare input overview: {e}"}
 
 @mcp.tool()
-def verify_collected_inputs(collected_inputs: Dict[str, Any], ctx: Context | None = None) -> Dict[str, Any]:
+def verify_collected_inputs(collected_inputs: dict[str, Any], ctx: Context | None = None) -> dict[str, Any]:
     """Verify all collected inputs with user before rule creation.
 
     MANDATORY VERIFICATION STEP (Enhanced):
@@ -3694,7 +3694,7 @@ def verify_collected_inputs(collected_inputs: Dict[str, Any], ctx: Context | Non
     - NEW: Automatically finalize rule with I/O mapping after confirmation
 
     Args:
-        collected_inputs: Dict containing all collected template files and parameter values with unique IDs
+        collected_inputs: dict containing all collected template files and parameter values with unique IDs
 
     Returns:
         Dict containing verification status, user confirmation, and structured inputs for rule finalization
@@ -3848,7 +3848,7 @@ def verify_collected_inputs(collected_inputs: Dict[str, Any], ctx: Context | Non
 
 
 @mcp.tool()
-def execute_task(task_name: str, task_inputs: Dict[str, Any], application: Dict[str, Any] = None, ctx: Context | None = None) -> Dict[str, Any]:
+def execute_task(task_name: str, task_inputs: dict[str, Any], application: dict[str, Any] = None, ctx: Context | None = None) -> dict[str, Any]:
     """
     Execute a specific task with real data after collecting all required inputs.
 
@@ -3986,7 +3986,7 @@ def execute_task(task_name: str, task_inputs: Dict[str, Any], application: Dict[
 
     try:
         # Step 1: Get task details to understand expected input/output structure
-        task_details = get_task_details.fn(task_name, ctx)
+        task_details = get_task_details(task_name, ctx)
         if task_details.get("error"):
             return {
                 "success": False,
@@ -4167,7 +4167,7 @@ def execute_task(task_name: str, task_inputs: Dict[str, Any], application: Dict[
             "next_action": "review_exception"
         }
 
-def add_rule_tag(rule_name: str, ctx: Context | None = None) -> Dict[str, Any]:
+def add_rule_tag(rule_name: str, ctx: Context | None = None) -> dict[str, Any]:
     """
     Add MCP tag to a rule.
     
@@ -4208,7 +4208,7 @@ def add_rule_tag(rule_name: str, ctx: Context | None = None) -> Dict[str, Any]:
 
 
 @mcp.tool()
-def generate_design_notes_preview(rule_name: str, ctx: Context | None = None) -> Dict[str, Any]:
+def generate_design_notes_preview(rule_name: str, ctx: Context | None = None) -> dict[str, Any]:
     """
     Generate design notes preview for user confirmation before actual creation.
 
@@ -4403,7 +4403,7 @@ def generate_design_notes_preview(rule_name: str, ctx: Context | None = None) ->
 
 
 @mcp.tool()
-def create_design_notes(rule_name: str, design_notes_structure: Dict[str, Any], ctx: Context | None = None) -> Dict[str, Any]:
+def create_design_notes(rule_name: str, design_notes_structure: dict[str, Any], ctx: Context | None = None) -> dict[str, Any]:
     """
     Create and save design notes after user confirmation.
 
@@ -4466,7 +4466,7 @@ def create_design_notes(rule_name: str, design_notes_structure: Dict[str, Any], 
 
 
 @mcp.tool()
-def fetch_rule_design_notes(rule_name: str, ctx: Context | None = None) -> Dict[str,Any]:
+def fetch_rule_design_notes(rule_name: str, ctx: Context | None = None) -> dict[str,Any]:
     """
     Fetch and manage design notes for a rule.
 
@@ -4556,7 +4556,7 @@ def fetch_rule_design_notes(rule_name: str, ctx: Context | None = None) -> Dict[
 
 
 @mcp.tool()
-def generate_rule_readme_preview(rule_name: str, ctx: Context | None = None) -> Dict[str, Any]:
+def generate_rule_readme_preview(rule_name: str, ctx: Context | None = None) -> dict[str, Any]:
     """
     Generate README.md preview for rule documentation before actual creation.
 
@@ -4779,7 +4779,7 @@ def generate_rule_readme_preview(rule_name: str, ctx: Context | None = None) -> 
 
 
 @mcp.tool()
-def create_rule_readme(rule_name: str, readme_content: str, ctx: Context | None = None) -> Dict[str, Any]:
+def create_rule_readme(rule_name: str, readme_content: str, ctx: Context | None = None) -> dict[str, Any]:
     """
     Create and save README.md file after user confirmation.
 
@@ -4842,7 +4842,7 @@ def create_rule_readme(rule_name: str, readme_content: str, ctx: Context | None 
 
 
 @mcp.tool()
-def update_rule_readme(rule_name: str, updated_readme_content: str, ctx: Context | None = None) -> Dict[str, Any]:
+def update_rule_readme(rule_name: str, updated_readme_content: str, ctx: Context | None = None) -> dict[str, Any]:
     """
     Update existing README.md file with new content.
 
@@ -4897,7 +4897,7 @@ def update_rule_readme(rule_name: str, updated_readme_content: str, ctx: Context
 
 
 @mcp.tool()
-def get_application_info(tag_name: str, ctx: Context | None = None) -> Dict[str, Any]:
+def get_application_info(tag_name: str, ctx: Context | None = None) -> dict[str, Any]:
     """
     Get detailed information about an application, including supported credential types.
 
@@ -4961,7 +4961,7 @@ def get_application_info(tag_name: str, ctx: Context | None = None) -> Dict[str,
 
 
 @mcp.tool()
-def fetch_execution_progress(rule_name: str, execution_id: str, ctx: Context | None = None) -> Dict[str, Any]:
+def fetch_execution_progress(rule_name: str, execution_id: str, ctx: Context | None = None) -> dict[str, Any]:
     """
     Fetch execution progress for a running rule.
     
@@ -5175,7 +5175,7 @@ def fetch_execution_progress(rule_name: str, execution_id: str, ctx: Context | N
         }
 
 @mcp.tool()
-def fetch_output_file(file_url: str, ctx: Context | None = None) -> Dict[str, Any]:
+def fetch_output_file(file_url: str, ctx: Context | None = None) -> dict[str, Any]:
     """Fetch and display content of an output file from rule execution.
 
     FILE OUTPUT HANDLING:
@@ -5280,7 +5280,7 @@ def fetch_output_file(file_url: str, ctx: Context | None = None) -> Dict[str, An
 
 
 @mcp.tool()
-def fetch_applications(ctx: Context | None = None) -> Dict[str, Any]:
+def fetch_applications(ctx: Context | None = None) -> dict[str, Any]:
     """ 
     Fetch all available applications from the system.
     
@@ -5332,7 +5332,7 @@ def fetch_applications(ctx: Context | None = None) -> Dict[str, Any]:
         }
 
 @mcp.tool()
-def prepare_applications_for_execution(rule_name: str, ctx: Context | None = None) -> Dict[str, Any]:
+def prepare_applications_for_execution(rule_name: str, ctx: Context | None = None) -> dict[str, Any]:
     """
     Analyze rule tasks and prepare application configuration requirements for execution.
 
@@ -5377,7 +5377,7 @@ def prepare_applications_for_execution(rule_name: str, ctx: Context | None = Non
     """
     try:
         # Fetch the rule
-        rule_result = fetch_rule.fn(rule_name, ctx)
+        rule_result = fetch_rule(rule_name, ctx)
         if not rule_result.get("success"):
             return {
                 "success": False,
@@ -5473,7 +5473,7 @@ def prepare_applications_for_execution(rule_name: str, ctx: Context | None = Non
 
 
 @mcp.tool()
-def add_unique_identifier_to_task(rule_name: str, task_alias: str, identifier_key: str, identifier_value: str, ctx: Context | None = None) -> Dict[str, Any]:
+def add_unique_identifier_to_task(rule_name: str, task_alias: str, identifier_key: str, identifier_value: str, ctx: Context | None = None) -> dict[str, Any]:
     """
     Add a unique identifier key-value pair to a specific task's appTags.
 
@@ -5507,7 +5507,7 @@ def add_unique_identifier_to_task(rule_name: str, task_alias: str, identifier_ke
     """
     try:
         # Fetch the rule
-        rule_result = fetch_rule.fn(rule_name, ctx)
+        rule_result = fetch_rule(rule_name, ctx)
         if not rule_result.get("success"):
             return {
                 "success": False,
@@ -5554,9 +5554,9 @@ def add_unique_identifier_to_task(rule_name: str, task_alias: str, identifier_ke
         
         # Save the updated rule
         if constants.ENABLE_RULE_CREATION_TASK_CHAIN_PROCESS:
-            update_result = create_rule.fn(rule_structure, True, ctx)
+            update_result = create_rule(rule_structure, True, ctx)
         else:
-            update_result = create_rule.fn(rule_structure, ctx)
+            update_result = create_rule(rule_structure, ctx)
         
         if not update_result.get("success"):
             return {
@@ -5592,7 +5592,7 @@ def add_unique_identifier_to_task(rule_name: str, task_alias: str, identifier_ke
         }
 
 @mcp.tool()
-def check_rule_status(rule_name: str, ctx: Context | None = None) -> Dict[str, Any]:
+def check_rule_status(rule_name: str, ctx: Context | None = None) -> dict[str, Any]:
     """
     Quick status check showing what's been collected and what's missing.
     Perfect for resuming in new chat windows.
@@ -5620,7 +5620,7 @@ def check_rule_status(rule_name: str, ctx: Context | None = None) -> Dict[str, A
     """
     
     try:
-        current_rule = fetch_rule.fn(rule_name, ctx)
+        current_rule = fetch_rule(rule_name, ctx)
         if not current_rule["success"]:
             return {
                 "success": False, 
@@ -5823,7 +5823,7 @@ def check_rule_status(rule_name: str, ctx: Context | None = None) -> Dict[str, A
     except Exception as e:
         return {"success": False, "error": f"Failed to check rule status: {e}"}   
 
-def create_initial_rule_from_planning(rule_name: str, purpose: str, description: str, selected_tasks: List[Dict], primary_app_type: str = None) -> Dict[str, Any]:
+def create_initial_rule_from_planning(rule_name: str, purpose: str, description: str, selected_tasks: list[dict], primary_app_type: str = None) -> dict[str, Any]:
     """
     Create initial rule structure after planning confirmation.
     This builds a rule with tasks but empty inputs - will be auto-detected as DRAFT status.
@@ -5835,7 +5835,7 @@ def create_initial_rule_from_planning(rule_name: str, purpose: str, description:
     if not primary_app_type:
         app_types = []
         for task_info in selected_tasks:
-            task_details = get_task_details.fn(task_info["task_name"], None)  # No context available in this helper function
+            task_details = get_task_details(task_info["task_name"], None)  # No context available in this helper function
             if task_details.get("appTags", {}).get("appType"):
                 app_types.extend(task_details["appTags"]["appType"])
         unique_app_types = list(set([t for t in app_types if t != "nocredapp"]))
@@ -5873,7 +5873,7 @@ def create_initial_rule_from_planning(rule_name: str, purpose: str, description:
                     "name": task_info["task_name"],
                     "alias": task_info["task_alias"],
                     "type": "task",
-                    "appTags": get_task_details.fn(task_info["task_name"], None).get("appTags", {}),  # No context available in this helper function
+                    "appTags": get_task_details(task_info["task_name"], None).get("appTags", {}),  # No context available in this helper function
                     "purpose": task_info.get("purpose", f"Task {task_info['task_alias']}")
                 }
                 for task_info in selected_tasks
@@ -5883,9 +5883,9 @@ def create_initial_rule_from_planning(rule_name: str, purpose: str, description:
     }
     
     # Create rule - status will be auto-detected as DRAFT
-    return create_rule.fn(initial_rule_structure)
+    return create_rule(initial_rule_structure)
 
-def finalize_rule_with_io_mapping(rule_name: str, task_input_mapping: Dict = None, ctx: Context | None = None) -> Dict[str, Any]:
+def finalize_rule_with_io_mapping(rule_name: str, task_input_mapping: dict = None, ctx: Context | None = None) -> dict[str, Any]:
     """
     Finalize rule by adding I/O mapping and setting status to ACTIVE.
     Called internally after user confirms input verification.
@@ -5895,7 +5895,7 @@ def finalize_rule_with_io_mapping(rule_name: str, task_input_mapping: Dict = Non
     
     try:
         # Fetch current rule
-        current_rule = fetch_rule.fn(rule_name, ctx)
+        current_rule = fetch_rule(rule_name, ctx)
         if not current_rule["success"]:
             return {"success": False, "error": f"Rule '{rule_name}' not found"}
         
@@ -5939,12 +5939,12 @@ def finalize_rule_with_io_mapping(rule_name: str, task_input_mapping: Dict = Non
         rule_structure["spec"]["ioMap"] = io_map
         
         # Update rule - status will be auto-detected as ACTIVE
-        return create_rule.fn(rule_structure, ctx)
+        return create_rule(rule_structure, ctx)
         
     except Exception as e:
         return {"success": False, "error": f"Failed to finalize rule: {e}"}
 
-def determine_next_steps(creation_phase: str, completion_analysis: Dict) -> List[str]:
+def determine_next_steps(creation_phase: str, completion_analysis: dict) -> list[str]:
     """Helper function to determine next steps based on current phase."""
     
     if creation_phase == "completed":
@@ -5961,7 +5961,7 @@ def determine_next_steps(creation_phase: str, completion_analysis: Dict) -> List
         return ["review_rule_structure", "check_requirements"]
 
 
-def determine_next_action(creation_phase: str, completion_analysis: Dict) -> str:
+def determine_next_action(creation_phase: str, completion_analysis: dict) -> str:
     """Helper function to determine the immediate next action."""
     
     if creation_phase == "completed":
@@ -5978,7 +5978,7 @@ def determine_next_action(creation_phase: str, completion_analysis: Dict) -> str
         return "Review rule requirements and current state to determine next steps."
 
 
-def estimate_completion_time(completion_analysis: Dict) -> str:
+def estimate_completion_time(completion_analysis: dict) -> str:
     """Helper function to estimate time to completion."""
     
     if completion_analysis.get("has_io_mapping"):
@@ -6084,7 +6084,7 @@ def alterntive_prompt() -> str:
 
 if constants.ENABLE_RULE_CREATION_TASK_CHAIN_PROCESS:
     @mcp.tool()
-    def fetch_rules_suggestions(user_requirement: str, summary_string: str, ctx: Context | None = None) -> Dict[str, Any]:
+    def fetch_rules_suggestions(user_requirement: str, summary_string: str, ctx: Context | None = None) -> dict[str, Any]:
         """
         Tool-based version of `fetch_rules_and_tasks_suggestions` for improved compatibility and prevention of duplicate rule creation.
 
@@ -6200,7 +6200,7 @@ if constants.ENABLE_RULE_CREATION_TASK_CHAIN_PROCESS:
             
     # Alternative tool version for task details
     @mcp.tool()
-    def get_task_details(task_name: str, ctx: Context | None = None) -> Dict[str, Any]:
+    def get_task_details(task_name: str, ctx: Context | None = None) -> dict[str, Any]:
         """
         Tool-based version of get_task_details for improved compatibility.
 
@@ -6285,7 +6285,7 @@ if constants.ENABLE_RULE_CREATION_TASK_CHAIN_PROCESS:
             return {"error": f"An error occurred while fetching the task {task_name} details: {e}"}
     
     @mcp.tool()
-    def create_rule(rule_structure: Dict[str, Any], is_update: bool, ctx: Context | None = None) -> Dict[str, Any]:
+    def create_rule(rule_structure: dict[str, Any], is_update: bool, ctx: Context | None = None) -> dict[str, Any]:
         """Create a rule with the provided structure.
 
         COMPLETE RULE CREATION PROCESS WITH PROGRESSIVE SAVING:
@@ -6517,7 +6517,7 @@ if constants.ENABLE_RULE_CREATION_TASK_CHAIN_PROCESS:
                                 if source_task:
                                     # Get task details to validate output exists
                                     task_name = source_task.get("name")
-                                    task_details= get_task_details.fn(task_name, ctx)
+                                    task_details= get_task_details(task_name, ctx)
                                     if task_details.get("error"):
                                         io_mapping_errors.append(f"Could not validate task '{task_name}': {task_details['error']}")
                                     else:
@@ -6547,7 +6547,7 @@ if constants.ENABLE_RULE_CREATION_TASK_CHAIN_PROCESS:
             # MANDATORY: Fetch application class name for the primary app type
             primary_app_type_array = meta.get("labels", {}).get("appType", [])
             primary_app_type = primary_app_type_array[0] if primary_app_type_array else None
-            applications_response = fetch_applications.fn(ctx)
+            applications_response = fetch_applications(ctx)
             application_class_name = None
 
             # Find matching application class name for primary app type
@@ -6661,7 +6661,7 @@ if constants.ENABLE_RULE_CREATION_TASK_CHAIN_PROCESS:
             }
 
             # Check if rule already exists (for updates vs creation)
-            # existing_rule = fetch_rule.fn(rule_structure["meta"]["name"], ctx)
+            # existing_rule = fetch_rule(rule_structure["meta"]["name"], ctx)
             # is_update = existing_rule["success"]
 
             # Generate YAML preview for user confirmation (preserved from original)
@@ -6739,7 +6739,7 @@ if constants.ENABLE_RULE_CREATION_TASK_CHAIN_PROCESS:
             return {"success": False, "error": f"Failed to create/update rule: {e}"}
     
     @mcp.tool()
-    def fetch_rule(rule_name: str, ctx: Context | None = None) -> Dict[str, Any]:
+    def fetch_rule(rule_name: str, ctx: Context | None = None) -> dict[str, Any]:
         """
         Fetch rule details by rule name.
         
@@ -6813,7 +6813,7 @@ if constants.ENABLE_RULE_CREATION_TASK_CHAIN_PROCESS:
             }
 
     @mcp.tool()
-    def get_rules_summary(ctx: Context | None = None) -> List[Dict[str, Any]]:
+    def get_rules_summary(ctx: Context | None = None) -> list[dict[str, Any]]:
         """
         Tool-based version of `get_rules_summary` for improved compatibility and prevention of duplicate rule creation.
 
@@ -6919,7 +6919,7 @@ if constants.ENABLE_RULE_CREATION_TASK_CHAIN_PROCESS:
             }
 
     @mcp.tool()
-    def execute_rule(rule_name: str, from_date: str, to_date:str, rule_inputs: List[Dict[str, Any]], applications: List[Dict[str, Any]], is_application_data_provided_by_user: bool, ctx: Context | None = None) -> Dict[str, Any]:
+    def execute_rule(rule_name: str, from_date: str, to_date:str, rule_inputs: list[dict[str, Any]], applications: list[dict[str, Any]], is_application_data_provided_by_user: bool, ctx: Context | None = None) -> dict[str, Any]:
         """
         RULE EXECUTION WORKFLOW:
 
@@ -7146,7 +7146,7 @@ if constants.ENABLE_RULE_CREATION_TASK_CHAIN_PROCESS:
             }
 
     @mcp.tool()
-    def configure_rule_output_schema(ctx: Context | None = None) -> Dict[str, Any]:
+    def configure_rule_output_schema(ctx: Context | None = None) -> dict[str, Any]:
         """
         ===============================================================================
         EVIDENCE TOOL — STRICT INVOCATION POLICY
@@ -7321,7 +7321,7 @@ if constants.ENABLE_RULE_CREATION_TASK_CHAIN_PROCESS:
         }
 
     @mcp.tool()
-    def update_rule(rule_structure: Dict[str, Any],existing_rule_name: str,ctx: Context | None = None) -> Dict[str, Any]:
+    def update_rule(rule_structure: dict[str, Any],existing_rule_name: str,ctx: Context | None = None) -> dict[str, Any]:
         """
             UPDATE RULE — REQUIRED BEHAVIOR
             --------------------------------------------------------------------
@@ -7382,11 +7382,11 @@ if constants.ENABLE_RULE_CREATION_TASK_CHAIN_PROCESS:
         logger.debug(f"rule_structure ::: {rule_structure}")
         logger.debug(f"existing_rule_name ::: {existing_rule_name}")
         rule_structure['existingRuleName'] = existing_rule_name
-        return create_rule.fn(rule_structure,True,ctx)
+        return create_rule(rule_structure,True,ctx)
 
 else:
     @mcp.tool()
-    def fetch_rules_suggestions(user_requirement: str, summary_string: str, ctx: Context | None = None) -> Dict[str, Any]:
+    def fetch_rules_suggestions(user_requirement: str, summary_string: str, ctx: Context | None = None) -> dict[str, Any]:
         """
         Tool-based version of `fetch_rules_and_tasks_suggestions` for improved compatibility and prevention of duplicate rule creation.
 
@@ -7500,7 +7500,7 @@ else:
             
     # Alternative tool version for task details
     @mcp.tool()
-    def get_task_details(task_name: str, ctx: Context | None = None) -> Dict[str, Any]:
+    def get_task_details(task_name: str, ctx: Context | None = None) -> dict[str, Any]:
         """
         Tool-based version of get_task_details for improved compatibility.
 
@@ -7563,7 +7563,7 @@ else:
             return {"error": f"An error occurred while fetching the task {task_name} details: {e}"}
         
     @mcp.tool()
-    def create_rule(rule_structure: Dict[str, Any], ctx: Context | None = None) -> Dict[str, Any]:
+    def create_rule(rule_structure: dict[str, Any], ctx: Context | None = None) -> dict[str, Any]:
         """Create a rule with the provided structure.
 
         COMPLETE RULE CREATION PROCESS WITH PROGRESSIVE SAVING:
@@ -7788,7 +7788,7 @@ else:
                                 if source_task:
                                     # Get task details to validate output exists
                                     task_name = source_task.get("name")
-                                    task_details= get_task_details.fn(task_name, ctx)
+                                    task_details= get_task_details(task_name, ctx)
                                     if task_details.get("error"):
                                         io_mapping_errors.append(f"Could not validate task '{task_name}': {task_details['error']}")
                                     else:
@@ -7818,7 +7818,7 @@ else:
             # MANDATORY: Fetch application class name for the primary app type
             primary_app_type_array = meta.get("labels", {}).get("appType", [])
             primary_app_type = primary_app_type_array[0] if primary_app_type_array else None
-            applications_response = fetch_applications.fn(ctx)
+            applications_response = fetch_applications(ctx)
             application_class_name = None
 
             # Find matching application class name for primary app type
@@ -7932,7 +7932,7 @@ else:
             }
 
             # Check if rule already exists (for updates vs creation)
-            existing_rule = fetch_rule.fn(rule_structure["meta"]["name"], ctx)
+            existing_rule = fetch_rule(rule_structure["meta"]["name"], ctx)
             is_update = existing_rule["success"]
 
             # Generate YAML preview for user confirmation (preserved from original)
@@ -8007,7 +8007,7 @@ else:
             return {"success": False, "error": f"Failed to create rule: {e}"}
         
     @mcp.tool()
-    def fetch_rule(rule_name: str, ctx: Context | None = None) -> Dict[str, Any]:
+    def fetch_rule(rule_name: str, ctx: Context | None = None) -> dict[str, Any]:
         """
         Fetch rule details by rule name.
 
@@ -8059,7 +8059,7 @@ else:
             }
             
     @mcp.tool()
-    def get_rules_summary(ctx: Context | None = None) -> List[Dict[str, Any]]:
+    def get_rules_summary(ctx: Context | None = None) -> list[dict[str, Any]]:
         """
         Tool-based version of `get_rules_summary` for improved compatibility and prevention of duplicate rule creation.
 
@@ -8163,7 +8163,7 @@ else:
             }
             
     @mcp.tool()
-    def execute_rule(rule_name: str, from_date: str, to_date:str, rule_inputs: List[Dict[str, Any]], applications: List[Dict[str, Any]], is_application_data_provided_by_user: bool, ctx: Context | None = None) -> Dict[str, Any]:
+    def execute_rule(rule_name: str, from_date: str, to_date:str, rule_inputs: list[dict[str, Any]], applications: list[dict[str, Any]], is_application_data_provided_by_user: bool, ctx: Context | None = None) -> dict[str, Any]:
         """
         RULE EXECUTION WORKFLOW:
 
@@ -8381,7 +8381,7 @@ else:
             }
             
     @mcp.tool()
-    def configure_rule_output_schema(ctx: Context | None = None) -> Dict[str, Any]:
+    def configure_rule_output_schema(ctx: Context | None = None) -> dict[str, Any]:
         """
         PREREQUISITE — MUST RUN FIRST (NON-SKIPPABLE)
         This tool is a hard prerequisite and MUST be executed successfully before the `prepare_input_collection_overview()` tool (and any downstream rule-creation or evaluation steps). 

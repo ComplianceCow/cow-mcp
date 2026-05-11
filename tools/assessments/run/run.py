@@ -23,7 +23,7 @@ async def fetch_recent_assessment_runs(id: str, ctx: Context | None = None) -> v
             - id (str): assessment id
         
         Returns:
-            - assessmentRuns (List[AssessmentRuns]): A list of assessment runs.
+            - assessmentRuns (list[AssessmentRuns]): A list of assessment runs.
                 - id (str):  Assessement run id.
                 - name (str): Name of the assessement run.
                 - description (str):  Description of the assessment run.
@@ -49,7 +49,7 @@ async def fetch_recent_assessment_runs(id: str, ctx: Context | None = None) -> v
             logger.error("fetch_recent_assessment_runs error: {}\n".format(output))
             return vo.AssessmentRunListVO(error="Facing internal error")
         
-        recentAssessmentRuns: List[vo.AssessmentRunVO]= []
+        recentAssessmentRuns: list[vo.AssessmentRunVO]= []
 
         for item in output["items"]:
             if "planId" in item and "id" in item:
@@ -94,7 +94,7 @@ async def fetch_assessment_runs(id: str, page: int=1, pageSize: int=0, ctx: Cont
             - id (str): Assessment id
         
         Returns:
-            - assessmentRuns (List[AssessmentRuns]): A list of assessment runs.
+            - assessmentRuns (list[AssessmentRuns]): A list of assessment runs.
                 - id (str):  Assessement run id.
                 - name (str): Name of the assessement run.
                 - description (str):  Description of the assessment run.
@@ -132,7 +132,7 @@ async def fetch_assessment_runs(id: str, page: int=1, pageSize: int=0, ctx: Cont
         # if isinstance(output, str):
         #     return output
         
-        assessmentRuns: List[vo.AssessmentRunVO] = []
+        assessmentRuns: list[vo.AssessmentRunVO] = []
 
         for item in output["items"]:
             if "planId" in item and "id" in item:
@@ -175,7 +175,7 @@ async def fetch_assessment_run_details(id: str, ctx: Context | None = None) -> v
             - id (str): Assessment run id
         
         Returns:
-            - controls (List[Control]): A list of controls.
+            - controls (list[Control]): A list of controls.
                 - id (str):  Control run id.
                 - name (str): Control name.
                 - controlNumber (str): Control number.
@@ -186,7 +186,7 @@ async def fetch_assessment_run_details(id: str, ctx: Context | None = None) -> v
                 - type (str): Control type.
                 - executionStatus (str): Rule execution status.
                 - dueDate (str): Due date.
-                - assignedTo (List[str]): Assigned user ids
+                - assignedTo (list[str]): Assigned user ids
                 - assignedBy (str): Assigner's user id.
                 - assignedDate (str): Assigned date.
                 - checkedOut (bool): Control checked-out status.
@@ -206,7 +206,7 @@ async def fetch_assessment_run_details(id: str, ctx: Context | None = None) -> v
             logger.error("fetch_assessment_run_details error: {}\n".format(output))
             return vo.ControlListVO(error="Facing internal error")
 
-        controls: List[vo.ControlVO] = []        
+        controls: list[vo.ControlVO] = []        
         for control in output["items"]:
             if "id" in control and "name" in control:
                 controls.append(vo.ControlVO.model_validate(control))
@@ -226,7 +226,7 @@ async def fetch_assessment_run_leaf_controls(id: str, ctx: Context | None = None
             - id (str): Assessment run id
         
         Returns:
-            - controls (List[Control]): A list of controls.
+            - controls (list[Control]): A list of controls.
                 - id (str):  Control run id.
                 - name (str): Control name.
                 - controlNumber (str): Control number.
@@ -237,7 +237,7 @@ async def fetch_assessment_run_leaf_controls(id: str, ctx: Context | None = None
                 - type (str): Control type.
                 - executionStatus (str): Rule execution status.
                 - dueDate (str): Due date.
-                - assignedTo (List[str]): Assigned user ids
+                - assignedTo (list[str]): Assigned user ids
                 - assignedBy (str): Assigner's user id.
                 - assignedDate (str): Assigned date.
                 - checkedOut (bool): Control checked-out status.
@@ -256,7 +256,7 @@ async def fetch_assessment_run_leaf_controls(id: str, ctx: Context | None = None
             logger.error("fetch_assessment_run_details error: {}\n".format(output))
             return vo.ControlListVO(error="Facing internal error")
         
-        leaf_controls: List[vo.ControlVO] = []        
+        leaf_controls: list[vo.ControlVO] = []        
         for control in output["items"]:
             if "id" in control and "name" in control:
                 leaf_controls.append(vo.ControlVO.model_validate(control))
@@ -279,7 +279,7 @@ async def fetch_run_controls(name: str, ctx: Context | None = None) -> vo.Contro
             - name (str): Control name
         
         Returns:
-            - controls (List[Control]): A list of controls.
+            - controls (list[Control]): A list of controls.
                 - id (str):  Control run id.
                 - name (str): Control name.
                 - controlNumber (str): Control number.
@@ -290,7 +290,7 @@ async def fetch_run_controls(name: str, ctx: Context | None = None) -> vo.Contro
                 - type (str): Control type.
                 - executionStatus (str): Rule execution status.
                 - dueDate (str): Due date.
-                - assignedTo (List[str]): Assigned user ids
+                - assignedTo (list[str]): Assigned user ids
                 - assignedBy (str): Assigner's user id.
                 - assignedDate (str): Assigned date.
                 - checkedOut (bool): Control checked-out status.
@@ -309,7 +309,7 @@ async def fetch_run_controls(name: str, ctx: Context | None = None) -> vo.Contro
             logger.error("fetch_run_controls error: {}\n".format(output))
             return vo.ControlListVO(error="Facing internal error")
         
-        controls: List[vo.ControlVO] = []        
+        controls: list[vo.ControlVO] = []        
         for control in output["items"]:
             if "id" in control and "name" in control:
                 controls.append(vo.ControlVO.model_validate(control))
@@ -368,7 +368,7 @@ async def fetch_assessment_run_leaf_control_evidence(id: str, ctx: Context | Non
         - id (str): Assessment run control id
         
         Returns:
-            - evidences (List[ControlEvidenceVO]): List of control evidences
+            - evidences (list[ControlEvidenceVO]): List of control evidences
                 - id (str):  Evidence id.
                 - name (str): Evidence name.
                 - description (str): Evidence description.
@@ -383,7 +383,7 @@ async def fetch_assessment_run_leaf_control_evidence(id: str, ctx: Context | Non
             logger.error("fetch_run_control_meta_data error: {}\n".format(output))
             return vo.ControlEvidenceListVO(error="Facing internal error")
         
-        controlEvidences: List[vo.ControlEvidenceVO] = []
+        controlEvidences: list[vo.ControlEvidenceVO] = []
         for item in output["items"]:
             if "id" in item and "name" in item and "status" in item and item.get("status") == "Completed" and item.get("evidenceFileInfos"):
                 controlEvidences.append(vo.ControlEvidenceVO.model_validate(item))
@@ -447,7 +447,7 @@ async def fetch_evidence_records(id: str, compliantStatus: str = "", ctx: Contex
         - compliantRecords (int):  Number of complian records.
         - nonCompliantRecords (int):  Number of non compliant records.
         - notDeterminedRecords (int):  Number of not determined records.
-        - records (List[RecordListVO]): List of evidence records.
+        - records (list[RecordListVO]): List of evidence records.
             - id (str):  Record id.
             - name (str): System name.
             - source (str): Record source.
@@ -484,7 +484,7 @@ async def fetch_evidence_records(id: str, compliantStatus: str = "", ctx: Contex
         decoded_string = decoded_bytes.decode('utf-8')
         obj_list = json.loads(decoded_string)
 
-        evidenceRecords: List[vo.RecordsVO]= []
+        evidenceRecords: list[vo.RecordsVO]= []
         compliantCount = nonCompliantCount = notDeterminedCount = 0
 
 
@@ -552,7 +552,7 @@ async def fetch_evidence_record_schema(id: str, ctx: Context | None = None) -> v
         - id (str): Evidence ID
     
     Returns:
-        - records (List[RecordListVO]): List of evidence record schema.
+        - records (list[RecordListVO]): List of evidence record schema.
         - error (Optional[str]): An error message if any issues occurred during retrieval.
     """
     try:
@@ -575,7 +575,7 @@ async def fetch_evidence_record_schema(id: str, ctx: Context | None = None) -> v
         if(output.get("Message") == "CANNOT_FIND_THE_FILE"):
             return vo.RecordSchemaListVO(error="No data available to display")
         
-        evidence_record_schema: List[vo.RecordSchemaVO]= []
+        evidence_record_schema: list[vo.RecordSchemaVO]= []
 
         for item in output["config"]["srcConfig"]:
             if "name" in item and "type" in item:
@@ -610,7 +610,7 @@ async def fetch_available_control_actions(assessmentName: str, controlNumber: st
         - Then generate and execute a query to fetch the related assessment information before proceeding.
         
         Returns:
-            - actions (List[ActionsVO]): List of actions
+            - actions (list[ActionsVO]): List of actions
                 - actionName (str):  Action name.
                 - actionDescription (str): Action description.
                 - actionSpecID (str): Action specific id.
@@ -635,7 +635,7 @@ async def fetch_available_control_actions(assessmentName: str, controlNumber: st
             logger.error("fetch_available_control_actions error: {}\n".format(output))
             return vo.ActionsListVO(error="Facing internal error")
         
-        actions: List[vo.ActionsVO] = []
+        actions: list[vo.ActionsVO] = []
         for item in output.get("items", []):
             if not item.get("actionBindingID"):
                 continue
@@ -666,7 +666,7 @@ async def fetch_assessment_available_actions(name: str = "", ctx: Context | None
          - name (str): Assessment name
          
         Returns:
-            - actions (List[ActionsVO]): List of actions
+            - actions (list[ActionsVO]): List of actions
                 - actionName (str):  Action name.
                 - actionDescription (str): Action description.
                 - actionSpecID (str): Action specific id.
@@ -687,7 +687,7 @@ async def fetch_assessment_available_actions(name: str = "", ctx: Context | None
             logger.error("fetch_available_control_actions error: {}\n".format(output))
             return vo.ActionsListVO(error="Facing internal error")
         
-        actions: List[vo.ActionsVO] = []
+        actions: list[vo.ActionsVO] = []
         for item in output.get("items", []):
             if not item.get("actionBindingID"):
                 continue
@@ -723,7 +723,7 @@ async def fetch_evidence_available_actions(assessment_name: str = "", control_nu
             - evidence_name (str): evidence name (required)
 
         Returns:
-            - actions (List[ActionsVO]): List of actions
+            - actions (list[ActionsVO]): List of actions
                 - actionName (str):  Action name.
                 - actionDescription (str): Action description.
                 - actionSpecID (str): Action specific id.
@@ -747,7 +747,7 @@ async def fetch_evidence_available_actions(assessment_name: str = "", control_nu
             logger.error("fetch_evidence_available_actions error: {}\n".format(output))
             return vo.ActionsListVO(error="Facing internal error")
                 
-        actions: List[vo.ActionsVO] = []
+        actions: list[vo.ActionsVO] = []
         for item in output.get("items", []):
             if not item.get("actionBindingID"):
                 continue
@@ -779,7 +779,7 @@ async def fetch_general_available_actions(type: str = "", ctx: Context | None = 
             - type (str): Type of the action, can be "assessment", "control" or "evidence".
 
         Returns:
-            - actions (List[ActionsVO]): List of actions
+            - actions (list[ActionsVO]): List of actions
                 - actionName (str):  Action name.
                 - actionDescription (str): Action description.
                 - actionSpecID (str): Action specific id.
@@ -801,7 +801,7 @@ async def fetch_general_available_actions(type: str = "", ctx: Context | None = 
             logger.error("fetch_evidence_available_actions error: {}\n".format(output))
             return vo.ActionsListVO(error="Facing internal error")
                 
-        actions: List[vo.ActionsVO] = []
+        actions: list[vo.ActionsVO] = []
         for item in output.get("items", []):
             if not item.get("actionBindingID"):
                 continue
@@ -834,7 +834,7 @@ async def fetch_automated_controls_of_an_assessment(assessment_id: str = "", ctx
         - assessment_id (str, required): Assessment id or plan id.
 
     Returns:
-        - controls (List[AutomatedControlVO]): List of controls
+        - controls (list[AutomatedControlVO]): List of controls
             - id (str): Control ID.
             - displayable (str): Displayable name or label.
             - alias (str): Alias of the control.
@@ -855,7 +855,7 @@ async def fetch_automated_controls_of_an_assessment(assessment_id: str = "", ctx
             logger.error("fetch_automated_controls_of_an_assessment error: {}\n".format(output))
             return vo.AutomatedControlListVO(error="Facing internal error")
         
-        automated_controls: List[vo.AutomatedControlVO] = []
+        automated_controls: list[vo.AutomatedControlVO] = []
         for item in output["items"]:
             if "id" in item and "displayable" in item and "alias" in item:
                 automated_control = vo.AutomatedControlVO(
@@ -879,7 +879,7 @@ async def fetch_automated_controls_of_an_assessment(assessment_id: str = "", ctx
 
 
 @mcp.tool()
-async def execute_action(assessmentId: str, assessmentRunId: str, actionBindingId: str , assessmentRunControlId: str="", assessmentRunControlEvidenceId: str="", evidenceRecordIds: List[str]=[], inputs: dict[str, Any] = None, ctx: Context | None = None) -> vo.TriggerActionVO:
+async def execute_action(assessmentId: str, assessmentRunId: str, actionBindingId: str , assessmentRunControlId: str="", assessmentRunControlEvidenceId: str="", evidenceRecordIds: list[str]=[], inputs: dict[str, Any] = None, ctx: Context | None = None) -> vo.TriggerActionVO:
     """
         Use this tool when the user asks about actions such as create, update or other action-related queries.
 
