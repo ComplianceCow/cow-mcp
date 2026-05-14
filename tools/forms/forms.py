@@ -34,10 +34,10 @@ async def list_forms(ctx: Context | None = None) -> vo.FormListVO:
         Get all forms
 
         Returns:
-            - forms (List[FormVO]): A list of forms. Each form has:
+            - forms (list[FormVO]): A list of forms. Each form has:
                 - id (str): Form id.
                 - name (str): Form name.
-                - tags (Optional[List[FormTagsItemVO]]): Form-level tags when the list API returns them (e.g. key form_category). Category tools require tags on each item from GET /v1/forms.
+                - tags (Optional[list[FormTagsItemVO]]): Form-level tags when the list API returns them (e.g. key form_category). Category tools require tags on each item from GET /v1/forms.
             - error (Optional[str]): An error message if any issues occurred during retrieval.
     """
     return await list_forms_impl(ctx)
@@ -95,7 +95,7 @@ async def create_form(form: vo.CreateFormVO, ctx: Context | None = None) -> vo.C
         form: Form creation payload with:
             - name (str): Form name (required). Keep form name same as form title.
             - title (Optional[str]): Form title; when omitted, kept same as name.
-            - elements (Optional[List[FormElementVO]]): Form elements (questions/widgets). Each element has:
+            - elements (Optional[list[FormElementVO]]): Form elements (questions/widgets). Each element has:
                - type (str): Only allowed values: "Block", "Statement Block", "Short Text", "Paragraph", "Radio Button", "Checkbox", "Dropdown", "File Upload", "Matrix", "Date", "Date Range".
                - title (str): The question label or heading shown to the user (do not put this in footer).
                - footer (str): Optional helper or hint text shown below the question (e.g. instructions); separate from title.
@@ -108,11 +108,11 @@ async def create_form(form: vo.CreateFormVO, ctx: Context | None = None) -> vo.C
                - nextInSequence (int): For option types, -3 means options have jump config; in options, -2 means jump to form submission.
                - videoUrl (str): Optional; when set, holds a video URL to be rendered as an embedded video card for that element.
                - tags, value, dynamicOptionsId: Optional; use when relevant.
-            - tags (Optional[List[FormTagsItemVO]]): Tags for the form. Each item has:
+            - tags (Optional[list[FormTagsItemVO]]): Tags for the form. Each item has:
                 - index (int): Tag index.
                 - key (str): Tag key.
                 - primary (bool): Whether this tag is primary.
-                - values (List[str]): Tag values (e.g. ["asdf"]).
+                - values (list[str]): Tag values (e.g. ["asdf"]).
             - isQuiz (Optional[bool]): Whether the form is a quiz (default False).
             - totalPoints (Optional[int]): Total points (default 0).
 
@@ -188,7 +188,7 @@ async def clone_form(
             return vo.CreateFormResponseVO(error="Invalid source form response")
 
         source_tags = raw.get("tags")
-        tag_items: List[vo.FormTagVO] = []
+        tag_items: list[vo.FormTagVO] = []
         if isinstance(source_tags, list):
             for t in source_tags:
                 if not isinstance(t, dict):
@@ -265,7 +265,7 @@ async def update_form(
             - title (Optional[str]): Form title; when omitted, kept same as name.
             - isQuiz (Optional[bool]): Whether the form is a quiz (default False).
             - totalPoints (Optional[int]): Total points (default 0).
-            - elements (Optional[List[FormElementVO]]): Form elements (questions/widgets). Each element has:
+            - elements (Optional[list[FormElementVO]]): Form elements (questions/widgets). Each element has:
                - type (str): Only allowed values: "Block", "Statement Block", "Short Text", "Paragraph", "Radio Button", "Checkbox", "Dropdown", "File Upload", "Matrix", "Date", "Date Range".
                - title (str): The question label or heading shown to the user (do not put this in footer).
                - footer (str): Optional helper or hint text shown below the question (e.g. instructions); separate from title.
@@ -280,11 +280,11 @@ async def update_form(
                - videoUrl (str): Optional; when set, holds a video URL to be rendered as an embedded video card for that element.
                - tags, value.
             - type (Optional[str]): Form type (default "").
-            - tags (Optional[List[FormTagsItemVO]]): Tags for the form. Each item has:
+            - tags (Optional[list[FormTagsItemVO]]): Tags for the form. Each item has:
                 - index (int): Tag index.
                 - key (str): Tag key.
                 - primary (bool): Whether this tag is primary.
-                - values (List[str]): Tag values (e.g. ["asdf"]).
+                - values (list[str]): Tag values (e.g. ["asdf"]).
 
     Returns:
         - form (Optional[FormVO]): Updated form with id and name (from request; API returns no body).
@@ -371,7 +371,7 @@ async def list_form_categories(ctx: Context | None = None) -> vo.FormCategoryLis
     list response for its category to appear; otherwise that form is skipped for category discovery.
 
     Returns:
-        - categories (Optional[List[str]]): Sorted unique category values from all forms' `form_category` tags.
+        - categories (Optional[list[str]]): Sorted unique category values from all forms' `form_category` tags.
         - error (Optional[str]): Error message if the request failed.
     """
     try:
@@ -380,7 +380,7 @@ async def list_form_categories(ctx: Context | None = None) -> vo.FormCategoryLis
         if listed.error:
             return vo.FormCategoryListVO(categories=[], error=listed.error)
         seen: set[str] = set()
-        out: List[str] = []
+        out: list[str] = []
         for f in listed.forms or []:
             for v in form_category_values(f.tags):
                 if v not in seen:
@@ -409,7 +409,7 @@ async def fetch_form_category(
 
     Returns:
         - category (str): The requested category.
-        - forms (Optional[List[FormVO]]): Matching forms (id, name, tags when present).
+        - forms (Optional[list[FormVO]]): Matching forms (id, name, tags when present).
         - error (Optional[str]): Error message if the request failed.
     """
     try:
@@ -417,7 +417,7 @@ async def fetch_form_category(
         listed = await list_forms_impl(ctx=ctx)
         if listed.error:
             return vo.FormCategoryMembersVO(category=category, error=listed.error)
-        matched: List[vo.FormVO] = []
+        matched: list[vo.FormVO] = []
         for f in listed.forms or []:
             vals = form_category_values(f.tags)
             if category in vals:
@@ -527,7 +527,7 @@ async def list_dynamic_options(ctx: Context | None = None) -> vo.DynamicOptionLi
     Only includes dynamic option sets with status active.
 
     Returns:
-        - items (List[DynamicOptionVO]): Each item has id, name, status.
+        - items (list[DynamicOptionVO]): Each item has id, name, status.
         - error (Optional[str]): Error message if the request failed.
     """
     try:
@@ -550,7 +550,7 @@ async def list_dynamic_options(ctx: Context | None = None) -> vo.DynamicOptionLi
         if not isinstance(items_raw, list):
             items_raw = []
 
-        items: List[vo.DynamicOptionVO] = []
+        items: list[vo.DynamicOptionVO] = []
         for item in items_raw:
             if not isinstance(item, dict):
                 continue
@@ -616,7 +616,7 @@ async def fetch_dynamic_option(
             )
 
         options_raw = output.get("options") or []
-        options_list: List[vo.FormElementOptionVO] = []
+        options_list: list[vo.FormElementOptionVO] = []
         if isinstance(options_raw, list):
             for opt in options_raw:
                 if isinstance(opt, dict):
@@ -646,7 +646,7 @@ async def list_forms_assigned_to_me(ctx: Context | None = None) -> vo.AssignedFo
     assigned to them or to see their assigned forms.
 
     Returns:
-        - items (List[AssignedFormVO]): Each item has: id (form assignment id), formID (unique form id),
+        - items (list[AssignedFormVO]): Each item has: id (form assignment id), formID (unique form id),
           formName, dueDate, displayableDueDate, displayableAssignedOn, assignedBy, purpose, createdAt, tags.
         - error (Optional[str]): Error message if the request failed.
     """
@@ -672,7 +672,7 @@ async def list_forms_assigned_to_me(ctx: Context | None = None) -> vo.AssignedFo
         if not isinstance(items_raw, list):
             items_raw = []
 
-        items: List[vo.AssignedFormVO] = []
+        items: list[vo.AssignedFormVO] = []
         for item in items_raw:
             if not isinstance(item, dict):
                 continue
@@ -739,7 +739,7 @@ async def fetch_complete_form(
             return vo.FormDetailResponseVO(error="Invalid response")
 
         elements_raw = output.get("elements") or []
-        elements_list: List[vo.FormElementVO] = []
+        elements_list: list[vo.FormElementVO] = []
         if isinstance(elements_raw, list):
             for elem in elements_raw:
                 if isinstance(elem, dict):
@@ -936,7 +936,7 @@ async def save_form_responses(
     form_id: str,
     assign_id: str,
     form_response_id: str,
-    form_responses: Dict[str, Any],
+    form_responses: dict[str, Any],
     ctx: Context | None = None,
 ) -> vo.SaveFormResponsesResponseVO:
     """
@@ -1128,7 +1128,7 @@ async def list_user_blocks(
 
 @mcp.tool()
 async def search_users_by_email_ids(
-    email_ids: List[str],
+    email_ids: list[str],
     ctx: Context | None = None,
 ) -> list[vo.UserSearchResultVO] | str:
     """
@@ -1193,7 +1193,7 @@ async def search_users_by_email_ids(
 
 @mcp.tool()
 async def validate_user_ids(
-    user_identifiers: List[str],
+    user_identifiers: list[str],
     ctx: Context | None = None,
 ) -> vo.ValidateUserIdentifiersResponseVO:
     """
@@ -1204,8 +1204,8 @@ async def validate_user_ids(
         ctx: Optional request context.
 
     Returns:
-        - validUserIds (List[str]): Resolved valid user IDs.
-        - inValidUserIdentifiers (List[str]): Identifiers that did not resolve.
+        - validUserIds (list[str]): Resolved valid user IDs.
+        - inValidUserIdentifiers (list[str]): Identifiers that did not resolve.
         - errorMsg (str): Optional backend validation message.
         - error (Optional[str]): Error message if validation failed.
     """
@@ -1264,7 +1264,7 @@ async def validate_user_ids(
 
 @mcp.tool()
 async def assign_form(
-    user_ids: List[str],
+    user_ids: list[str],
     form_id: str,
     due_date: str,
     purpose: str,

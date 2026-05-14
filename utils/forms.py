@@ -42,11 +42,11 @@ def normalize_matrix_options(elements: List[Any]) -> None:
 FORM_CATEGORY_TAG_KEY = "form_category"
 
 
-def parse_form_tags_from_raw(tags_raw: Any) -> Optional[List[vo.FormTagsItemVO]]:
+def parse_form_tags_from_raw(tags_raw: Any) -> Optional[list[vo.FormTagsItemVO]]:
     """Convert raw API tag dicts into typed FormTagsItemVO list. Returns None if input is not a list."""
     if not isinstance(tags_raw, list):
         return None
-    tags_list: List[vo.FormTagsItemVO] = []
+    tags_list: list[vo.FormTagsItemVO] = []
     for t in tags_raw:
         if isinstance(t, dict):
             idx = t.get("index")
@@ -62,7 +62,7 @@ def parse_form_tags_from_raw(tags_raw: Any) -> Optional[List[vo.FormTagsItemVO]]
     return tags_list if tags_list else None
 
 
-def form_category_values(tags: Optional[List[vo.FormTagsItemVO]]) -> List[str]:
+def form_category_values(tags: Optional[list[vo.FormTagsItemVO]]) -> list[str]:
     """Extract category values from a form's tags by the `form_category` key."""
     if not tags:
         return []
@@ -73,10 +73,10 @@ def form_category_values(tags: Optional[List[vo.FormTagsItemVO]]) -> List[str]:
 
 
 def merge_form_category_tag(
-    existing: Optional[List[vo.FormTagsItemVO]], category_value: str
-) -> List[vo.FormTagsItemVO]:
+    existing: Optional[list[vo.FormTagsItemVO]], category_value: str
+) -> list[vo.FormTagsItemVO]:
     """Upsert the `form_category` tag in a tags list. Creates the tag if it doesn't exist."""
-    merged: List[vo.FormTagsItemVO] = []
+    merged: list[vo.FormTagsItemVO] = []
     found = False
     if existing:
         for t in existing:
@@ -104,11 +104,11 @@ def merge_form_category_tag(
     return merged
 
 
-def elements_from_raw(elements_raw: Any) -> Optional[List[vo.FormElementVO]]:
+def elements_from_raw(elements_raw: Any) -> Optional[list[vo.FormElementVO]]:
     """Convert raw API element dicts into typed FormElementVO list. Returns None if input is not a list."""
     if not isinstance(elements_raw, list):
         return None
-    elements_list: List[vo.FormElementVO] = []
+    elements_list: list[vo.FormElementVO] = []
     for elem in elements_raw:
         if isinstance(elem, dict):
             try:
@@ -164,7 +164,7 @@ async def list_forms_impl(ctx: Context | None = None) -> vo.FormListVO:
             logger.error("list_forms error: unexpected response shape\n")
             return vo.FormListVO(error="Facing internal error")
 
-        forms: List[vo.FormVO] = []
+        forms: list[vo.FormVO] = []
         for item in output:
             if not isinstance(item, dict):
                 continue
@@ -283,7 +283,7 @@ async def fetch_form_elements_for_assignment(form_id: str, ctx: Context | None) 
 
 
 def normalize_assign_form_inputs(
-    user_ids: List[str],
+    user_ids: list[str],
     due_date: str,
     purpose: str,
 ) -> tuple[list[str], str, str] | tuple[None, None, str]:

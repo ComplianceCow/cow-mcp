@@ -9,11 +9,11 @@ class ResourceTypeVO(BaseModel):
         "extra": "ignore"
     }
 class ResourceTypeListVO(BaseModel):
-    resourceTypes: Optional[List[ResourceTypeVO]] = None
+    resourceTypes: Optional[list[ResourceTypeVO]] = None
     error: Optional[str] = ""
     
 class ResourceTypeSummaryVO(BaseModel):
-    resourcesTypes: Optional[List[ResourceTypeVO]] = None
+    resourcesTypes: Optional[list[ResourceTypeVO]] = None
     totalItems: Optional[int]= 0
     error: Optional[str] = ""
 
@@ -25,7 +25,7 @@ class AssetVO(BaseModel):
         "extra": "ignore"
     }
 class AssetListVO(BaseModel):
-    assets: Optional[List[AssetVO]] = None
+    assets: Optional[list[AssetVO]] = None
     error: Optional[str] = ""
     
 class NumberOfChecks(BaseModel):
@@ -64,7 +64,7 @@ class CheckVO(BaseModel):
     }
     
 class ChecksListVO(BaseModel):
-    checks: Optional[List[CheckVO]] = None
+    checks: Optional[list[CheckVO]] = None
     page: Optional[int] = 0
     totalPage: Optional[int] = 0
     totalItems: Optional[int] = 0
@@ -95,13 +95,13 @@ class ResourceVO(BaseModel):
     name: Optional[str] = ""
     resourceType: Optional[str] = ""
     complianceStatus: Optional[str] = ""
-    checks: Optional[List[ResourceCheckVO]] = None
+    checks: Optional[list[ResourceCheckVO]] = None
     model_config = {
         "extra": "ignore"
     }
     
 class ResourceListVO(BaseModel):
-    resources: Optional[List[ResourceVO]] = None
+    resources: Optional[list[ResourceVO]] = None
     page: Optional[int] = 0
     totalPage: Optional[int] = 0
     totalItems: Optional[int] = 0

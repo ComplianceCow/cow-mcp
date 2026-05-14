@@ -6,7 +6,7 @@ from constants import cowenums
 
 
 class ErrorVO:
-    def __init__(self, service: Optional[str] = None, component: Optional[str] = None, error_type: Optional[cowenums.ErrorType] = None, specific_issue: Optional[str] = None, retryable: bool = False, criticality: Optional[str] = None, message: Optional[str] = None, description: Optional[str] = None, error_details: Optional[List["ErrorDetailVO"]] = None, debug_id: Optional[str] = None):
+    def __init__(self, service: Optional[str] = None, component: Optional[str] = None, error_type: Optional[cowenums.ErrorType] = None, specific_issue: Optional[str] = None, retryable: bool = False, criticality: Optional[str] = None, message: Optional[str] = None, description: Optional[str] = None, error_details: Optional[list["ErrorDetailVO"]] = None, debug_id: Optional[str] = None):
         self.service: Optional[str] = service
         self.component: Optional[str] = component
         self.error_type: Optional[cowenums.ErrorType] = error_type
@@ -16,7 +16,7 @@ class ErrorVO:
         self.criticality: Optional[str] = criticality
         self.message: Optional[str] = message
         self.description: Optional[str] = description
-        self.error_details: List["ErrorDetailVO"] = error_details or []
+        self.error_details: list["ErrorDetailVO"] = error_details or []
         self.debug_id: Optional[str] = debug_id
 
     def __str__(self) -> str:
@@ -30,7 +30,7 @@ class ErrorVO:
         error_code_str = "-".join(error_code_slice)
         return f"{error_code_str} | Criticality: {self.criticality} | Message: {self.message}"
 
-    def to_dict(self) -> Dict[str, Any]:
+    def to_dict(self) -> dict[str, Any]:
         return {
             "service": self.service,
             "component": self.component,
@@ -45,7 +45,7 @@ class ErrorVO:
         }
 
     @classmethod
-    def from_dict(cls, data: Dict[str, Any]) -> "ErrorVO":
+    def from_dict(cls, data: dict[str, Any]) -> "ErrorVO":
         error_details = [ErrorDetailVO.from_dict(
             detail) for detail in data.get("errorDetails", data.get("ErrorDetails", []))]
         return cls(
@@ -69,7 +69,7 @@ class ErrorDetailVO:
         self.location: Optional[str] = location
         self.issue: Optional[str] = issue
 
-    def to_dict(self) -> Dict[str, Any]:
+    def to_dict(self) -> dict[str, Any]:
         return {
             "Field": self.field,
             "Value": self.value,
@@ -78,7 +78,7 @@ class ErrorDetailVO:
         }
 
     @classmethod
-    def from_dict(cls, data: Dict[str, Any]) -> "ErrorDetailVO":
+    def from_dict(cls, data: dict[str, Any]) -> "ErrorDetailVO":
         return cls(
             field=data.get("Field", None),
             value=data.get("Value", None),
@@ -92,14 +92,14 @@ class ErrorResponseVO:
         self.error = error or ErrorVO()
         self.status_code = status_code
 
-    def to_dict(self) -> Dict[str, Any]:
+    def to_dict(self) -> dict[str, Any]:
         return {
             "Error": self.error,
             "StatusCode": self.status_code,
         }
 
     @classmethod
-    def from_dict(cls, data: Dict[str, Any]) -> "ErrorDetailVO":
+    def from_dict(cls, data: dict[str, Any]) -> "ErrorDetailVO":
         return cls(
             field=data.get("Error", None),
             value=data.get("StatusCode", None),
