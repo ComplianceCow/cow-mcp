@@ -1151,7 +1151,7 @@ async def search_users_by_email_ids(
         payload = {"include_user_mediums": True, "emails": emails_csv}
 
         output = await utils.make_API_call_to_CCow_and_get_response(
-            constants.URL_USERS_SEARCH_BY_EMAILS, "GET", payload, ctx=ctx
+            constants.URL_USERS, "GET", payload, ctx=ctx
         )
         logger.debug("search_users_by_email_ids output: %s", output)
 
