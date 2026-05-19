@@ -10,7 +10,7 @@ from mcpconfig.config import get_cc_headers
 
 # from mcpconfig import get_access_token
 from mcp.server.auth.middleware.auth_context import get_access_token
-from mcptypes.error_type import ErrorVO,ErrorResponseVO,ErrorWorkflowVO
+from mcptypes.error_type import ErrorVO,ErrorResponseVO,ErrorWorkflowVO, StructuredError
 import re
 
 
@@ -239,6 +239,41 @@ def handle_error_response(resp, tool_name: str) -> dict | None:
 
     return None
 
+def build_structured_error(resp, tool_name: str) -> StructuredError | None:
+    handled = handle_error_response(resp, tool_name)
+    if not handled:
+        return None
+
+    payload = handled.get("error")
+
+    if isinstance(payload, dict):
+        if "Message" in payload and "Description" in payload:
+            return ErrorResponseVO(
+                Message=payload.get("Message", ""),
+                Description=payload.get("Description", ""),
+            )
+
+        if "Message" in payload and "ErrorDetails" in payload:
+            return ErrorWorkflowVO(
+                Message=payload.get("Message", ""),
+                ErrorDetails=payload.get("ErrorDetails"),
+            )
+
+        if "error" in payload:
+            return ErrorVO(error=payload.get("error", ""))
+
+        return ErrorVO(error=str(payload))
+
+    return ErrorVO(error=str(payload))
+
+
+
+def tool_annotations(title: str, read_only: bool) -> dict:
+    return {
+        "title": title,
+        "readOnlyHint": read_only,
+        "destructiveHint": not read_only,
+    }
 
 def require_fields(data: dict, fields: list[str]) -> dict | None:
     """

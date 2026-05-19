@@ -3,6 +3,8 @@
 from pydantic import BaseModel, Field
 from dataclasses import dataclass, field
 from typing import List, Optional, Any
+from mcptypes.error_type import StructuredError
+
 
 class AutomatedControlVO(BaseModel):
     id: Optional[str] = ""
@@ -61,6 +63,9 @@ class RecordListVO(BaseModel):
     nonCompliantRecords:  Optional[int] = 0
     notDeterminedRecords:  Optional[int] = 0
     records:  Optional[list[Any]] = None
+    currentPage: Optional[int] = 0
+    pageSize: Optional[int] = 0
+    totalPages: Optional[int] = 0
 
 class RecordSchemaVO(BaseModel):
     name: Optional[str] = ""
@@ -125,8 +130,7 @@ class ControlListVO(BaseModel):
     controls: Optional[list[ControlVO]] = None
     error: Optional[str] = None
 
-@dataclass
-class AssessmentRunVO:
+class AssessmentRunVO(BaseModel):
     id: Optional[str] = ""
     name: Optional[str] = ""
     description: Optional[str] = ""
@@ -138,19 +142,16 @@ class AssessmentRunVO:
     # started: Optional[str] = ""
     ended: Optional[str] = ""
     status: Optional[str] = ""
-    computedScore: Optional[str] = ""
-    computedWeight: Optional[str] = ""
+    computedScore: Optional[float] = 0.0
+    computedWeight: Optional[float] = 0.0
     complianceStatus: Optional[str] = ""
     compliancePCT: Optional[float] = 0.0
     complianceWeight: Optional[float] = 0.0
     createdAt: Optional[str] = ""
 
-
-@dataclass
-class AssessmentRunListVO:
+class AssessmentRunListVO(BaseModel):
     assessmentRuns: Optional[list[AssessmentRunVO]] = None
     error: Optional[str] = ""
-    
     
 class ControlEvidenceVO(BaseModel):
     id: Optional[str] = ""
@@ -174,3 +175,25 @@ class TriggerActionVO(BaseModel):
     model_config = {
         "extra": "ignore"
     }
+
+# Audit
+
+class AssessmentRunListV2VO(BaseModel):
+    assessmentRuns: Optional[list[AssessmentRunVO]] = None
+    error: Optional[StructuredError] = None
+    
+class ControlListV2VO(BaseModel):
+    controls: Optional[list[ControlVO]] = None
+    error: Optional[StructuredError] = None
+
+class ControlEvidenceListV2VO(BaseModel):
+    evidences: Optional[list[ControlEvidenceVO]] = None
+    error: Optional[StructuredError] = None
+
+class RecordListV2VO(BaseModel):
+    totalRecords:  Optional[int] = 0
+    compliantRecords:  Optional[int] = 0
+    nonCompliantRecords:  Optional[int] = 0
+    notDeterminedRecords:  Optional[int] = 0
+    records:  Optional[list[Any]] = None
+    error: Optional[StructuredError] = None
