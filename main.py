@@ -48,6 +48,10 @@ if "policy" in MCP_TOOLS:
     from prompts.assessments import assessment_creation
     from tools.assessmentv2 import assessmentv2
 
+if "audit" in MCP_TOOLS:
+    from tools.audit import audit
+    from prompts.audit import audit
+
 def signal_handler(sig, frame):
     print("Shutting down...")
     sys.exit(0)
