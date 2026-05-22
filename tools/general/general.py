@@ -111,7 +111,7 @@ if constants.ENABLE_DOWNLOADABLE_FILE:
         Output Specification:
         After the tool returns the URL, display it to the user in this format:
         File :
-            <file_url> (Displayed as file Attachment in UI)
+            <file_url> 
         
         Args:
             filename: File name including extension (e.g. "report.pdf")

@@ -584,62 +584,16 @@ def _load_audit_events_from_file(filename: str) -> list[dict]:
 
     return data
 
-
-def _validate_pagination(page: int | str, pageSize: int | str) -> tuple[int, int]:
+def _list_audit_events_from_file(filename: str) -> dict:
     try:
-        page_value = int(page)
-        page_size_value = int(pageSize)
-    except (TypeError, ValueError) as ex:
-        raise ValueError("page and pageSize must be integer values") from ex
-
-    if page_value < 1 or page_size_value < 1:
-        raise ValueError("page and pageSize must both be greater than zero")
-
-    return page_value, page_size_value
-
-
-def _matches_audit_event(event: dict, filters: dict[str, str]) -> bool:
-
-    return event
-    if not isinstance(event, dict):
-        return False
-
-    for key, value in filters.items():
-        if not value or not str(value).strip():
-            continue
-
-        search_value = str(value).strip().lower()
-        actual_value = event.get(key)
-
-        if actual_value is None:
-            return False
-
-        actual_text = str(actual_value).strip().lower()
-        if search_value not in actual_text:
-            return False
-
-    return True
-
-
-def _list_audit_events_from_file(filename: str, filters: dict[str, str], page: int, pageSize: int, error_code: str) -> dict:
-    try:
-        page, pageSize = _validate_pagination(page, pageSize)
 
         events = _load_audit_events_from_file(filename)
-        filtered = [event for event in events if _matches_audit_event(event, filters)]
 
-        totalCount = len(filtered)
-        totalPages = (totalCount + pageSize - 1) // pageSize
-        start = (page - 1) * pageSize
-        end = start + pageSize
-
+        totalCount = len(events)
         return {
             "success": True,
             "totalCount": totalCount,
-            "page": page,
-            "pageSize": pageSize,
-            "totalPages": totalPages,
-            "events": filtered[start:end],
+            "events": events,
         }
     except Exception as ex:
         logger.error(traceback.format_exc())
@@ -652,29 +606,14 @@ def _list_audit_events_from_file(filename: str, filters: dict[str, str], page: i
 @mcp.tool(annotations=utils.tool_annotations("List Control Config Audit Events", read_only=True))
 async def audit_list_control_config_audit_events(
     id: str = "",
-    page: int = 1,
-    pageSize: int = 100,
     ctx: Context | None = None,
 ) -> dict:
     """
     List control config audit events
     """
     try:
-        filters = {
-            # "resourceType": resourceType,
-            # "resource": resource,
-            "resourceId": id,
-            # "resourceParentId": resourceParentId,
-            # "operation": operation,
-            # "who": who,
-        }
-
         output = _list_audit_events_from_file(
-            "control_config_audit.json",
-            filters,
-            page,
-            pageSize,
-            "audit:list_control_config_audit_events",
+            "control_config_audit.json"
         )
 
         error = utils.build_structured_error(output, "audit:list_control_config_audit_events")
@@ -694,32 +633,18 @@ async def audit_list_control_config_audit_events(
         }
 
 
-@mcp.tool(annotations=utils.tool_annotations("List Control Audit Events", read_only=True))
-async def audit_list_control_audit_events(
+@mcp.tool(annotations=utils.tool_annotations("List Control Run Audit Events", read_only=True))
+async def audit_list_control_run_audit_events(
     id: str ,
-    page: int = 1,
-    pageSize: int = 100,
     ctx: Context | None = None,
 ) -> dict:
     """
-    List control audit events 
+    List control run audit events 
     """
     try:
-        filters = {
-            # "resourceType": resourceType,
-            # "resource": resource,
-            "resourceId": id,
-            # "resourceParentId": resourceParentId,
-            # "operation": operation,
-            # "who": who,
-        }
 
         output = _list_audit_events_from_file(
             "control_audit.json",
-            filters,
-            page,
-            pageSize,
-            "audit:list_control_audit_events",
         )
 
         error = utils.build_structured_error(output, "audit:list_control_audit_events")
@@ -738,19 +663,20 @@ async def audit_list_control_audit_events(
             ),
         }
 
-@mcp.tool(annotations=utils.tool_annotations("Create Control Config Note", read_only=False))
-async def create_control_config_note(
-    controlConfigId: str,
-    assessmentId: str,
+
+@mcp.tool(annotations=utils.tool_annotations("Create Control Run Note", read_only=False))
+async def audit_create_control_run_note(
+    controlRunId: str,
+    assessmentRunId: str,
     notes: str,
     topic: str,
     confirm: bool = False,
     ctx: Context | None = None,
 ) -> dict:
     """
-    Create a documentation note on a control configuration
+    Create a documentation note on a control run
     
-    This tool creates a markdown documentation note that is attached to a control configuration.
+    This tool creates a markdown documentation note that is attached to a control run.
     
     Get the topic from user
 
@@ -759,11 +685,11 @@ async def create_control_config_note(
         → The tool returns a PREVIEW of the generated markdown note.
         → The user may edit the note before confirming.
     - When confirm=True:
-        → The note is permanently created and attached to the control config.
+        → The note is permanently created and attached to the control run.
     
     Args:
-        controlConfigId (str): The control config ID where the note will be attached (required).
-        assessmentId (str): The assessment ID that contains the control config (required).
+        controlRunId (str): The control Run ID where the note will be attached (required).
+        assessmentRunId (str): The assessment Run ID that contains the control run (required).
         notes (str): The documentation content in MARKDOWN format (required).
         topic (str, optional): Topic or subject of the note.
         confirm (bool, optional):  
@@ -777,32 +703,30 @@ async def create_control_config_note(
             - id (str): Note ID
             - topic (str): Note topic
             - notes (str): Note content in markdown format
-            - controlConfigId (str): Control config ID the note is attached to
-            - assessmentId (str): Assessment ID
+            - controlRunId (str): Control Run ID the note is attached to
         - error (str, optional): Error message if request failed
         - next_action (str, optional): Recommended next action
     """
     try:
-        logger.info("create_control_config_note: \n")
+        logger.info("audit_create_control_run_note: \n")
         
-        if not controlConfigId or not str(controlConfigId).strip():
-            logger.error("create_control_config_note error: controlConfigId is mandatory\n")
-            return {"success": False, "error": "controlConfigId is mandatory"}
+        if not controlRunId or not str(controlRunId).strip():
+            logger.error("audit_create_control_run_note error: controlConfigId is mandatory\n")
+            return {"success": False, "error": "controlRunId is mandatory"}
         
-        if not assessmentId or not str(assessmentId).strip():
-            logger.error("create_control_config_note error: assessmentId is mandatory\n")
-            return {"success": False, "error": "assessmentId is mandatory"}
+        if not assessmentRunId or not str(assessmentRunId).strip():
+            logger.error("audit_create_control_run_note error: assessmentId is mandatory\n")
+            return {"success": False, "error": "assessmentRunId is mandatory"}
         
         if not notes or not str(notes).strip():
-            logger.error("create_control_config_note error: notes content is mandatory\n")
+            logger.error("audit_create_control_run_note error: notes content is mandatory\n")
             return {"success": False, "error": "notes content is mandatory"}
         
         # Build payload
         payload = {
             "topic": str(topic).strip(),
             "notes": str(notes).strip(),
-            "planId": str(assessmentId).strip(),
-            "planControlID": str(controlConfigId).strip(),
+            "planInstanceControlID": str(controlRunId).strip(),
         }
 
         if not confirm:
@@ -810,70 +734,43 @@ async def create_control_config_note(
             return {
                 "success": True,
                 "message": "Confirmation required before creating note",
-                "controlConfigId": payload["planControlID"],
+                "controlRunId": payload["planInstanceControlID"],
                 "topic": payload["topic"],
                 "notes": payload["notes"],
                 "next_step": "Review the Note above. If you need to modify it, provide the updated note parameter when calling with confirm=True. If correct, re-run with confirm=True to create note."
         }
         
-        # Construct URL with control config ID
-        url = constants.URL_PLAN_CONTROL_NOTES.format(controlConfigId=str(controlConfigId).strip())
         
-        logger.debug("create_control_config_note payload: {}\n".format(json.dumps(payload)))
-        logger.debug("create_control_config_note URL: {}\n".format(url))
+        logger.debug("audit_create_control_run_note payload: {}\n".format(json.dumps(payload)))
         
-        # Make API call
-        resp_raw = await utils.make_API_call_to_CCow_and_get_response(
-            url,
+        resp = await utils.make_API_call_to_CCow_and_get_response(
+            constants.URL_PLAN_INSTANCE_NOTES,
             "POST",
             payload,
-            return_raw=True,
             ctx=ctx
         )
         
-        if resp_raw.status_code == 201:
-            resp = {}
-            try:
-                if resp_raw.content:
-                    resp = resp_raw.json()
-            except Exception:
-                resp = {"error": f"HTTP {resp_raw.status_code}"}
-
-            logger.info(f"create_control_config_note: \n Response : {resp}\n")
-            noteId = ""
-            if isinstance(resp, dict):
-                noteId = resp.get("id")
-            
-            logger.info(f"create_control_config_note: Successfully created note with status 201\n")
+        logger.info(f"audit_create_control_run_note: \n Response : {resp}\n")
+        noteId = ""
+        if isinstance(resp, dict):
+            noteId = resp.get("id")
+        
+        if noteId: 
             return {
                 "success": True,
                 "noteId": noteId,
                 "message": "Note created successfully",
             }
-        else:
-            # Error - parse error response
-            error_resp = {}
-            try:
-                if resp_raw.content:
-                    error_resp = resp_raw.json()
-            except Exception:
-                error_resp = {"error": f"HTTP {resp_raw.status_code}"}
-            
-            logger.error("create_control_config_note error: Status {} - {}\n".format(resp_raw.status_code, error_resp))
-            
-            # Check for error fields in response
-            if isinstance(error_resp, dict):
-                if "Message" in error_resp:
-                    return {"success": False, "error": error_resp}
-                if "error" in error_resp:
-                    return {"success": False, "error": error_resp.get("error")}
-
-            return {"success": False, "error": f"Failed to create note: HTTP {resp_raw.status_code}"}
         
+        return {
+                "success": False,
+                "error": resp,
+            }
+
     except Exception as e:
         logger.error(traceback.format_exc())
-        logger.error("create_control_config_note error: {}\n".format(e))
-        return {"success": False, "error": f"Unexpected error creating control config note: {e}"}
+        logger.error("audit_create_control_run_note error: {}\n".format(e))
+        return {"success": False, "error": f"Unexpected error creating control run note: {e}"}
 
 
 @mcp.tool(annotations=utils.tool_annotations("Fetch Users By Ids", read_only=True))
