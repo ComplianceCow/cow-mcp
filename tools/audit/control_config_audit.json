@@ -1,0 +1,259 @@
+[
+  {
+    "who": "surendhar.n@continube.com",
+    "operation": "CREATE",
+    "when": "2026-05-10T18:40:02.765579+05:30",
+    "what": {
+      "resourceType": "PlanControl",
+      "resource": "1.1 Allowlist Authorized Software",
+      "resourceId": "e866cef2-60c6-4139-80d5-af1a364f0200",
+      "resourceParentId": "f4e8605b-4bbe-4dd5-8670-f1ceb12c2a5c",
+      "resourceFieldValue": {
+        "before": null,
+        "after": {
+          "alias": "1.1",
+          "name": "Allowlist Authorized Software",
+          "type": "Detective",
+          "status": "active",
+          "weight": 5.0,
+          "dueDate": "05/25/2026"
+        }
+      }
+    }
+  },
+  {
+    "who": "surendhar.n@continube.com",
+    "operation": "UPDATE",
+    "when": "2026-05-11T09:10:14.334501+05:30",
+    "what": {
+      "resourceType": "PlanControl",
+      "resource": "1.1 Allowlist Authorized Software",
+      "resourceId": "e866cef2-60c6-4139-80d5-af1a364f0200",
+      "resourceParentId": "f4e8605b-4bbe-4dd5-8670-f1ceb12c2a5c",
+      "resourceFieldValue": {
+        "before": {
+          "weight": 5.0,
+          "dueDate": "05/25/2026"
+        },
+        "after": {
+          "weight": 7.0,
+          "dueDate": "05/30/2026"
+        }
+      }
+    }
+  },
+  {
+    "who": "surendhar.n@continube.com",
+    "operation": "UPDATE",
+    "when": "2026-05-11T11:22:47.009812+05:30",
+    "what": {
+      "resourceType": "PlanControl",
+      "resource": "1.1 Allowlist Authorized Software",
+      "resourceId": "e866cef2-60c6-4139-80d5-af1a364f0200",
+      "resourceParentId": "f4e8605b-4bbe-4dd5-8670-f1ceb12c2a5c",
+      "resourceFieldValue": {
+        "before": {
+          "status": "active"
+        },
+        "after": {
+          "status": "inactive"
+        }
+      }
+    }
+  },
+  {
+    "who": "hareesh.g@continube.com",
+    "operation": "CREATE",
+    "when": "2026-05-11T13:05:22.441730+05:30",
+    "what": {
+      "resourceType": "evidenceTemplate",
+      "resource": "WizSecurityGroupRestrictAllIPs",
+      "resourceId": "3b848147-231c-4230-93d5-d4c44b1cd11b",
+      "resourceParentId": "e866cef2-60c6-4139-80d5-af1a364f0200",
+      "resourceFieldValue": {
+        "before": null,
+        "after": {
+          "name": "WizSecurityGroupRestrictAllIPs",
+          "description": "Validates that all AWS security groups restrict outbound traffic to specific IPs only",
+          "source": "wiz-integrations",
+          "fileName": "WizSecurityGroupRestrictAllIPs"
+        }
+      }
+    }
+  },
+  {
+    "who": "hareesh.g@continube.com",
+    "operation": "UPDATE",
+    "when": "2026-05-11T13:18:09.882100+05:30",
+    "what": {
+      "resourceType": "evidenceTemplate",
+      "resource": "WizSecurityGroupRestrictAllIPs",
+      "resourceId": "3b848147-231c-4230-93d5-d4c44b1cd11b",
+      "resourceParentId": "e866cef2-60c6-4139-80d5-af1a364f0200",
+      "resourceFieldValue": {
+        "before": {
+          "fileName": "testtt"
+        },
+        "after": {
+          "fileName": "WizSecurityGroupRestrictAllIPs"
+        }
+      }
+    }
+  },
+  {
+    "who": "hareesh.g@continube.com",
+    "operation": "CREATE",
+    "when": "2026-05-11T13:25:44.117390+05:30",
+    "what": {
+      "resourceType": "evidenceTemplate",
+      "resource": "WizLambdaAttachmentFromAWSAccounts",
+      "resourceId": "906853a0-18ad-44a6-adb7-2215fd59137b",
+      "resourceParentId": "e866cef2-60c6-4139-80d5-af1a364f0200",
+      "resourceFieldValue": {
+        "before": null,
+        "after": {
+          "name": "WizLambdaAttachmentFromAWSAccounts",
+          "description": "Validates that Lambda functions attach layers only from recognized AWS accounts",
+          "source": "wiz-integrations",
+          "fileName": "WizLambdaAttachmentFromAWSAccounts"
+        }
+      }
+    }
+  },
+  {
+    "who": "hareesh.g@continube.com",
+    "operation": "CREATE",
+    "when": "2026-05-11T13:40:58.334120+05:30",
+    "what": {
+      "resourceType": "evidenceTemplate",
+      "resource": "PrivateECRTagImmutability",
+      "resourceId": "27b53709-1a65-4795-b1ca-92c82e068a9d",
+      "resourceParentId": "e866cef2-60c6-4139-80d5-af1a364f0200",
+      "resourceFieldValue": {
+        "before": null,
+        "after": {
+          "name": "PrivateECRTagImmutability",
+          "description": "Validates that private ECR repositories have image tag immutability enabled",
+          "source": "wiz-integrations",
+          "fileName": "PrivateECRTagImmutability"
+        }
+      }
+    }
+  },
+  {
+    "who": "hareesh.g@continube.com",
+    "operation": "DELETE",
+    "when": "2026-05-11T14:02:33.550871+05:30",
+    "what": {
+      "resourceType": "evidenceTemplate",
+      "resource": "WizEC2PublicAMIExposure",
+      "resourceId": "cc9d1122-aaaa-4321-bbbb-99887766aabb",
+      "resourceParentId": "e866cef2-60c6-4139-80d5-af1a364f0200",
+      "resourceFieldValue": {
+        "before": {
+          "name": "WizEC2PublicAMIExposure",
+          "description": "Checks for EC2 AMIs exposed publicly",
+          "source": "wiz-integrations",
+          "fileName": "WizEC2PublicAMIExposure"
+        },
+        "after": null
+      }
+    }
+  },
+  {
+    "who": "tamil.k@continube.com",
+    "operation": "CREATE",
+    "when": "2026-05-12T10:15:19.228401+05:30",
+    "what": {
+      "resourceType": "note",
+      "resource": "1.1 Allowlist Authorized Software",
+      "resourceId": "note-cfg-001-cis-1-1",
+      "resourceParentId": "e866cef2-60c6-4139-80d5-af1a364f0200",
+      "resourceFieldValue": {
+        "before": null,
+        "after": {
+          "topic": "Control Scoping – Evidence Template Alignment",
+          "notes": "Three evidence templates configured: WizSecurityGroupRestrictAllIPs, WizLambdaAttachmentFromAWSAccounts, PrivateECRTagImmutability. These cover network egress enforcement, Lambda layer provenance, and container image integrity respectively. A software allowlist policy template is still missing and must be added before the next assessment run to satisfy the core CIS 1.1 requirement."
+        }
+      }
+    }
+  },
+  {
+    "who": "tamil.k@continube.com",
+    "operation": "UPDATE",
+    "when": "2026-05-12T10:55:44.667100+05:30",
+    "what": {
+      "resourceType": "note",
+      "resource": "1.1 Allowlist Authorized Software",
+      "resourceId": "note-cfg-001-cis-1-1",
+      "resourceParentId": "e866cef2-60c6-4139-80d5-af1a364f0200",
+      "resourceFieldValue": {
+        "before": {
+          "topic": "Control Scoping – Evidence Template Alignment",
+          "notes": "Three evidence templates configured: WizSecurityGroupRestrictAllIPs, WizLambdaAttachmentFromAWSAccounts, PrivateECRTagImmutability. These cover network egress enforcement, Lambda layer provenance, and container image integrity respectively. A software allowlist policy template is still missing and must be added before the next assessment run to satisfy the core CIS 1.1 requirement."
+        },
+        "after": {
+          "topic": "Control Scoping – Evidence Template Alignment (Revised)",
+          "notes": "Three evidence templates configured: WizSecurityGroupRestrictAllIPs, WizLambdaAttachmentFromAWSAccounts, PrivateECRTagImmutability. These cover network egress enforcement, Lambda layer provenance, and container image integrity respectively. A software allowlist policy template is still missing and must be added before the next assessment run to satisfy the core CIS 1.1 requirement. Additionally, WizEC2PublicAMIExposure template was removed as it is out of scope for this control."
+        }
+      }
+    }
+  },
+  {
+    "who": "hareesh.g@continube.com",
+    "operation": "CREATE",
+    "when": "2026-05-13T11:30:05.772310+05:30",
+    "what": {
+      "resourceType": "attachment",
+      "resource": "1.1 Allowlist Authorized Software",
+      "resourceId": "attach-cfg-001-cis-1-1",
+      "resourceParentId": "e866cef2-60c6-4139-80d5-af1a364f0200",
+      "resourceFieldValue": {
+        "before": null,
+        "after": {
+          "fileName": "CIS_1.1_Control_Scope_Definition.pdf",
+          "fileSize": "210KB",
+          "description": "Scoping document defining the evidence template rationale and coverage mapping for CIS 1.1 Allowlist Authorized Software"
+        }
+      }
+    }
+  },
+  {
+    "who": "hareesh.g@continube.com",
+    "operation": "DELETE",
+    "when": "2026-05-13T14:10:22.993410+05:30",
+    "what": {
+      "resourceType": "attachment",
+      "resource": "1.1 Allowlist Authorized Software",
+      "resourceId": "attach-cfg-001-cis-1-1",
+      "resourceParentId": "e866cef2-60c6-4139-80d5-af1a364f0200",
+      "resourceFieldValue": {
+        "before": {
+          "fileName": "CIS_1.1_Control_Scope_Definition.pdf",
+          "fileSize": "210KB",
+          "description": "Scoping document defining the evidence template rationale and coverage mapping for CIS 1.1 Allowlist Authorized Software"
+        },
+        "after": null
+      }
+    }
+  },
+  {
+    "who": "hareesh.g@continube.com",
+    "operation": "CREATE",
+    "when": "2026-05-13T14:25:50.118843+05:30",
+    "what": {
+      "resourceType": "attachment",
+      "resource": "1.1 Allowlist Authorized Software",
+      "resourceId": "attach-cfg-002-cis-1-1",
+      "resourceParentId": "e866cef2-60c6-4139-80d5-af1a364f0200",
+      "resourceFieldValue": {
+        "before": null,
+        "after": {
+          "fileName": "CIS_1.1_Control_Scope_Definition_v2.pdf",
+          "fileSize": "215KB",
+          "description": "Revised scoping document with updated evidence template rationale after removal of WizEC2PublicAMIExposure template"
+        }
+      }
+    }
+  }
+]
