@@ -1,8 +1,10 @@
 
 
 from __future__ import annotations
-from typing import List, Optional
+from typing import List, Optional, Any
 from pydantic import BaseModel, Field
+from mcptypes.error_type import StructuredError
+
 
 class CategoryVO(BaseModel):
     id: Optional[str] = ""
@@ -100,3 +102,46 @@ class ControlsLastRunDate(BaseModel):
     model_config = {
         "extra": "ignore",
     }
+
+class AssessmentControlConfigVO(BaseModel):
+    id: Optional[str] = ""
+    name: Optional[str] = ""
+    description: Optional[str] = ""
+    alias: Optional[str] = ""
+    controlNumber: Optional[str] = ""
+    context: Optional[Any] = None
+    additionalContext: Optional[Any] = None
+
+    model_config = {
+        "extra": "ignore"
+    }
+
+
+class AssessmentControlConfigListResponseVO(BaseModel):
+    success: bool = True
+    controls: Optional[List[AssessmentControlConfigVO]] = None
+    totalCount: Optional[int] = 0
+    error: Optional[StructuredError] = None
+
+    model_config = {
+        "extra": "ignore"
+    }
+
+# Audit VO
+class CategoryListV2VO(BaseModel):
+    categories: Optional[List[CategoryVO]] = None
+    error: Optional[StructuredError] = None
+
+    model_config = {
+        "extra": "ignore",
+    }
+
+
+class AssessmentListV2VO(BaseModel):
+    assessments: Optional[list[AssessmentVO]] = None
+    error: Optional[str] = None
+    model_config = {
+        "extra": "ignore",
+    }
+    
+

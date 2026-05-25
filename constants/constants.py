@@ -58,6 +58,8 @@ URL_LINK_CONTROL = "/v1/link-plan-controls/bulk-upsert"
 URL_PLAN_INSTANCES = "/v1/plan-instances"
 URL_PLAN_INSTANCE_CONTROLS = "/v1/plan-instance-controls"
 URL_PLAN_INSTANCE_EVIDENCES = "/v1/plan-instance-evidences"
+URL_PLAN_INSTANCE_NOTES = "/v1/notes"
+
 
 URL_DATAHANDLER_FETCH_DATA = "/v1/datahandler/fetch-data"
 
@@ -172,7 +174,7 @@ URL_MY_FORMS = "/v2/aggregator/my-forms"
 URL_FORMS_FETCH = "/v1/forms/fetch"
 URL_USERS_ME = "/v1/users/me"
 URL_USER_BLOCKS = "/v1/actions/userblocks"
-URL_USERS_SEARCH_BY_EMAILS = "/api/v1/users"
+URL_USERS = "/v1/users"
 URL_USER_FORMS_SUBMIT = "/v1/user-forms/submit-user-response"
 
 URL_USERS_CREATE_IDENTIFIERS = "/v1/users/create-user-identifiers"
