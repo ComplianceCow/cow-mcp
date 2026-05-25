@@ -1,0 +1,291 @@
+[
+  {
+    "who": "surendhar.n@continube.com",
+    "operation": "CREATE",
+    "when": "2026-05-10T18:40:14.221890+05:30",
+    "what": {
+      "resourceType": "PlanInstanceControl",
+      "resource": "1.1 Allowlist Authorized Software",
+      "resourceId": "b1c2d3e4-f5a6-7890-abcd-ef1234567890",
+      "resourceParentId": "63a47597-442f-4cf6-803a-cebb198b6eca",
+      "resourceFieldValue": {
+        "before": null,
+        "after": {
+          "alias": "1.1",
+          "name": "Allowlist Authorized Software",
+          "stage": "Control Owner",
+          "status": "Unassigned",
+          "complianceStatus": "NOT_DETERMINED",
+          "executionStatus": "Not executed",
+          "dueDate": "05/11/2026"
+        }
+      }
+    }
+  },
+  {
+    "who": "surendhar.n@continube.com",
+    "operation": "UPDATE",
+    "when": "2026-05-10T19:15:33.112840+05:30",
+    "what": {
+      "resourceType": "PlanInstanceControl",
+      "resource": "1.1 Allowlist Authorized Software",
+      "resourceId": "b1c2d3e4-f5a6-7890-abcd-ef1234567890",
+      "resourceParentId": "63a47597-442f-4cf6-803a-cebb198b6eca",
+      "resourceFieldValue": {
+        "before": {
+          "assignedTo": [],
+          "assignedBy": "",
+          "assignedDate": ""
+        },
+        "after": {
+          "assignedTo": ["hareesh.g@continube.com"],
+          "assignedBy": "surendhar.n@continube.com",
+          "assignedDate": "2026-05-10T19:15:33.112840+05:30"
+        }
+      }
+    }
+  },
+  {
+    "who": "hareesh.g@continube.com",
+    "operation": "UPDATE",
+    "when": "2026-05-11T09:45:10.334789+05:30",
+    "what": {
+      "resourceType": "PlanInstanceControl",
+      "resource": "1.1 Allowlist Authorized Software",
+      "resourceId": "b1c2d3e4-f5a6-7890-abcd-ef1234567890",
+      "resourceParentId": "63a47597-442f-4cf6-803a-cebb198b6eca",
+      "resourceFieldValue": {
+        "before": {
+          "stage": "Control Owner",
+          "status": "Unassigned"
+        },
+        "after": {
+          "stage": "Evidence Collection",
+          "status": "In Progress"
+        }
+      }
+    }
+  },
+  {
+    "who": "hareesh.g@continube.com",
+    "operation": "CREATE",
+    "when": "2026-05-11T10:05:22.441730+05:30",
+    "what": {
+      "resourceType": "evidence",
+      "resource": "WizSecurityGroupRestrictAllIPs",
+      "resourceId": "ev-run-001-sg-restrict",
+      "resourceParentId": "b1c2d3e4-f5a6-7890-abcd-ef1234567890",
+      "resourceFieldValue": {
+        "before": null,
+        "after": {
+          "name": "WizSecurityGroupRestrictAllIPs",
+          "fileName": "WizSecurityGroupRestrictAllIPs",
+          "totalRecords": 137,
+          "compliantRecords": 2,
+          "nonCompliantRecords": 135,
+          "notDeterminedRecords": 0,
+          "executionStatus": "Completed"
+        }
+      }
+    }
+  },
+  {
+    "who": "hareesh.g@continube.com",
+    "operation": "CREATE",
+    "when": "2026-05-11T10:20:14.882100+05:30",
+    "what": {
+      "resourceType": "evidence",
+      "resource": "WizLambdaAttachmentFromAWSAccounts",
+      "resourceId": "ev-run-002-lambda-attach",
+      "resourceParentId": "b1c2d3e4-f5a6-7890-abcd-ef1234567890",
+      "resourceFieldValue": {
+        "before": null,
+        "after": {
+          "name": "WizLambdaAttachmentFromAWSAccounts",
+          "fileName": "WizLambdaAttachmentFromAWSAccounts",
+          "totalRecords": 22,
+          "compliantRecords": 22,
+          "nonCompliantRecords": 0,
+          "notDeterminedRecords": 0,
+          "executionStatus": "Completed"
+        }
+      }
+    }
+  },
+  {
+    "who": "hareesh.g@continube.com",
+    "operation": "CREATE",
+    "when": "2026-05-11T10:35:58.334120+05:30",
+    "what": {
+      "resourceType": "evidence",
+      "resource": "PrivateECRTagImmutability",
+      "resourceId": "ev-run-003-ecr-immutability",
+      "resourceParentId": "b1c2d3e4-f5a6-7890-abcd-ef1234567890",
+      "resourceFieldValue": {
+        "before": null,
+        "after": {
+          "name": "PrivateECRTagImmutability",
+          "fileName": "PrivateECRTagImmutability",
+          "totalRecords": 4,
+          "compliantRecords": 0,
+          "nonCompliantRecords": 1,
+          "notDeterminedRecords": 3,
+          "executionStatus": "Completed"
+        }
+      }
+    }
+  },
+  {
+    "who": "hareesh.g@continube.com",
+    "operation": "UPDATE",
+    "when": "2026-05-11T11:05:33.119874+05:30",
+    "what": {
+      "resourceType": "evidence",
+      "resource": "WizSecurityGroupRestrictAllIPs",
+      "resourceId": "ev-run-001-sg-restrict",
+      "resourceParentId": "b1c2d3e4-f5a6-7890-abcd-ef1234567890",
+      "resourceFieldValue": {
+        "before": {
+          "fileName": "testtt"
+        },
+        "after": {
+          "fileName": "WizSecurityGroupRestrictAllIPs"
+        }
+      }
+    }
+  },
+  {
+    "who": "hareesh.g@continube.com",
+    "operation": "CREATE",
+    "when": "2026-05-11T11:45:09.998102+05:30",
+    "what": {
+      "resourceType": "note",
+      "resource": "1.1 Allowlist Authorized Software",
+      "resourceId": "note-run-001-cis-1-1",
+      "resourceParentId": "b1c2d3e4-f5a6-7890-abcd-ef1234567890",
+      "resourceFieldValue": {
+        "before": null,
+        "after": {
+          "topic": "Security Group Non-Compliance – 135 Violations",
+          "notes": "135 out of 137 production security groups are non-compliant with code SECURITYGROUP_NO_CONTROL_OUTBOUND. All allow unrestricted outbound traffic to 0.0.0.0/0 or ::/0 across us-east-1 and us-east-2 regions. Oldest unresolved finding dates back to 2022-11-16. Owner notified. AWS CLI remediation steps available in evidence records."
+        }
+      }
+    }
+  },
+  {
+    "who": "hareesh.g@continube.com",
+    "operation": "CREATE",
+    "when": "2026-05-11T12:10:55.221637+05:30",
+    "what": {
+      "resourceType": "note",
+      "resource": "1.1 Allowlist Authorized Software",
+      "resourceId": "note-run-002-cis-1-1",
+      "resourceParentId": "b1c2d3e4-f5a6-7890-abcd-ef1234567890",
+      "resourceFieldValue": {
+        "before": null,
+        "after": {
+          "topic": "ECR Tag Immutability – nginx_vulns NON_COMPLIANT + 3 NOT_DETERMINED",
+          "notes": "Repository nginx_vulns (arn:aws:ecr:eu-north-1:998231069301:repository/nginx_vulns) has ImageTagMutability=MUTABLE. Severity HIGH. Three EKS system repos (kube-proxy, amazon-k8s-cni, eks/coredns) returned NOT_DETERMINED — ResourceID and FirstEvaluatedTime are null. Re-scan required to obtain definitive immutability status."
+        }
+      }
+    }
+  },
+  {
+    "who": "tamil.k@continube.com",
+    "operation": "CREATE",
+    "when": "2026-05-12T11:02:28.774512+05:30",
+    "what": {
+      "resourceType": "note",
+      "resource": "1.1 Allowlist Authorized Software",
+      "resourceId": "note-run-003-cis-1-1",
+      "resourceParentId": "b1c2d3e4-f5a6-7890-abcd-ef1234567890",
+      "resourceFieldValue": {
+        "before": null,
+        "after": {
+          "topic": "Auditor Finding – Missing Software Allowlist Policy Evidence",
+          "notes": "Critical gap: No software allowlist inventory or application control policy evidence was produced in this run. CIS 1.1 fundamentally requires proof that a catalog of authorized software is maintained. Current evidence covers only network egress, Lambda layer provenance, and ECR immutability. Control owner must supply output from an approved allowlisting tool (AWS SSM Inventory, CrowdStrike Falcon, or Tanium) or an equivalent signed policy artifact for the next run."
+        }
+      }
+    }
+  },
+  {
+    "who": "tamil.k@continube.com",
+    "operation": "UPDATE",
+    "when": "2026-05-12T11:20:44.991200+05:30",
+    "what": {
+      "resourceType": "note",
+      "resource": "1.1 Allowlist Authorized Software",
+      "resourceId": "note-run-001-cis-1-1",
+      "resourceParentId": "b1c2d3e4-f5a6-7890-abcd-ef1234567890",
+      "resourceFieldValue": {
+        "before": {
+          "topic": "Security Group Non-Compliance – 135 Violations"
+        },
+        "after": {
+          "topic": "Security Group Non-Compliance – 135 Violations [Escalated]"
+        }
+      }
+    }
+  },
+  {
+    "who": "hareesh.g@continube.com",
+    "operation": "CREATE",
+    "when": "2026-05-13T10:55:33.119874+05:30",
+    "what": {
+      "resourceType": "attachment",
+      "resource": "1.1 Allowlist Authorized Software",
+      "resourceId": "attach-run-001-cis-1-1",
+      "resourceParentId": "b1c2d3e4-f5a6-7890-abcd-ef1234567890",
+      "resourceFieldValue": {
+        "before": null,
+        "after": {
+          "fileName": "CIS_1.1_NonCompliant_SecurityGroups_Sample.csv",
+          "fileSize": "48KB",
+          "description": "Exported sample of non-compliant security groups from WizSecurityGroupRestrictAllIPs run evidence for auditor review"
+        }
+      }
+    }
+  },
+  {
+    "who": "hareesh.g@continube.com",
+    "operation": "CREATE",
+    "when": "2026-05-13T11:10:17.443091+05:30",
+    "what": {
+      "resourceType": "attachment",
+      "resource": "1.1 Allowlist Authorized Software",
+      "resourceId": "attach-run-002-cis-1-1",
+      "resourceParentId": "b1c2d3e4-f5a6-7890-abcd-ef1234567890",
+      "resourceFieldValue": {
+        "before": null,
+        "after": {
+          "fileName": "CIS_1.1_ECR_ImmutabilityGap_Report.pdf",
+          "fileSize": "95KB",
+          "description": "Detailed report on ECR private repository tag immutability failures and NOT_DETERMINED records for EKS system repositories"
+        }
+      }
+    }
+  },
+  {
+    "who": "tamil.k@continube.com",
+    "operation": "UPDATE",
+    "when": "2026-05-14T04:49:04.000000+05:30",
+    "what": {
+      "resourceType": "PlanInstanceControl",
+      "resource": "1.1 Allowlist Authorized Software",
+      "resourceId": "b1c2d3e4-f5a6-7890-abcd-ef1234567890",
+      "resourceParentId": "63a47597-442f-4cf6-803a-cebb198b6eca",
+      "resourceFieldValue": {
+        "before": {
+          "stage": "Evidence Collection",
+          "status": "In Progress",
+          "complianceStatus": "NOT_DETERMINED"
+        },
+        "after": {
+          "stage": "Auditor Review",
+          "status": "Pending Review",
+          "complianceStatus": "NON_COMPLIANT"
+        }
+      }
+    }
+  }
+]
