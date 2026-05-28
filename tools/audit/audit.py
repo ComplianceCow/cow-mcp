@@ -376,9 +376,7 @@ async def audit_fetch_assessment_run_leaf_control_evidence(id: str, ctx: Context
             - error (Optional[str]): An error message if any issues occurred during retrieval.
     """
     try:
-        output = await utils.make_API_call_to_CCow_and_get_response(constants.URL_PLAN_INSTANCE_EVIDENCES, "GET", {
-            "plan_instance_control_id": id,
-        }, ctx=ctx)
+        output = await utils.make_API_call_to_CCow_and_get_response(f"{constants.URL_PLAN_INSTANCE_CONTROLS}/{id}", "GET", ctx=ctx)
         logger.debug("output: {}\n".format(json.dumps(output)))
 
         error = utils.build_structured_error(output, "assessments:fetch_assessment_run_leaf_control_evidence")
@@ -387,7 +385,7 @@ async def audit_fetch_assessment_run_leaf_control_evidence(id: str, ctx: Context
             return assessmentrunvo.ControlEvidenceListV2VO(error=error)
         
         controlEvidences: List[assessmentrunvo.ControlEvidenceVO] = []
-        for item in output["items"]:
+        for item in output.get("evidences"):
             if "id" in item and "name" in item and "status" in item and item.get("status") == "Completed" and item.get("evidenceFileInfos"):
                 controlEvidences.append(assessmentrunvo.ControlEvidenceVO.model_validate(item))
                 
@@ -406,7 +404,8 @@ async def audit_fetch_evidence_records(
     ctx: Context | None = None
 ) -> assessmentrunvo.RecordListV2VO:
     """
-    Get evidence records for a given evidence ID with pagination.
+    Get evidence records for a given evidence ID
+    Use standard pagination (Always keep pageSize fixed and increment only the page number to paginate).
 
     Args:
         - id (str): Evidence ID
@@ -566,90 +565,26 @@ async def audit_fetch_evidence_records(
         )
 
 
-def _load_audit_events_from_file(filename: str) -> list[dict]:
-    path = os.path.join(os.path.dirname(__file__), filename)
-    if not os.path.isfile(path):
-        raise FileNotFoundError(f"Audit event file not found: {filename}")
-
-    try:
-        with open(path, "r", encoding="utf-8") as fh:
-            data = json.load(fh)
-    except json.JSONDecodeError as ex:
-        raise ValueError(f"Invalid JSON in {filename}: {ex}") from ex
-    except OSError as ex:
-        raise OSError(f"Unable to open audit event file {filename}: {ex}") from ex
-
-    if not isinstance(data, list):
-        raise ValueError(f"Audit event file {filename} must contain a JSON list of events.")
-
-    return data
-
-def _list_audit_events_from_file(filename: str) -> dict:
-    try:
-
-        events = _load_audit_events_from_file(filename)
-
-        totalCount = len(events)
-        return {
-            "success": True,
-            "totalCount": totalCount,
-            "events": events,
-        }
-    except Exception as ex:
-        logger.error(traceback.format_exc())
-        return {
-            "success": False,
-            "error": str(ex),
-        }
-
-
-@mcp.tool(annotations=utils.tool_annotations("List Control Config Audit Events", read_only=True))
-async def audit_list_control_config_audit_events(
-    id: str = "",
-    ctx: Context | None = None,
-) -> dict:
-    """
-    List control config audit events
-    """
-    try:
-        output = _list_audit_events_from_file(
-            "control_config_audit.json"
-        )
-
-        error = utils.build_structured_error(output, "audit:list_control_config_audit_events")
-        if error:
-            logger.error(f"audit_list_control_config_audit_events error: {output}\n")
-            return {"success": False, "error": error}
-
-        return output
-    except Exception as e:
-        logger.error(traceback.format_exc())
-        return {
-            "success": False,
-            "error": utils.build_structured_error(
-                f"Unexpected error listing control config audit events: {e}",
-                "audit:list_control_config_audit_events",
-            ),
-        }
-
-
-@mcp.tool(annotations=utils.tool_annotations("List Control Run Audit Events", read_only=True))
-async def audit_list_control_run_audit_events(
+@mcp.tool(annotations=utils.tool_annotations("List Audit Events", read_only=True))
+async def audit_list_audit_events(
     id: str ,
     ctx: Context | None = None,
 ) -> dict:
     """
-    List control run audit events 
+    List control audit events 
+    use audit_get_uses_by_ids tool to resolve the name for user id's
+
+    Args:
+        - id (str): (controlConfigId or controlId)
     """
     try:
+        output = await utils.make_API_call_to_CCow_and_get_response(constants.AUDIT_CONTROL_HISTORY, "GET", {
+            "id": id,
+        }, ctx=ctx)
 
-        output = _list_audit_events_from_file(
-            "control_audit.json",
-        )
-
-        error = utils.build_structured_error(output, "audit:list_control_audit_events")
+        error = utils.build_structured_error(output, "audit:list_audit_events")
         if error:
-            logger.error(f"audit_list_control_audit_events error: {output}\n")
+            logger.error(f"audit_list_audit_events error: {output}\n")
             return {"success": False, "error": error}
 
         return output
@@ -658,8 +593,8 @@ async def audit_list_control_run_audit_events(
         return {
             "success": False,
             "error": utils.build_structured_error(
-                f"Unexpected error listing control audit events: {e}",
-                "audit:list_control_audit_events",
+                f"Unexpected error listing audit events: {e}",
+                "audit:list_audit_events",
             ),
         }
 
