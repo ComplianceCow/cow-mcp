@@ -185,4 +185,4 @@ URL_FORMS_ELEMENTS_FILE_UPLOAD = "/v1/forms/elements-file-upload"
 SANDBOX_EXECUTE_URL = "/v1/sandbox/execute-shell-cmd"
 
 #audit
-AUDIT_CONTROL_HISTORY = "/v1/audits/control-history"
+AUDIT_HISTORY = "/v1/audits/history"
