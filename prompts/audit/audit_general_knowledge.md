@@ -109,7 +109,7 @@ Provide the next audit action.
 - Root object represents an Assessment Run.
 - Assessment Run structure is identical to Assessment Configuration except:
   - Controls are stored under `controls` instead of `planControls`.
-  - `planId` references the Assessment `id`.
+  - `planId` refers to the Assessment `id`.
 
 ## Audit History Fetch Rules For Assessment Run:
 1. Assessment Run control history:
