@@ -19,6 +19,8 @@ from mcptypes.graph_tool_types import UniqueNodeDataVO
 from mcptypes.assistant_tool_types import ControlSourceSummaryResponseVO, ControlSourceSummaryVO
 from fastmcp import Context
 
+from toon_format import encode
+
 @mcp.tool()
 async def create_assessment(yaml_content: str, ctx: Context | None = None) -> dict:
     """
@@ -1349,7 +1351,7 @@ async def get_evidence_sample_data(controlConfigId: str, evidenceNames: list[str
         logger.error("get_evidence_sample_data error: {}\n".format(e))
         return {"success": False, "error": f"Unexpected error fetching evidence samples: {e}"}
 
-@mcp.tool()
+# @mcp.tool()
 async def get_entity_hierarchy(ctx: Context | None = None) -> dict:
     """
     Use this tool when the user wants to automate control operations,
@@ -2226,6 +2228,8 @@ async def get_context_tables(controlId: str, ctx: Context | None = None) -> dict
     1. Entity hierarchy
     2. Control additional context (by controlId)
 
+    Returns both tables in TOON format
+
     Args:
         controlId (str): Control ID
 
@@ -2233,7 +2237,9 @@ async def get_context_tables(controlId: str, ctx: Context | None = None) -> dict
         Dict with:
         - success (bool)
         - entity_hierarchy (dict)
+        - entity_hierarchy_format (str) 
         - control_additional_context (dict)
+        - control_additional_context_format (str)
         - error (str, optional)
     """
     try:
@@ -2285,6 +2291,76 @@ async def get_context_tables(controlId: str, ctx: Context | None = None) -> dict
 
             return columns, data_rows
 
+        def is_empty(value: Any) -> bool:
+            """Treat blank strings, nulls, and empty containers as empty cells."""
+            if value is None:
+                return True
+            if isinstance(value, str):
+                return value.strip() == ""
+            if isinstance(value, (list, dict, tuple, set)):
+                return len(value) == 0
+            return False
+
+        def filter_entities_dict(entities: dict, classname: str, names: list[str])->dict:
+            """
+            Filter an entities table by classname column values and remove empty columns.
+
+            Args:
+                entities: Dict with "headerRow" and "dataRows".
+                classname: Header name of the column to filter.
+                names: Iterable of accepted values in the classname column.
+
+            Returns:
+                Dict with filtered "headerRow" and "dataRows".
+            """
+
+            if not entities:
+                return {"headerRow": [], "dataRows": []}
+            
+            headers = entities.get("headerRow", [])
+            rows = entities.get("dataRows", [])
+
+            if not headers or not rows:
+                return {"headerRow": headers, "dataRows": []}
+    
+            names = set(names or [])
+
+            if not names:
+                return {"headerRow": headers, "dataRows": []}
+            
+            # Check classname existence
+            if classname not in headers:
+                return {"headerRow": headers, "dataRows": []}
+
+            classname_index = headers.index(classname)
+
+            selected_rows = [
+                row
+                for row in rows
+                if len(row) > classname_index and row[classname_index] in names
+            ]
+
+            # No matching rows
+            if not selected_rows:
+                return {"headerRow": headers, "dataRows": []}
+
+            non_empty_column_indexes = [
+                index
+                for index in range(len(headers))
+                if any(index < len(row) and not is_empty(row[index]) for row in selected_rows)
+            ]
+
+            return {
+                "headerRow": [headers[index] for index in non_empty_column_indexes],
+                "dataRows": [
+                    [
+                        row[index] if index < len(row) else ""
+                        for index in non_empty_column_indexes
+                    ]
+                    for row in selected_rows
+                ],
+            }
+        
         logger.info("Fetching entity hierarchy\n")
 
         entity_hierarchy_resp = await utils.make_GET_API_call_to_CCow(
@@ -2340,7 +2416,13 @@ async def get_context_tables(controlId: str, ctx: Context | None = None) -> dict
                 "error": f"No control found for controlId={control_id}"
             }
 
-        additional_context_raw = control_resp.get("additionalContext")
+        additional_context_raw = control_resp.get("additionalContext",{})
+        
+        if not additional_context_raw:
+            return {
+                "success": False,
+                "error": f"No control additional context found for controlId={control_id}"
+            }
         if isinstance(additional_context_raw, dict):
             headers, rows = flatten_context(additional_context_raw)
             control_additional_context_table = {
@@ -2358,12 +2440,58 @@ async def get_context_tables(controlId: str, ctx: Context | None = None) -> dict
             f"entity_hierarchy:\n{entity_hierarchy_table}\n\n"
             f"control_additional_context:\n{control_additional_context_table}"
         )
+        
+        control_additional_context_class = (control_additional_context_table.get("headerRow", [None])[0])
 
-        return {
+        flattened_control_additional_context = [
+            item
+            for row in control_additional_context_table.get("dataRows", [])
+            for item in row
+        ]
+
+        if not control_additional_context_class or not flattened_control_additional_context:
+            return {
+                "success": False,
+                "error": f"Invalid control additional context found for controlId={control_id}"
+            }
+
+        entity_hierarchy_table = filter_entities_dict(entity_hierarchy_table,control_additional_context_class,flattened_control_additional_context)
+
+        logger.info(
+            "get_context_tables after entity_hierarchy filter\n"
+            f"entity_hierarchy:\n{entity_hierarchy_table}\n\n"
+            f"control_additional_context:\n{control_additional_context_table}"
+        )
+
+        try:
+            entity_hierarchy_toon = encode(entity_hierarchy_table)
+            entity_hierarchy_format = "toon"
+        except Exception as enc_err:
+            logger.warning(f"TOON encode failed for entity_hierarchy, falling back: {enc_err}")
+            entity_hierarchy_toon = entity_hierarchy_table  # raw dict fallback
+            entity_hierarchy_format = "json"
+
+        try:
+            control_additional_context_toon = encode(control_additional_context_table)
+            control_additional_context_format = "toon"
+        except Exception as enc_err:
+            logger.warning(f"TOON encode failed for control_additional_context, falling back: {enc_err}")
+            control_additional_context_toon = control_additional_context_table
+            control_additional_context_format = "json"
+
+        response = {
             "success": True,
-            "entity_hierarchy": entity_hierarchy_table,
-            "control_additional_context": control_additional_context_table
+            "entity_hierarchy": entity_hierarchy_toon,
+            "entity_hierarchy_format": entity_hierarchy_format,
+            "control_additional_context": control_additional_context_toon,
+            "control_additional_context_format": control_additional_context_format,
         }
+
+        response_string = json.dumps(response)
+
+        logger.info(f"get_context_tables response Character count: {len(response_string)}" )
+
+        return response
 
     except Exception as e:
         logger.error(traceback.format_exc())
