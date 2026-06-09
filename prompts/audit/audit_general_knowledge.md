@@ -69,11 +69,77 @@ Provide the next audit action.
 - Prefer specific evidence names and fields over generic statements.
 - Do not use compliant/non-compliant record counts to create gaps unless the user asks for record-level analysis.
 
+## Assessment Structure:
+- Root object represents an Assessment and is identified by `id`.
+- Controls are stored recursively under `planControls`.
+- Controls can be either:
+  - Non-leaf controls (contain nested `planControls`)
+  - Leaf controls (`leafControl: true`)
+- Leaf controls may contain:
+  - `evidences` refered as evidence template
+  - `attachments`
+  - `notes`
+  - `citations`
+- Assessment may contain multiple runs.
+
+## Audit History Fetch Rules For Assessment:
+1. Assessment-level history:
+   - Fetch using Assessment `id`.
+
+2. Control-level history:
+   - Fetch using Control `id`.
+   - Applicable to both leaf and non-leaf controls.
+
+3. Evidence Template history:
+   - Fetch using Evidence `id` from `evidences`.
+
+4. Attachment history:
+   - Fetch using Attachment `id` from `attachments`.
+
+5. Note history:
+   - Fetch using Note `id` from `notes`.
+
+6. Citation history:
+   - Fetch using Citation `id` from `citations`.
+
+7. When a control hierarchy is provided:
+   - Fetch history only for the specified control unless explicitly requested to include child controls.
+
+## Assessment Run Structure
+- Root object represents an Assessment Run.
+- Assessment Run structure is identical to Assessment Configuration except:
+  - Controls are stored under `controls` instead of `planControls`.
+  - `planId` refers to the Assessment `id`.
+
+## Audit History Fetch Rules For Assessment Run:
+1. Assessment Run control history:
+   - Fetch only for leaf controls.
+   - Use the leaf Control `id`.
+
+2. Evidence history:
+   - Fetch using Evidence `id`.
+
+3. Attachment history:
+   - Fetch using Attachment `id`.
+
+4. Note history:
+   - Fetch using Note `id`.
+
+5. Citation history:
+   - Fetch using Citation `id`.
+
+6. Non-leaf control history is not supported for Assessment Runs.
+
+7. When a control hierarchy is provided:
+   - If the specified control is a leaf control, fetch its history.
+   - If the specified control is a non-leaf control, inform the user that run history is available only for leaf controls and suggest fetching history from the relevant child leaf controls.
+
 ## Audit Events / History Flow:
 
 When a user requests audit events, audit history, audit trail, change history, or activity history:
 
 - Use the audit_list_audit_events tool to retrieve the relevant audit events.
+- Retrieve the history from either the assessment or the assessment run. If it is unclear whether the user is referring to the assessment or a run, ask for clarification before proceeding.
 - Display the retrieved audit events in a structured table format.
 - After presenting the events, provide a Suggestion section recommending the generation of an audit summary.
 - Generate a concise summary of the retrieved audit events.
