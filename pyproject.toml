@@ -6,9 +6,13 @@ readme = "README.md"
 requires-python = "~=3.13.6"
 dependencies = [
     "httpx>=0.28.1",
-    # "mcp[cli]>=1.9.3",
+    "mcp>=1.23.0",
     "fastmcp==3.2.0",
     "aiohttp==3.13.4",
+    "h11==0.16.0",
+    "urllib3>=2.6.0",
+    "python-multipart>=0.0.22",
+    "starlette>=0.49.1",
     "pandas==2.3.1",
     "PyYAML==6.0.2",
     "toml>=0.10.2",
@@ -16,9 +20,13 @@ dependencies = [
     "requests==2.32.4",
     "django==6.0.4",
     "cachetools==6.2.1",
-    "uvicorn[standard]==0.38.0"
+    "uvicorn[standard]==0.38.0",
+    "toon-format",
 ]
 [tool.setuptools.packages.find]
 where = ["."]
 include = ["tools*", "utils*", "mcpconfig*", "constants*", "resources*"]
+
+[tool.uv.sources]
+toon-format = { git = "https://github.com/toon-format/toon-python.git" }
 

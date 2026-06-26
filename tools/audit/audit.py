@@ -13,6 +13,7 @@ import os
 import traceback
 import json
 import base64
+import constants.error_constants as error_constants
 
 @mcp.tool(annotations=utils.tool_annotations("List All Assessment Categories",read_only=True))
 async def audit_list_all_assessment_categories(ctx: Context | None = None) -> assessmentvo.CategoryListV2VO:
@@ -376,9 +377,7 @@ async def audit_fetch_assessment_run_leaf_control_evidence(id: str, ctx: Context
             - error (Optional[str]): An error message if any issues occurred during retrieval.
     """
     try:
-        output = await utils.make_API_call_to_CCow_and_get_response(constants.URL_PLAN_INSTANCE_EVIDENCES, "GET", {
-            "plan_instance_control_id": id,
-        }, ctx=ctx)
+        output = await utils.make_API_call_to_CCow_and_get_response(f"{constants.URL_PLAN_INSTANCE_CONTROLS}/{id}", "GET", ctx=ctx)
         logger.debug("output: {}\n".format(json.dumps(output)))
 
         error = utils.build_structured_error(output, "assessments:fetch_assessment_run_leaf_control_evidence")
@@ -387,7 +386,7 @@ async def audit_fetch_assessment_run_leaf_control_evidence(id: str, ctx: Context
             return assessmentrunvo.ControlEvidenceListV2VO(error=error)
         
         controlEvidences: List[assessmentrunvo.ControlEvidenceVO] = []
-        for item in output["items"]:
+        for item in output.get("evidences"):
             if "id" in item and "name" in item and "status" in item and item.get("status") == "Completed" and item.get("evidenceFileInfos"):
                 controlEvidences.append(assessmentrunvo.ControlEvidenceVO.model_validate(item))
                 
@@ -406,7 +405,8 @@ async def audit_fetch_evidence_records(
     ctx: Context | None = None
 ) -> assessmentrunvo.RecordListV2VO:
     """
-    Get evidence records for a given evidence ID with pagination.
+    Get evidence records for a given evidence ID
+    Use standard pagination (Always keep pageSize fixed and increment only the page number to paginate).
 
     Args:
         - id (str): Evidence ID
@@ -566,90 +566,27 @@ async def audit_fetch_evidence_records(
         )
 
 
-def _load_audit_events_from_file(filename: str) -> list[dict]:
-    path = os.path.join(os.path.dirname(__file__), filename)
-    if not os.path.isfile(path):
-        raise FileNotFoundError(f"Audit event file not found: {filename}")
-
-    try:
-        with open(path, "r", encoding="utf-8") as fh:
-            data = json.load(fh)
-    except json.JSONDecodeError as ex:
-        raise ValueError(f"Invalid JSON in {filename}: {ex}") from ex
-    except OSError as ex:
-        raise OSError(f"Unable to open audit event file {filename}: {ex}") from ex
-
-    if not isinstance(data, list):
-        raise ValueError(f"Audit event file {filename} must contain a JSON list of events.")
-
-    return data
-
-def _list_audit_events_from_file(filename: str) -> dict:
-    try:
-
-        events = _load_audit_events_from_file(filename)
-
-        totalCount = len(events)
-        return {
-            "success": True,
-            "totalCount": totalCount,
-            "events": events,
-        }
-    except Exception as ex:
-        logger.error(traceback.format_exc())
-        return {
-            "success": False,
-            "error": str(ex),
-        }
-
-
-@mcp.tool(annotations=utils.tool_annotations("List Control Config Audit Events", read_only=True))
-async def audit_list_control_config_audit_events(
-    id: str = "",
-    ctx: Context | None = None,
-) -> dict:
-    """
-    List control config audit events
-    """
-    try:
-        output = _list_audit_events_from_file(
-            "control_config_audit.json"
-        )
-
-        error = utils.build_structured_error(output, "audit:list_control_config_audit_events")
-        if error:
-            logger.error(f"audit_list_control_config_audit_events error: {output}\n")
-            return {"success": False, "error": error}
-
-        return output
-    except Exception as e:
-        logger.error(traceback.format_exc())
-        return {
-            "success": False,
-            "error": utils.build_structured_error(
-                f"Unexpected error listing control config audit events: {e}",
-                "audit:list_control_config_audit_events",
-            ),
-        }
-
-
-@mcp.tool(annotations=utils.tool_annotations("List Control Run Audit Events", read_only=True))
-async def audit_list_control_run_audit_events(
+@mcp.tool(annotations=utils.tool_annotations("List Audit Events", read_only=True))
+async def audit_list_audit_events(
     id: str ,
     ctx: Context | None = None,
 ) -> dict:
     """
-    List control run audit events 
+    List control audit events 
+    use audit_get_uses_by_ids tool to resolve the name for user id's
+
+    Args:
+        - id (str): (controlConfigId or controlId)
     """
     try:
+        logger.info("audit_list_audit_events: \n")
+        output = await utils.make_API_call_to_CCow_and_get_response(constants.AUDIT_HISTORY, "GET", {
+            "id": id,
+        }, ctx=ctx)
 
-        output = _list_audit_events_from_file(
-            "control_audit.json",
-        )
-
-        error = utils.build_structured_error(output, "audit:list_control_audit_events")
+        error = utils.build_structured_error(output, "audit:list_audit_events")
         if error:
-            logger.error(f"audit_list_control_audit_events error: {output}\n")
+            logger.error(f"audit_list_audit_events error: {output}\n")
             return {"success": False, "error": error}
 
         return output
@@ -658,10 +595,150 @@ async def audit_list_control_run_audit_events(
         return {
             "success": False,
             "error": utils.build_structured_error(
-                f"Unexpected error listing control audit events: {e}",
-                "audit:list_control_audit_events",
+                f"Unexpected error listing audit events: {e}",
+                "audit:list_audit_events",
             ),
         }
+
+
+@mcp.tool()
+async def audit_create_control_config_note(
+    controlConfigId: str,
+    assessmentId: str,
+    notes: str,
+    topic: str,
+    confirm: bool = False,
+    ctx: Context | None = None,
+) -> dict:
+    """
+    Create a documentation note on a control configuration.
+    
+    This tool creates a markdown documentation note that is attached to a control configuration.
+    
+    ✅ CONFIRMATION-BASED SAFETY FLOW
+    - When confirm=False:
+        → The tool returns a PREVIEW of the generated markdown note.
+        → The user may edit the note before confirming.
+    - When confirm=True:
+        → The note is permanently created and attached to the control config.
+    
+    Args:
+        controlConfigId (str): The control config ID where the note will be attached (required).
+        assessmentId (str): The assessment ID that contains the control config (required).
+        notes (str): The documentation content in MARKDOWN format (required).
+        topic (str, optional): Topic or subject of the note.
+        confirm (bool, optional):  
+            - False → Preview only (default, no persistence)
+            - True  → Create and permanently attach the note
+    
+    Returns:
+        Dict with success status and note data:
+        - success (bool): Whether the request was successful
+        - note (dict, optional): Created note object containing:
+            - id (str): Note ID
+            - topic (str): Note topic
+            - notes (str): Note content in markdown format
+            - controlConfigId (str): Control config ID the note is attached to
+            - assessmentId (str): Assessment ID
+        - error (str, optional): Error message if request failed
+        - next_action (str, optional): Recommended next action
+    """
+    try:
+        logger.info("create_control_config_note: \n")
+        
+        if not controlConfigId or not str(controlConfigId).strip():
+            logger.error("create_control_config_note error: controlConfigId is mandatory\n")
+            return {"success": False, "error": "controlConfigId is mandatory"}
+        
+        if not assessmentId or not str(assessmentId).strip():
+            logger.error("create_control_config_note error: assessmentId is mandatory\n")
+            return {"success": False, "error": "assessmentId is mandatory"}
+        
+        if not notes or not str(notes).strip():
+            logger.error("create_control_config_note error: notes content is mandatory\n")
+            return {"success": False, "error": "notes content is mandatory"}
+        
+        # Build payload
+        payload = {
+            "topic": str(topic).strip(),
+            "notes": str(notes).strip(),
+            "planId": str(assessmentId).strip(),
+            "planControlID": str(controlConfigId).strip(),
+        }
+
+        if not confirm:
+            logger.info("create_control_config_note: Returning confirmation preview\n")
+            return {
+                "success": True,
+                "message": "Confirmation required before creating note",
+                "controlConfigId": payload["planControlID"],
+                "topic": payload["topic"],
+                "notes": payload["notes"],
+                "next_step": "Review the Note above. If you need to modify it, provide the updated note parameter when calling with confirm=True. If correct, re-run with confirm=True to create note."
+        }
+        
+        # Construct URL with control config ID
+        url = constants.URL_PLAN_CONTROL_NOTES.format(controlConfigId=str(controlConfigId).strip())
+        
+        logger.debug("create_control_config_note payload: {}\n".format(json.dumps(payload)))
+        logger.debug("create_control_config_note URL: {}\n".format(url))
+        
+        # Make API call
+        resp_raw = await utils.make_API_call_to_CCow_and_get_response(
+            url,
+            "POST",
+            payload,
+            return_raw=True,
+            ctx=ctx
+        )
+
+        if resp_raw.status_code == 502:
+            return {"success": False, "error": error_constants.ERROR_BAD_GATEWAY}
+        
+        
+        if resp_raw.status_code == 201:
+            resp = {}
+            try:
+                if resp_raw.content:
+                    resp = resp_raw.json()
+            except Exception:
+                resp = {"error": f"HTTP {resp_raw.status_code}"}
+
+            logger.info(f"create_control_config_note: \n Response : {resp}\n")
+            noteId = ""
+            if isinstance(resp, dict):
+                noteId = resp.get("id")
+            
+            logger.info(f"create_control_config_note: Successfully created note with status 201\n")
+            return {
+                "success": True,
+                "noteId": noteId,
+                "message": "Note created successfully",
+            }
+        else:
+            # Error - parse error response
+            error_resp = {}
+            try:
+                if resp_raw.content:
+                    error_resp = resp_raw.json()
+            except Exception:
+                error_resp = {"error": f"HTTP {resp_raw.status_code}"}
+            
+            logger.error("create_control_config_note error: Status {} - {}\n".format(resp_raw.status_code, error_resp))
+            
+            # Check for error fields in response
+            if isinstance(error_resp, dict):
+                if "Message" in error_resp:
+                    return {"success": False, "error": error_resp}
+                if "error" in error_resp:
+                    return {"success": False, "error": error_resp.get("error")}
+
+            return {"success": False, "error": f"Failed to create note: HTTP {resp_raw.status_code}"}
+        
+    except Exception as e:
+        logger.error(traceback.format_exc())
+        logger.error("create_control_config_note error: {}\n".format(e))
+        return {"success": False, "error": f"Unexpected error creating control config note: {e}"}
 
 
 @mcp.tool(annotations=utils.tool_annotations("Create Control Run Note", read_only=False))
