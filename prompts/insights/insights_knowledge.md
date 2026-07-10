@@ -198,3 +198,48 @@ Dashboard generation:
 - Add hidden `<text>` elements with class names `chart-title` and `chart-type`; set `chart-type` to `dashboard`.
 - **Always return the dashboard code inside a Markdown code block.**
 - **The dashboard code must be wrapped in `<script-d3></script-d3>`.**
+
+
+## Code Execution & Layout Contract (applies to sections 6 and 7)
+
+The code you return is executed verbatim as the BODY of:
+    new Function("d3", "element", code)(d3, containerDiv)
+
+### Execution rules
+- Output plain vanilla JavaScript statements only (a function body).
+- FORBIDDEN: `import`, `export`, `require`, JSX, React/ReactDOM, raw `<script>` / `<style>` / `<!DOCTYPE>` document markup as output, CDN loads (`<link>` or `<script src>` tags), `fetch`/network calls, `async`/`await`, top-level `return`, `document.body`, `document.getElementById`, `document.querySelector`, `window.onload`.
+- Only two variables exist: `d3` (D3 v7) and `element` (an empty DIV). Render everything into `element`.
+- Every d3 container selection must be scoped to `element` or your root node — e.g. `d3.select(root).select(".js-chart-a")`. NEVER `d3.select("#id")` or `d3.select(".class")` on the global document.
+- Build ALL static HTML (styles, header, KPI cards, chart placeholder divs, hidden chart-title/chart-type markers) in ONE `root.innerHTML = \`...\`` assignment BEFORE creating any chart. After that assignment, NEVER touch innerHTML again — `innerHTML +=` re-parses the DOM and silently destroys all d3-created elements, event listeners, and running transitions. To add nodes later, use `insertAdjacentHTML("beforeend", ...)` or `appendChild` only.
+- Inline all data as JS constants. No external data sources.
+- Wrap your entire code in an IIFE `(function(){ ... })();` — no named function, no separate invocation line.
+- The root element must actually carry the CSS prefix class (via `root.className = "dash-x1"` or `element.classList.add("dash-x1")`) — otherwise every style rule matches nothing and the dashboard renders unstyled.
+
+### Layout rules — structure & CSS
+- Prefix EVERY selector in the injected `<style>` with the unique root class (`.dash-x1 .card {...}`) — including rules for `text.chart-title`, `text.chart-type`, and selectors inside `@media` blocks. No exceptions.
+- Include `.dash-x1, .dash-x1 * { box-sizing: border-box; }`. The `*` selector may set `box-sizing` ONLY — nothing else, ever.
+- Font rules: set `font-family` ONLY on the root class (`.dash-x1 { font-family: ... }`), NEVER via a universal selector (`.dash-x1 * { font-family: ... }`) — that overrides the Font Awesome icon font and makes all icons invisible. Never apply `font-family`, `font-weight`, or `content` styles to `i` elements or any `.fa-*` class.
+- Use CSS Grid or Flexbox ONLY for positioning cards/sections. NEVER use `position: absolute`, `float`, or fixed pixel offsets for layout. `position: absolute` is allowed only for tooltips inside a `position: relative` container.
+- All container widths must be fluid: `%`, `fr`, `minmax()`, `flex`. No fixed pixel widths on containers. Use `gap` for spacing between siblings, not margins.
+- Same internal padding for all cards; equal card heights per row (`align-items: stretch`).
+
+### Layout rules — SVG charts
+- Never set fixed display width/height on SVGs. Always:
+  `svg.attr("viewBox", "0 0 " + W + " " + H).attr("preserveAspectRatio", "xMidYMid meet").style("width", "100%").style("height", "auto");`
+  with internal coordinates like W=600, H=360 per card chart (or 1000x600 for a single standalone chart).
+- Follow the D3 margin convention: `const margin = {top: 40, right: 20, bottom: 45, left: 55};` (increase if labels are long), one `g` translated by `(margin.left, margin.top)`, and draw only within `innerWidth = W - margin.left - margin.right` and `innerHeight = H - margin.top - margin.bottom`.
+- If x tick labels may be long: rotate them `-35deg` with `text-anchor: end` and increase bottom margin.
+- Chart titles live inside the SVG, above the plot area, never overlapping axes. Nothing may be drawn at negative coordinates or beyond W/H.
+- Legends: space items by ample width for their longest label, or stack them vertically — legend text must never overlap. Never use a fixed small per-item offset (e.g. 100px) with long labels.
+- Truncate/wrap long text labels; never let text define card width. Use `font-variant-numeric: tabular-nums` for KPI numbers.
+- D3 transitions: NEVER chain `.on("mouseenter"/"mouseleave"/"click", ...)` after `.transition()`, and never assign the result of `.transition()` to the variable holding your selection — a transition is not a selection and its `.on()` only accepts "start"/"end"/"interrupt". Correct pattern: create the selection, attach ALL event handlers on the selection first, then run entrance animations as a separate statement: `sel.transition().duration(...).attr(...)`.
+- Treat `.transition()` as terminal in a chain: never call `.data()`, `.join()`, `.on()`, or `.append()` after it.
+- Every animated element must have a valid initial state set as a plain attribute before its transition runs: donut/arc paths must get an initial `.attr("d", ...)` before any `attrTween` entrance animation; bars get initial `y`/`height` or `x`/`width` attributes.
+
+### Before responding, verify your code:
+- All event handlers attach to selections, never after `.transition()`.
+- Every animated element has a plain-attribute initial state before its transition (arcs get an initial `d`).
+- At the declared viewBox size, no text overlaps: titles, ticks, axis labels, legends (space legend items by longest label or stack vertically).
+- `root.innerHTML` is assigned exactly once, before any chart code.
+- The class used as the CSS prefix is actually assigned to the root element.
+If any check fails, fix the code before responding.
