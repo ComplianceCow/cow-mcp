@@ -24,6 +24,10 @@ yaml.indent(mapping=2, sequence=4, offset=2)
 yaml.preserve_quotes = True
 
 
+VALID_INPUT_DATA_TYPES = {
+    "FILE", "HTTP_CONFIG", "STRING", "INT", "FLOAT", "BOOLEAN", "DATE", "DATETIME"
+}
+
 def is_valid_key(element, key, array_check: bool = False):
     if not element or not key or key not in element:
         return False
@@ -516,39 +520,206 @@ def generate_verification_presentation_with_unique_ids(verification_summary: dic
 
 
 def validate_rule_structure(rule_data: dict[str, Any]) -> dict[str, Any]:
-    """Validate rule structure"""
+    """Validate a rule structure and return actionable, self-correcting errors.
+
+    The goal of this validator is to give the calling model precise feedback so
+    it can fix the `rule_structure` it submitted without needing to know the full
+    schema up front. Every error string states WHAT is wrong, WHERE, and HOW to
+    fix it (expected shape / allowed values).
+
+    This runs on every progressive save, so it validates only structural
+    correctness that must hold at ANY completion stage (DRAFT → ACTIVE). It does
+    NOT enforce completion-only requirements (all inputs collected, mandatory
+    compliance outputs, non-empty ioMap) — those are handled by status
+    detection. Empty `spec.inputs` and an empty `spec.ioMap` list are valid for
+    an in-progress rule; a MISSING key or a malformed entry is not.
+    """
     errors = []
 
-    # Check required fields
-    if "kind" not in rule_data or rule_data["kind"] != "rule":
-        errors.append("Missing or invalid 'kind' field - must be 'rule'")
+    if not isinstance(rule_data, dict):
+        return {"valid": False, "errors": [
+            "Rule structure must be a JSON object (dict) with top-level keys "
+            "'apiVersion', 'kind', 'meta', and 'spec'."
+        ]}
 
-    if "meta" not in rule_data:
-        errors.append("Missing 'meta' section")
+    # ---- Top-level ------------------------------------------------------
+    if rule_data.get("kind") != "rule":
+        errors.append(
+            f"Invalid 'kind' (got {rule_data.get('kind')!r}). Set kind: \"rule\"."
+        )
+
+    if not rule_data.get("apiVersion"):
+        errors.append(
+            "Missing 'apiVersion'. Set apiVersion: \"rule.policycow.live/v1alpha1\"."
+        )
+
+    # ---- meta -----------------------------------------------------------
+    meta = rule_data.get("meta")
+    if not isinstance(meta, dict):
+        errors.append(
+            "Missing or invalid 'meta' section. Expected an object with 'name', "
+            "'purpose', 'description', 'labels' (appType/environment/execlevel), "
+            "and 'annotations.annotateType'."
+        )
     else:
-        meta = rule_data["meta"]
-        required_meta = ["name", "purpose", "description"]
-        for field in required_meta:
-            if field not in meta or not meta[field]:
-                errors.append(f"Missing required meta field: {field}")
+        for field in ("name", "purpose", "description"):
+            if not meta.get(field):
+                hint = (" 'name' must be a simple identifier — letters, digits, "
+                        "underscores; no spaces or special characters."
+                        if field == "name" else "")
+                errors.append(f"meta.{field} is required and must be non-empty.{hint}")
+        # Enforce clean names only for NEW rules — never block updates of
+        # already-created rules whose stored name may contain other characters.
+        is_update = bool(rule_data.get("existingRuleName"))
+        name = meta.get("name")
+        if (not is_update and isinstance(name, str) and name
+                and not re.match(r"^[A-Za-z0-9_]+$", name)):
+            errors.append(
+                f"meta.name {name!r} contains spaces or special characters. "
+                f"Use only letters, digits, and underscores (e.g. 'GithubPRApprovalCheck')."
+            )
+        labels = meta.get("labels")
+        if not isinstance(labels, dict):
+            errors.append(
+                "meta.labels is required. Expected: {appType: [<primaryAppType>], "
+                "environment: [logical], execlevel: [app]} (each value is an array)."
+            )
+        else:
+            for lbl in ("appType", "environment", "execlevel"):
+                val = labels.get(lbl)
+                if not (isinstance(val, list) and len(val) > 0):
+                    errors.append(
+                        f"meta.labels.{lbl} must be a non-empty array. "
+                        f"appType must be the primary app type copied from a task's "
+                        f"appTags.appType (never invented)."
+                    )
 
-    if "spec" not in rule_data:
-        errors.append("Missing 'spec' section")
+    # ---- spec -----------------------------------------------------------
+    spec = rule_data.get("spec")
+    if not isinstance(spec, dict):
+        errors.append(
+            "Missing or invalid 'spec' section. Expected an object with 'tasks', "
+            "'inputs', 'inputsMeta__', 'outputsMeta__', and 'ioMap'."
+        )
+        return {"valid": len(errors) == 0, "errors": errors}
+
+    # tasks
+    tasks = spec.get("tasks")
+    valid_aliases = set()
+    if not isinstance(tasks, list) or len(tasks) == 0:
+        errors.append(
+            "spec.tasks is required and must be a non-empty array. Each task needs "
+            "'name' (exact task name), 'alias' (unique short id), 'type': \"task\", "
+            "and 'appTags' with a non-empty 'appType' array."
+        )
     else:
-        spec = rule_data["spec"]
-        if "tasks" not in spec or not spec["tasks"]:
-            errors.append("Missing or empty 'tasks' in spec")
+        for i, task in enumerate(tasks):
+            if not isinstance(task, dict):
+                errors.append(f"spec.tasks[{i}] must be an object.")
+                continue
+            for field in ("name", "alias", "type", "appTags"):
+                if field not in task or task.get(field) in (None, "", []):
+                    errors.append(
+                        f"spec.tasks[{i}] is missing '{field}'. Required task fields: "
+                        f"name, alias, type, appTags."
+                    )
+            if task.get("type") not in (None, "task"):
+                errors.append(
+                    f"spec.tasks[{i}].type must be \"task\" (got {task.get('type')!r})."
+                )
+            alias = task.get("alias")
+            if alias:
+                if alias in valid_aliases:
+                    errors.append(
+                        f"spec.tasks[{i}].alias {alias!r} is duplicated. Each task "
+                        f"alias must be unique — ioMap references tasks by alias."
+                    )
+                valid_aliases.add(alias)
+            app_tags = task.get("appTags")
+            if isinstance(app_tags, dict):
+                if not (isinstance(app_tags.get("appType"), list) and app_tags["appType"]):
+                    errors.append(
+                        f"spec.tasks[{i}].appTags.appType must be a non-empty array "
+                        f"(copied from the task definition via get_task_details())."
+                    )
 
-        if "ioMap" not in spec:
-            errors.append("Missing 'ioMap' in spec")
+    # inputsMeta__ (mandatory for all rules, even DRAFT)
+    inputs_meta = spec.get("inputsMeta__")
+    meta_names = set()
+    if not isinstance(inputs_meta, list):
+        errors.append(
+            "spec.inputsMeta__ is mandatory and must be an array (may be empty only "
+            "if the rule genuinely has no inputs). Each entry needs at least 'name' "
+            "and 'dataType'. Allowed dataType: " + ", ".join(sorted(VALID_INPUT_DATA_TYPES)) + "."
+        )
+    else:
+        for i, m in enumerate(inputs_meta):
+            if not isinstance(m, dict):
+                errors.append(f"spec.inputsMeta__[{i}] must be an object.")
+                continue
+            mname = m.get("name")
+            if not mname:
+                errors.append(f"spec.inputsMeta__[{i}] is missing 'name'.")
+            else:
+                meta_names.add(mname)
+            dtype = m.get("dataType")
+            if not dtype:
+                errors.append(
+                    f"spec.inputsMeta__[{i}] ('{mname}') is missing 'dataType'. "
+                    f"Allowed: {', '.join(sorted(VALID_INPUT_DATA_TYPES))}."
+                )
+            elif str(dtype).upper() not in VALID_INPUT_DATA_TYPES:
+                errors.append(
+                    f"spec.inputsMeta__[{i}] ('{mname}') has invalid dataType {dtype!r}. "
+                    f"Allowed: {', '.join(sorted(VALID_INPUT_DATA_TYPES))}."
+                )
 
-        # Validate tasks structure
-        if "tasks" in spec:
-            for i, task in enumerate(spec["tasks"]):
-                required_task_fields = ["name", "alias", "type", "appTags"]
-                for field in required_task_fields:
-                    if field not in task:
-                        errors.append(f"Task {i}: missing '{field}' field")
+    # inputs (values may be empty during progressive save, but keys must map to meta)
+    inputs = spec.get("inputs", {})
+    if inputs is None:
+        inputs = {}
+    if not isinstance(inputs, dict):
+        errors.append(
+            "spec.inputs must be an object mapping input names to values "
+            "(e.g. {\"BucketName\": \"my-bucket\"})."
+        )
+    elif meta_names:
+        for key in inputs:
+            if key not in meta_names:
+                errors.append(
+                    f"spec.inputs['{key}'] has no matching spec.inputsMeta__ entry. "
+                    f"Every input key must have a corresponding inputsMeta__ definition "
+                    f"(and vice versa). Known inputsMeta__ names: {sorted(meta_names)}."
+                )
+
+    # ioMap (key must be present; empty list allowed for in-progress rules)
+    io_map = spec.get("ioMap")
+    if io_map is None:
+        errors.append(
+            "spec.ioMap key is missing. Provide an array (use [] if mapping is not "
+            "defined yet). Each entry is 'destination:=source' using task aliases, "
+            "e.g. 'step1.Input.BucketName:=*.Input.BucketName'."
+        )
+    elif not isinstance(io_map, list):
+        errors.append("spec.ioMap must be an array of 'destination:=source' strings.")
+    else:
+        for mapping in io_map:
+            if not isinstance(mapping, str) or ":=" not in mapping:
+                errors.append(
+                    f"Invalid ioMap entry {mapping!r}. Expected 'destination:=source' "
+                    f"where each side is PLACE.DIRECTION.ATTRIBUTE "
+                    f"(PLACE is a task alias or '*', DIRECTION is Input/Output)."
+                )
+                continue
+            for side in mapping.split(":=", 1):
+                side = side.strip()
+                place = side.split(".")[0]
+                if place != "*" and valid_aliases and place not in valid_aliases:
+                    errors.append(
+                        f"ioMap entry {mapping!r} references unknown task alias "
+                        f"'{place}'. Valid aliases: {sorted(valid_aliases)} (or '*' for "
+                        f"the rule itself)."
+                    )
 
     return {"valid": len(errors) == 0, "errors": errors}
 

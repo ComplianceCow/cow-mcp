@@ -753,7 +753,7 @@ if constants.ENABLE_CCOW_API_TOOLS:
                 "is_leaf_control":True
             }
 
-            leaf_controls = rule.get_assessment_controls(control_params)
+            leaf_controls = rule.get_assessment_controls(control_params, ctx)
 
             if not leaf_controls or not isinstance(leaf_controls, list):
                 return {"error": f"No leaf controls found for assessment '{assessment_name}'."}
