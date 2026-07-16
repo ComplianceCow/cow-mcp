@@ -28,13 +28,19 @@ if not constants.ENABLE_CCOW_API_TOOLS:
 
 mcp = fastmcp.FastMCP("ComplianceCow")
 
-def get_header_value(headers: dict[str, Any], key: str, default: str = "") -> str:
-    try:
-        if not isinstance(headers, dict):
-            return default
-        if not isinstance(key, str):
-            return default
+def get_header_value(headers: Any, key: str, default: str = "") -> str:
+    """Case-insensitive header lookup.
 
+    Works with both a plain ``dict`` and Starlette's ``Headers`` object
+    (returned by ``request.headers``), which is *not* a ``dict`` subclass.
+    """
+    try:
+        if headers is None or not isinstance(key, str):
+            return default
+        # Both dict and Starlette Headers expose ``.get``; Headers.get is
+        # already case-insensitive, dict is not — so try the lowercase key too.
+        if not hasattr(headers, "get"):
+            return default
         return headers.get(key) or headers.get(key.lower()) or default
     except Exception:
         return default
@@ -61,55 +67,74 @@ def require_auth(func: Callable):
 
     return wrapper
 
+def _get_request_headers(req_ctx: Any) -> Any:
+    """Return the HTTP request headers from the request context, or None.
+
+    Accessing ``request`` can raise when there is no active HTTP request
+    (e.g. stdio transport), so this is defensive.
+    """
+    try:
+        request = getattr(req_ctx, "request", None)
+        return getattr(request, "headers", None) if request is not None else None
+    except Exception:
+        return None
+
+
+def _get_meta_websocket_headers(req_ctx: Any) -> Optional[dict[str, Any]]:
+    """Return the legacy ``_meta.websocket_headers`` dict, or None.
+
+    ``meta`` may be a dict-like or an object exposing ``websocket_headers``.
+    """
+    meta = getattr(req_ctx, "meta", None)
+    if meta is None:
+        return None
+    if isinstance(meta, dict):
+        websocket_headers = meta.get("websocket_headers")
+    else:
+        websocket_headers = getattr(meta, "websocket_headers", None)
+    return websocket_headers if isinstance(websocket_headers, dict) else None
+
+
 def get_cc_headers(ctx: Optional[Context]) -> Optional[dict[str, str]]:
-    """Extract auth token from request context"""
+    """Extract ComplianceCow headers from the request context.
 
-    cc_headers = {}
+    Priority (highest first):
+    1. HTTP request headers — moocp's DynamicHeaderClient forwards the
+       allow-listed session headers here per-request. This is now the primary
+       path.
+    2. JSON-RPC ``_meta.websocket_headers`` in the request body — legacy
+       fallback for older clients that inline headers in the payload.
+    3. Static ``constants.headers`` as a last resort.
+    """
+    cc_headers: dict[str, str] = {}
 
-    logger.debug(f"[get_cc_headers] ctx: {ctx}")
+    if ctx and getattr(ctx, "request_context", None):
+        req_ctx = ctx.request_context
 
-    if ctx and hasattr(ctx, 'request_context'):
-        logger.debug(f"[get_cc_headers] ctx.request_context: {ctx.request_context}")
-        if ctx.request_context:
-            # if hasattr(ctx.request_context, '__dict__'):
-            #     websocket_headers = ctx.request_context.__dict__.get('websocket_headers', {})
-            #     print(f"Websocket headers: {websocket_headers}")
-            #     if isinstance(websocket_headers, dict):
-            #         cc_headers = websocket_headers.copy()
-            #         print(f"cc_headers inside: {cc_headers}")
-            #     else:
-            #         print("websocket_headers is not a dict")
-            
-            if hasattr(ctx.request_context, 'meta') and  hasattr(ctx.request_context.meta, 'websocket_headers'):
-                logger.debug(f"[get_cc_headers] websocket_headers: {ctx.request_context.meta.websocket_headers}")
-                if isinstance(ctx.request_context.meta.websocket_headers, dict):
-                    cc_headers = ctx.request_context.meta.websocket_headers.copy()
-                else:
-                    print("meta.websocket_headers is not a dict")
+        # 1. Preferred: HTTP headers forwarded per-request.
+        http_headers = _get_request_headers(req_ctx)
+        if http_headers is not None:
+            for key in (constants.AUTH_HEADER_KEY, constants.X_COW_SECURITY_CONTEXT):
+                value = get_header_value(http_headers, key)
+                if value:
+                    cc_headers[key] = value
 
-            print(f"cc_headers inside: {cc_headers}")
-            logger.debug(f"[get_cc_headers] cc_headers (final): {cc_headers}")
-
-    if not bool(cc_headers) or (not cc_headers.get(constants.AUTH_HEADER_KEY) and not cc_headers.get(constants.AUTH_HEADER_KEY.lower())):
-        headers = {}
-        try:
-            headers = ctx.request_context.request.headers if ctx and ctx.request_context and ctx.request_context.request else {}
-            logger.debug(f"[get_cc_headers] HTTP headers from request context: {headers}")
-        except RuntimeError:
-            logger.debug(f"[get_cc_headers] No HTTP headers found in context")
-            headers = {}
+        # 2. Legacy fallback: only if the HTTP path didn't yield auth.
         if not cc_headers.get(constants.AUTH_HEADER_KEY):
-            authorization = get_header_value(headers, constants.AUTH_HEADER_KEY)
-            if authorization:
-                cc_headers[constants.AUTH_HEADER_KEY] = authorization
-            else:
-                cc_headers=constants.headers.copy() if isinstance(constants.headers, dict) else {}
+            websocket_headers = _get_meta_websocket_headers(req_ctx)
+            if websocket_headers:
+                # Meta values win for keys they carry; keep any HTTP-only extras.
+                cc_headers = {**cc_headers, **websocket_headers}
 
-        elif not cc_headers.get(constants.X_COW_SECURITY_CONTEXT):
-            cc_headers[constants.X_COW_SECURITY_CONTEXT] = get_header_value(constants.X_COW_SECURITY_CONTEXT)
+    # 3. Last resort: static constants.
+    if not (cc_headers.get(constants.AUTH_HEADER_KEY) or cc_headers.get(constants.AUTH_HEADER_KEY.lower())):
+        if isinstance(constants.headers, dict):
+            for key, value in constants.headers.items():
+                cc_headers.setdefault(key, value)
 
     cc_headers.setdefault("X-CALLER", "mcp_server-user_intent")
 
-    logger.debug(f"[get_cc_headers] cc_headers (returning): {cc_headers}")
+    # Log header names only — values contain auth tokens / secrets.
+    logger.debug(f"[get_cc_headers] returning header keys: {list(cc_headers.keys())}")
 
     return cc_headers

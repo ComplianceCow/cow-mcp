@@ -412,7 +412,7 @@ async def fetch_controls(control_name:str = "", ctx: Context | None = None) -> v
         logger.error("fetch_controls error: {}\n".format(e))
         return vo.ControlPromptVO(error="Facing internal error")
 
-@mcp.prompt()
+# @mcp.prompt()
 def generate_cypher_query_for_control(control_name: str =  "", unique_nodes: str = "", schema = "") -> vo.ControlPromptVO:
     return vo.ControlPromptVO(prompt=f"""
         Using the information below — `control_name`, `unique_nodes`, and `schema` — generate a Cypher query.
