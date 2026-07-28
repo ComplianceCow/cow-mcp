@@ -208,7 +208,7 @@ The code you return is executed verbatim as the BODY of:
 ### Execution rules
 - Output plain vanilla JavaScript statements only (a function body).
 - FORBIDDEN: `import`, `export`, `require`, JSX, React/ReactDOM, raw `<script>` / `<style>` / `<!DOCTYPE>` document markup as output, CDN loads (`<link>` or `<script src>` tags), `fetch`/network calls, `async`/`await`, top-level `return`, `document.body`, `document.getElementById`, `document.querySelector`, `window.onload`.
-- Only two variables exist: `d3` (D3 v7) and `element` (an empty DIV). Render everything into `element`.
+- Only two variables exist: `d3` (D3 v7) and `element` (an empty DIV). Render everything into `element`. The first statement inside the IIFE must be `const root = element;`, and every other variable must be declared with `const`/`let`.
 - Every d3 container selection must be scoped to `element` or your root node — e.g. `d3.select(root).select(".js-chart-a")`. NEVER `d3.select("#id")` or `d3.select(".class")` on the global document.
 - Build ALL static HTML (styles, header, KPI cards, chart placeholder divs, hidden chart-title/chart-type markers) in ONE `root.innerHTML = \`...\`` assignment BEFORE creating any chart. After that assignment, NEVER touch innerHTML again — `innerHTML +=` re-parses the DOM and silently destroys all d3-created elements, event listeners, and running transitions. To add nodes later, use `insertAdjacentHTML("beforeend", ...)` or `appendChild` only.
 - Inline all data as JS constants. No external data sources.
