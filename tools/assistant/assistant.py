@@ -697,6 +697,29 @@ async def attach_citation_to_control_config(
                 "next_action": "Await for user confirmation",
             }
         
+        # Ensure authority document assessment is linked before attaching citations
+        link_payload = {"id": assessment_id}
+        logger.debug(f"attach_citation_to_control_config: Linking authority document assessment with payload: {json.dumps(link_payload)}\n")
+        link_resp = await utils.make_API_call_to_CCow_and_get_response(
+            f"{constants.URL_PLANS}/link-authority-document-assessment",
+            "POST",
+            link_payload,
+            ctx=ctx
+        )
+        logger.debug("attach_citation_to_control_config link output: {}\n".format(json.dumps(link_resp) if isinstance(link_resp, dict) else link_resp))
+
+        if isinstance(link_resp, str):
+            logger.error("attach_citation_to_control_config error linking authority document assessment: {}\n".format(link_resp))
+            return {"success": False, "error": link_resp}
+
+        if isinstance(link_resp, dict):
+            if "Message" in link_resp:
+                if link_resp.get("Message") == "LINK_ALREADY_EXISTS":
+                    logger.info(f"attach_citation_to_control_config: Authority document assessment already linked: {link_resp}\n")
+                else:
+                    logger.error("attach_citation_to_control_config error linking authority document assessment: {}\n".format(link_resp))
+                    return {"success": False, "error": link_resp}
+
         # Build payload
         payload = {
             "authorityDocument": str(authorityDocument).strip(),
