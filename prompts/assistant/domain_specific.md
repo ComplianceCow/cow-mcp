@@ -68,7 +68,7 @@ When generating SQL from a control configuration:
    - Use the extract query generated for supporting evidence query as the base - recreate the query inline (do NOT reference supporting evidence query table name)
    - On top of the supporting evidence query result, apply GROUP BY filters
    - **CRITICAL: Must Include ALL columns:**
-     - Required columns: ResourceName, CompliantStatus, Total, Compliant, NonCompliant, NotDetermined, CompliantReason
+     - Required columns: ResourceName, ComplianceStatus, Total, Compliant, NonCompliant, NotDetermined, ComplianceStatusReason
      - **PLUS ALL control summary aggregated fields** - Do not limit to only the 7 required columns. Include every aggregated field from the control summary configuration
    - Add a column called 'ResourceName' with entity name as its value from control additional context
    - **Result rows count must be same as `control_additional_context` length**
