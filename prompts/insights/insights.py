@@ -1,17 +1,19 @@
 
 from mcpconfig.config import mcp
+import os
 
+# use_neo4j_graph_data = bool(os.getenv("USE_NEO4J_GRAPH_DATA", "true").lower().strip())
 
 @mcp.prompt()
-async def generate_chart_prompt() -> list[str]:
-    return [
-        {
-            "role": "user",
-            "content": f"Generate a chart with "
-            f"Compliance Overview section containing Total controls; Controls Status: each status"
-            f"Progress bar chart for 'controlAssignmentStatus'"
-            f"Fetch dashboard data for latest quarterly"
-            # f"show 'Completed' status in orange color"
-            f"for these user data."
-        }
-    ]
+def insights_generation_prompt() -> str:
+
+    script_dir = os.path.dirname(os.path.abspath(__file__))
+    # if use_neo4j_graph_data:
+    #     file_path = os.path.join(script_dir, "insights_knowledge_with_graph.md")
+    # else:
+    file_path = os.path.join(script_dir, "insights_knowledge.md")
+
+    instructions = ""
+    with open(file_path, "r") as file:
+        instructions = file.read()
+    return instructions

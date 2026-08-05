@@ -337,7 +337,7 @@ async def get_dashboard_common_controls_details(period: str, complianceStatus: s
         return vo.CommonControlListVO(error="Facing internal error")
 
 
-@mcp.prompt()
+# @mcp.prompt()
 def list_as_table_prompt(response: dict) -> str:
     # """
     #     This function retrieves detailed control-level data for a specified **Common Control Framework (CCF)** during a specific **review period**. 

@@ -68,7 +68,7 @@ When generating SQL from a control configuration:
    - Use the extract query generated for supporting evidence query as the base - recreate the query inline (do NOT reference supporting evidence query table name)
    - On top of the supporting evidence query result, apply GROUP BY filters
    - **CRITICAL: Must Include ALL columns:**
-     - Required columns: ResourceName, CompliantStatus, Total, Compliant, NonCompliant, NotDetermined, CompliantReason
+     - Required columns: ResourceName, ComplianceStatus, Total, Compliant, NonCompliant, NotDetermined, ComplianceStatusReason
      - **PLUS ALL control summary aggregated fields** - Do not limit to only the 7 required columns. Include every aggregated field from the control summary configuration
    - Add a column called 'ResourceName' with entity name as its value from control additional context
    - **Result rows count must be same as `control_additional_context` length**
@@ -149,8 +149,8 @@ When a user wants to automate a control configuration:
    - **AUTO-ATTACH** the top-scoring citation to the control using `attach_citation_to_control_config` with `confirm=True`
    - **NO PREVIEW OR USER CONFIRMATION REQUIRED** for citation attachment during automation
    - This allows the workflow to proceed automatically without user intervention for citation selection
-   - If `attach_citation_to_control_config` returns a message indicating  "citation already attached", Immediately check automation status and follow the process
-   - If `attach_citation_to_control_config` returns **"citation already attached"**, then **invoke the existing Control Automation Status Checking process**.
+   - After `attach_citation_to_control_config` completes, invoke `list_sql_query_evidence` for the control.
+   - If `list_sql_query_evidence` returns one or more SQL queries, then **invoke the existing Control Automation Status Checking process**.
 
 3. **AUTOMATIC QUERY GENERATION**
    - After citation is attached, proceed to generate SQL queries automatically
@@ -276,5 +276,9 @@ The note content must include:
 - Evidence source mapping
 - Rule intent and compliance purpose
 
+
+### Additional instructions
+
+- If the user wants to create an assessment by providing the entityClass (resource type) and entities (resource names), first create the assessment. Then, use the update_control_config_contexts tool to update the context for the leaf controls to which the specified entities should be attached.
 ============================================================
 End of Domain-Specific Prompt

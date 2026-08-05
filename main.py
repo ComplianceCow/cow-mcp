@@ -12,18 +12,23 @@ from utils.auth import CCowOAuthProvider
 from utils.debug import logger
 
 mcp_tools_to_be_included = os.getenv("MCP_TOOLS_TO_BE_INCLUDED", "rules,insights,workflow").lower().strip()
+use_neo4j_graph_data = bool(os.getenv("USE_NEO4J_GRAPH_DATA", "true").lower().strip())
 
 MCP_TOOLS = [t.strip() for t in mcp_tools_to_be_included.split(",") if t.strip()]
 
 if "insights" in MCP_TOOLS:
-    from prompts.insights import insights
-    from resources.graphdb import graphdb
-    from tools.assessments.config import config
-    from tools.assessments.run import run
-    from tools.assets import assets
-    from tools.dashboard import dashboard
-    from tools.graphdb import graphdb
-    from tools.help import help
+    if use_neo4j_graph_data:
+        from prompts.insights import insights
+        from tools.graphdbv1 import graphdb
+    else:
+        from prompts.insights import insights
+        from resources.graphdb import graphdb
+        from tools.assessments.config import config
+        from tools.assessments.run import run
+        from tools.assets import assets
+        from tools.dashboard import dashboard
+        from tools.graphdb import graphdb
+        from tools.help import help
 
 if "rules" in MCP_TOOLS:
     from prompts.rule import rule

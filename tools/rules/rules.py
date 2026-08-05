@@ -753,7 +753,7 @@ if constants.ENABLE_CCOW_API_TOOLS:
                 "is_leaf_control":True
             }
 
-            leaf_controls = rule.get_assessment_controls(control_params)
+            leaf_controls = rule.get_assessment_controls(control_params, ctx)
 
             if not leaf_controls or not isinstance(leaf_controls, list):
                 return {"error": f"No leaf controls found for assessment '{assessment_name}'."}
@@ -968,7 +968,7 @@ if constants.ENABLE_CCOW_API_TOOLS:
                 "failed_apps": []
             }
 
-    @mcp.prompt()
+    # @mcp.prompt()
     def rule_input_collection():
         return """
         # RULE CREATION WITH MANDATORY TASK EXECUTION
@@ -6078,7 +6078,7 @@ def validate_application(selected_application: dict, cc_application: dict):
 
     return is_valid, result
 
-@mcp.prompt()
+# @mcp.prompt()
 def alterntive_prompt() -> str:
     return "When generating the JQ expression, do not hard-code any values from the previous task’s output. If your requirement involves comparing or merging two files, use ExecuteSqlQueryV2 instead."
 
