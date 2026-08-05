@@ -27,8 +27,10 @@ async def create_assessment(yaml_content: str, ctx: Context | None = None) -> di
     Create a new assessment from YAML definition.
     
     This function creates an assessment from a YAML specification that defines the hierarchical control structure.
-    The YAML must contain metadata with name and categoryName. If the categoryName doesn't exist, a new category will be created.
-    
+    The YAML must contain metadata with name and categoryName(Case In). The category lookup is **case-insensitive**. If a matching assessment category
+    already exists (regardless of letter casing), it will be used. Otherwise, a new
+    category will be created automatically
+
     Args:
         yaml_content: YAML string defining the assessment structure with metadata (including name and categoryName) and planControls
         
@@ -95,9 +97,10 @@ async def create_assessment(yaml_content: str, ctx: Context | None = None) -> di
             
             for it in items:
                 if isinstance(it, dict):
-                    it_name = it.get("name") or ""
-                    if it_name and it_name.strip() == category_name:
+                    it_name = (it.get("name") or "").strip()
+                    if it_name and it_name.lower() == category_name.lower():
                         category_id = it.get("id")
+                        category_name = it_name
                         break
             
             # If category doesn't exist, create it
@@ -143,7 +146,10 @@ async def create_assessment(yaml_content: str, ctx: Context | None = None) -> di
         payload = {
             "name": str(name).strip(),
             "fileType": "yaml",
-            "fileContent": file_b64
+            "fileContent": file_b64,
+            "linkDefaultCCFPlan":{
+                "propagate": "evidence", "propagateToSource": "none", "nonReportable": True,
+            }
         }
         payload["categoryId"] = category_id
 
@@ -697,6 +703,29 @@ async def attach_citation_to_control_config(
                 "next_action": "Await for user confirmation",
             }
         
+        # Ensure authority document assessment is linked before attaching citations
+        link_payload = {"id": assessment_id}
+        logger.debug(f"attach_citation_to_control_config: Linking authority document assessment with payload: {json.dumps(link_payload)}\n")
+        link_resp = await utils.make_API_call_to_CCow_and_get_response(
+            f"{constants.URL_PLANS}/link-authority-document-assessment",
+            "POST",
+            link_payload,
+            ctx=ctx
+        )
+        logger.debug("attach_citation_to_control_config link output: {}\n".format(json.dumps(link_resp) if isinstance(link_resp, dict) else link_resp))
+
+        if isinstance(link_resp, str):
+            logger.error("attach_citation_to_control_config error linking authority document assessment: {}\n".format(link_resp))
+            return {"success": False, "error": link_resp}
+
+        if isinstance(link_resp, dict):
+            if "Message" in link_resp:
+                if link_resp.get("Message") == "LINK_ALREADY_EXISTS":
+                    logger.info(f"attach_citation_to_control_config: Authority document assessment already linked: {link_resp}\n")
+                else:
+                    logger.error("attach_citation_to_control_config error linking authority document assessment: {}\n".format(link_resp))
+                    return {"success": False, "error": link_resp}
+
         # Build payload
         payload = {
             "authorityDocument": str(authorityDocument).strip(),
@@ -728,10 +757,10 @@ async def attach_citation_to_control_config(
         
         if isinstance(resp, dict):
             # Check for error fields
-            if "Message" in resp:
+            if "Message" in resp and resp.get("Message") != "AUTHORITY_DOCUMENT_EXISTS":
                 logger.error("attach_citation_to_control_config error: {}\n".format(resp))
                 return {"success": False, "error": resp}
-            
+
             # Abstract and return only necessary fields
             items = resp.get("items", [])
             abstracted_citations = []
