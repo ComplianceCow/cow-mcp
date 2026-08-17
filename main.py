@@ -42,6 +42,9 @@ if "assistant" in MCP_TOOLS:
     from tools.assistant import assistant
     from prompts.assistant import assistant
 
+if "assistantv2" in MCP_TOOLS:
+    from tools.assistant import assistant_v2
+
 if "metric" in MCP_TOOLS:
     from tools.metrics import metrics
 
