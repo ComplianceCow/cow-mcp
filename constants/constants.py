@@ -97,6 +97,8 @@ URL_WORKFLOW_PREBUILD_RULES = "/v1/rules"
 URL_WORKFLOW_PREDEFINED_VARIABLES = "/v1/workflow-catalog/predefined-variables"
 
 URL_WORKFLOW_CREATE = "/v3/workflow-configs"
+URL_WORKFLOW_V1 = "/v1/workflow-configs"
+URL_WORKFLOW_INSTANCE = "/v1/workflow-instances"
 
 URL_WORKFLOW_RESOURCE_DATA = "/v2/aggregator/fetch-resource-data"
 
@@ -187,3 +189,6 @@ SANDBOX_EXECUTE_URL = "/v1/sandbox/execute-shell-cmd"
 
 #audit
 AUDIT_HISTORY = "/v1/audits/history"
+
+# custom report
+URL_INSIGHTS_CATEGORY = "/v1/get-insightscategory"

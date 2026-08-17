@@ -60,6 +60,10 @@ if "audit" in MCP_TOOLS:
     from tools.audit import audit
     from prompts.audit import audit
 
+if "reports" in MCP_TOOLS:
+    from tools.report import report
+    from prompts.report import report
+
 def signal_handler(sig, frame):
     print("Shutting down...")
     sys.exit(0)
