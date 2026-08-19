@@ -6,6 +6,7 @@ from utils.debug import logger
 from mcptypes.graph_tool_types import CypherQueryVO
 from mcptypes.report_tool_types import InsightsCategoryListVO, InsightsCategoryVO
 from mcptypes.workflow_tools_type import WorkflowConfigVO, WorkflowInanceVO
+from mcptypes.custom_report_tool_types import InsightDashboardVO, InsightDashboardListVO
 from mcpconfig.config import mcp
 from constants import constants
 from fastmcp import Context
@@ -337,7 +338,7 @@ async def send_custom_report_approval_workflow_url(ctx: Context | None = None) -
             base_host = constants.host.rstrip("/api") if hasattr(constants, "host") and isinstance(constants.host, str) else getattr(constants, "host", "")
             if not base_host:
                 base_host = os.environ.get("CCOW_HOST", "").rstrip("/api")
-            ui_url = f"{base_host}/ui/custom-reports-workflow" if base_host else "/ui/custom-reports-workflow"
+            ui_url = f"{base_host}"+constants.REPORT_WORKFLOW_APPROVAL_URL if base_host else constants.REPORT_WORKFLOW_APPROVAL_URL
             return ui_url
 
         return ""
@@ -345,3 +346,34 @@ async def send_custom_report_approval_workflow_url(ctx: Context | None = None) -
         logger.error(traceback.format_exc())
         logger.error("send_workflow_url error: %s", e)
         return ""
+
+@mcp.tool()
+async def fetch_existing_custom_report(ctx: Context | None = None) -> InsightDashboardListVO:
+    """
+    Fetch all existing custom reports registered in the ComplianceCow platform.
+    Args:
+        ctx (Context, optional): FastMCP request context.
+    Returns:
+        InsightDashboardListVO: List of registered dashboard objects containing id, name, category_id, and status.
+    """
+    try:
+        logger.info("fetch existing custom reports : \n")
+        output=await utils.make_GET_API_call_to_CCow(constants.URL_INSIGHTS_DASHBOARD, ctx)
+        logger.debug("existing custom report -  output: {}\n".format(output))
+        
+        if isinstance(output, str) or  "error" in output:
+            logger.error("existing custom reports -  error: {}\n".format(output))
+            return InsightDashboardListVO(error="Facing internal error")
+        
+        insights: list[InsightDashboardVO]=[]
+        for item in output["items"]:
+            if "name" in item and "id" in item:
+                insights.append(InsightDashboardVO(id=item["id"],name=item["name"],category_id=item["categoryID"],status=item["status"]))
+                
+        logger.debug("insights: {}\n".format(insights))
+        return InsightDashboardListVO(insights=insights)
+    
+    except Exception as e:
+        logger.error(traceback.format_exc())
+        logger.error("existing custom reports -  error: {}\n".format(e))
+        return InsightDashboardListVO(error="Facing internal error")    

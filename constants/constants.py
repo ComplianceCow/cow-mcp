@@ -192,3 +192,5 @@ AUDIT_HISTORY = "/v1/audits/history"
 
 # custom report
 URL_INSIGHTS_CATEGORY = "/v1/get-insightscategory"
+URL_INSIGHTS_DASHBOARD = "/v1/get-insightsdashboards"
+REPORT_WORKFLOW_APPROVAL_URL = "/ui/custom-reports-workflow"
