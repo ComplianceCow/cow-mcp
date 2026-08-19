@@ -692,15 +692,17 @@ If the user explicitly responds with confirmation/yes:
    - **Name**: The programmatic name of the custom report. **This name must not contain spaces or special characters** (it must be strictly alphanumeric with no underscores, hyphens, spaces, or other special characters, e.g., `oktauserreport` or `OktaUserReport`).
    - **Displayed as**: The user-friendly label displayed in the UI.
    - **Level**: The report visibility level (can only be either `user` or `system`).
-2. Programmatically retrieve the available categories by executing the custom report category retrieval tool call (`fetch_custom_report_categories`).
-3. Present the retrieved list of categories to the user and prompt them to select one from the list.
-4. Execute the custom report packaging and upload tool call (`package_and_upload_custom_report`), passing:
+2. **Check for Existing Reports**: Before proceeding, execute the custom report retrieval tool call (`fetch_existing_custom_report`) to list all registered reports. Check if the proposed programmatic **Name** or **Displayed as** value matches any existing report's name. If a match is found, inform the user that a custom report with this name/display label already exists, and prompt them to enter a new, unique programmatic **Name** and **Displayed as** value. Repeat this verification check until unique, non-conflicting values are provided.
+3. Programmatically retrieve the available categories by executing the custom report category retrieval tool call (`fetch_custom_report_categories`).
+4. Present the retrieved list of categories to the user and prompt them to select one from the list.
+5. Execute the custom report packaging and upload tool call (`package_and_upload_custom_report`), passing:
     - `files`: A dictionary mapping relative file paths to their newly generated code/text contents. **You MUST include all physical mock CSV datasets inside this dictionary using `data/` path keys** (e.g., `{"_meta.json": "...", "cowdashboard.js": "...", "data/evidence_name.csv": "..."}`). To do this, you must run the generated `generate_mock_data.py` script locally, read back the generated CSV contents from the disk, and add them to this `files` dictionary before executing the tool call. Under no circumstances should the `data/` folder or any evidence CSV files be omitted.
    - `name`: Programmatic name of the report.
    - `description`: Description of the custom report.
    - `category_id`: The ID of the chosen category.
    - `level`: Visibility level (`user` or `system`).
    - `report_dir`: (Optional) Absolute path to the local directory where files will be stored. Defaults to the folder specified by the `COW_CUSTOM_REPORT_DIR` environment variable. *Note: The tool will dynamically create a temporary folder under this directory using the format `{name}_{timestamp}` to prevent write conflicts, and automatically clean it up upon successful upload.*
+    
    *Note: This tool writes/updates all the files inside a unique timestamped subdirectory `{name}_{timestamp}` under the specified directory before compressing it into a zip and uploading. Once uploaded successfully, it automatically deletes this temporary subdirectory. If the user requests modifications later, update the file contents in the `files` dictionary and call `package_and_upload_custom_report` again to overwrite and upload the latest version.*
 5. If the upload is successful, display a success confirmation message with the returned workflow instance ID. Additionally, execute the `send_custom_report_approval_workflow_url` tool call. If the tool returns a non-empty approval URL string (which indicates the current user is an admin), show that link to the user as the custom report approval link. If the tool returns an empty string (which indicates the user is not an admin), do NOT show any approval link. If the upload fails, report the exact error message returned by the tool execution.
 
