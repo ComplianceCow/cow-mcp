@@ -67,6 +67,37 @@ async def make_API_call_to_CCow_and_get_response(uriSuffix: str,method: str,requ
             return "Facing error  :  "+str(e)
 
 
+async def make_API_call_to_CCow_v2(request_body: dict | str,uriSuffix: str, type: str = "json", ctx: Context | None = None) -> dict[str, Any] | str  :
+    logger.info(f"uriSuffix: {uriSuffix}")
+    async with httpx.AsyncClient() as client:
+        try:
+            requestHeader = get_cc_headers(ctx)
+            response = None
+            if type=="yaml":
+                requestHeader["Content-Type"] = "application/x-yaml"
+                response = await client.post(host+uriSuffix,data=request_body, headers=requestHeader, timeout=60.0)
+            else:
+                response = await client.post(host+uriSuffix,json=request_body, headers=requestHeader, timeout=60.0)
+            if response.status_code == 502:
+                return error_constants.ERROR_BAD_GATEWAY
+            if response.status_code < 200 or response.status_code > 299:
+                error = response.json()
+                logger.error("make_API_call_to_CCow_v2 unexpected status code: error: {}\n".format(error))
+                return {
+                    "statusCode": response.status_code,
+                    "error": error.get("Description")
+                            or error.get("description")
+                            or "Unknown error",
+                }
+            return response.json()
+        except httpx.TimeoutException:
+            logger.error(f"make_API_call_to_CCow_v2 error: Request timed out after 60 seconds for uriSuffix: {uriSuffix}")
+            return "Facing error : Request timed out."
+        except Exception as e:
+            logger.error(traceback.format_exc())
+            logger.error("make_API_call_to_CCow_v2 error: {}\n".format(e))
+            return "Facing error  :  "+str(e)
+
 async def make_API_call_to_CCow(request_body: dict | str,uriSuffix: str, type: str = "json", ctx: Context | None = None) -> dict[str, Any] | str  :
     logger.info(f"uriSuffix: {uriSuffix}")
     async with httpx.AsyncClient() as client:
@@ -98,13 +129,13 @@ async def make_API_call_to_CCow(request_body: dict | str,uriSuffix: str, type: s
             logger.error("make_API_call_to_CCow error: {}\n".format(e))
             return "Facing error  :  "+str(e)
 
-async def make_GET_API_call_to_CCow(uriSuffix: str,ctx: Context | None = None) -> dict[str, Any] | str  :
+async def make_GET_API_call_to_CCow(uriSuffix: str,ctx: Context | None = None, query_params: dict | None = None) -> dict[str, Any] | str  :
     logger.info(f"uriSuffix: {uriSuffix}")
     async with httpx.AsyncClient() as client:
         try:
             requestHeader = get_cc_headers(ctx)
             # response = await client.post("http://localhost:14600/v1/llm/"+uriSuffix,json=request_body, headers={"Authorization": "db4f39f2-45b1-445c-9b05-5cd4d5f04990"}, timeout=300.0)
-            response = await client.get(host+uriSuffix, headers=requestHeader, timeout=60.0)
+            response = await client.get(host+uriSuffix, headers=requestHeader, timeout=60.0, params=query_params)
             if response.status_code == 502:
                 return error_constants.ERROR_BAD_GATEWAY
             if response.status_code < 200 or response.status_code > 299:
