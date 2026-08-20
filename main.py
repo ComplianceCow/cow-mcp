@@ -64,6 +64,9 @@ if "reports" in MCP_TOOLS:
     from tools.report import report
     from prompts.report import report
 
+if "applications" in MCP_TOOLS:
+    from tools.applications import applications
+    
 def signal_handler(sig, frame):
     print("Shutting down...")
     sys.exit(0)

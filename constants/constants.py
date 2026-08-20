@@ -15,6 +15,7 @@ else:
     headers["Authorization"]= "Basic " + base64.b64encode((cid + ":" + cs).encode("ascii")).decode("ascii")
 
 host = os.environ.get("CCOW_HOST", "http://cowapiservice:80")
+COW_BASE_URL = os.environ.get("COW_BASE_URL", "https://dev.compliancecow.live")
 
 ENABLE_CONTEXTUAL_VECTOR_SEARCH = os.environ.get("ENABLE_CONTEXTUAL_VECTOR_SEARCH", "false").lower() == "true"
 ENABLE_CCOW_API_TOOLS = os.environ.get("ENABLE_CCOW_API_TOOLS", "true").lower() == "true"
@@ -194,3 +195,9 @@ AUDIT_HISTORY = "/v1/audits/history"
 URL_INSIGHTS_CATEGORY = "/v1/get-insightscategory"
 URL_INSIGHTS_DASHBOARD = "/v1/get-insightsdashboards"
 REPORT_WORKFLOW_APPROVAL_URL = "/ui/custom-reports-workflow"
+
+#application
+URL_APPLICATION_CONFIGS = "/v1/app-configs"
+URL_CREDENTIAL_CONFIGS = "/v1/cred-configs"
+URL_CREATE_APPLICATION = "/v1/credential"
+URL_CREATE_APPLICATION_SCOPE = "/v1/configuration"
