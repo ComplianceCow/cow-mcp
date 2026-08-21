@@ -135,7 +135,7 @@ async def upload_new_custom_report(name: str, description: str, file_bytes: str,
         
         logger.debug("custom report upload req_body: {}\n".format(req_body))
         
-        output=await utils.make_API_call_to_CCow(req_body,constants.URL_WORKFLOW_INSTANCE, ctx)
+        output=await utils.make_API_call_to_CCow(req_body,constants.URL_WORKFLOW_INSTANCE, ctx=ctx)
         logger.debug("custom report upload output: {}\n".format(output))
         
         if isinstance(output, str) or  "error" in output:
