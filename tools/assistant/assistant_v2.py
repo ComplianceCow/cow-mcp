@@ -21,7 +21,7 @@ import yaml
 from mcptypes import assessment_config_tool_types as assessment_vo
 from mcptypes import workflow_tools_type as workflow_vo
 from mcptypes.graph_tool_types import UniqueNodeDataVO
-from mcptypes.assistant_tool_types import ControlSourceSummaryResponseVO, ControlSourceSummaryVO
+from mcptypes.assistant_tool_types import ControlSourceSummaryResponseVO, ControlSourceSummaryVO, FilteredEvidenceInputVO
 from fastmcp import Context
 
 from toon_format import encode
@@ -2816,10 +2816,9 @@ async def assit_update_control_config_contexts(
 
 @mcp.tool(annotations=utils.tool_annotations("Create Filtered Evidence", read_only=False))
 async def assit_create_filtered_evidence(
-
     assessmentId: str,
     controlId: str,
-    evidenceNames: list[str],
+    evidenceNames: list[FilteredEvidenceInputVO],
     ctx: Context | None = None
 ) -> dict:
     """
@@ -2828,7 +2827,7 @@ async def assit_create_filtered_evidence(
     Args:
         assessmentId (str): ID of the assessment plan (required).
         controlId (str): ID of the plan control (required).
-        evidenceNames (list[str]): List of evidence names to include in the rule (required).
+        evidenceNames (list[FilteredEvidenceInputVO]): List of evidence objects, each containing evidenceName and columnName (required).
 
     Returns:
         dict:
@@ -2848,16 +2847,16 @@ async def assit_create_filtered_evidence(
             logger.error(f"create_filtered_evidence validation failed: {req_check}")
             return req_check
 
-        if not isinstance(evidenceNames, list) or not evidenceNames:
-            err = {"success": False, "error": "evidenceNames must be a non-empty list of strings"}
-            logger.error(f"create_filtered_evidence validation failed: {err}")
-            return err
+        if not evidenceNames or not isinstance(evidenceNames, list):
+            return {"success": False, "error": "evidenceNames must be a non-empty list of evidence objects"}
 
-        for ev in evidenceNames:
-            if not isinstance(ev, str) or not ev.strip():
-                err = {"success": False, "error": "Each evidence name in evidenceNames must be a non-empty string"}
-                logger.error(f"create_filtered_evidence validation failed: {err}")
-                return err
+        normalized_evidences = []
+        for item in evidenceNames:
+            ev = getattr(item, "evidenceName", None) or (item.get("evidenceName") if isinstance(item, dict) else "")
+            col = getattr(item, "columnName", None) or (item.get("columnName") if isinstance(item, dict) else "")
+            if not ev or not str(ev).strip() or not col or not str(col).strip():
+                return {"success": False, "error": "Each evidence item must contain non-empty evidenceName and columnName"}
+            normalized_evidences.append({"evidenceName": str(ev).strip(), "columnName": str(col).strip()})
 
         assessment_id = assessmentId.strip()
         control_id = controlId.strip()
@@ -2884,7 +2883,7 @@ async def assit_create_filtered_evidence(
         displayable = control_resp.get("displayable") or control_resp.get("alias") or control_resp.get("name") or ""
 
         rule_payload = assistant_utils.construct_assistant_rule(
-            evidence_names=evidenceNames,
+            evidence_names=normalized_evidences,
             plan_name=plan_name,
             plan_id=plan_id,
             plan_control_displayable=displayable,
@@ -2923,7 +2922,7 @@ async def assit_create_filtered_evidence(
         if err:
             return err
 
-        filtered_evidences = [f"{ev}_filtered" for ev in evidenceNames]
+        filtered_evidences = [f"{ev['evidenceName']}_filtered" for ev in normalized_evidences]
         result = {
             "success": True,
             "message": f"Rule '{rule_name}' created, published, and linked to control successfully",
@@ -2947,7 +2946,7 @@ async def assit_create_filtered_evidence(
 async def assit_update_filtered_evidence(
     assessmentId: str,
     controlId: str,
-    evidenceNames: list[str],
+    evidenceNames: list[FilteredEvidenceInputVO],
     ctx: Context | None = None
 ) -> dict:
     """
@@ -2956,7 +2955,7 @@ async def assit_update_filtered_evidence(
     Args:
         assessmentId (str): ID of the assessment plan (required).
         controlId (str): ID of the plan control (required).
-        evidenceNames (list[str]): List of evidence names to include in the rule (required).
+        evidenceNames (list[FilteredEvidenceInputVO]): List of evidence objects, each containing evidenceName and columnName (required).
 
     Returns:
         dict:
@@ -2976,16 +2975,16 @@ async def assit_update_filtered_evidence(
             logger.error(f"update_filtered_evidence validation failed: {req_check}")
             return req_check
 
-        if not isinstance(evidenceNames, list) or not evidenceNames:
-            err = {"success": False, "error": "evidenceNames must be a non-empty list of strings"}
-            logger.error(f"update_filtered_evidence validation failed: {err}")
-            return err
+        if not evidenceNames or not isinstance(evidenceNames, list):
+            return {"success": False, "error": "evidenceNames must be a non-empty list of evidence objects"}
 
-        for ev in evidenceNames:
-            if not isinstance(ev, str) or not ev.strip():
-                err = {"success": False, "error": "Each evidence name in evidenceNames must be a non-empty string"}
-                logger.error(f"update_filtered_evidence validation failed: {err}")
-                return err
+        normalized_evidences = []
+        for item in evidenceNames:
+            ev = getattr(item, "evidenceName", None) or (item.get("evidenceName") if isinstance(item, dict) else "")
+            col = getattr(item, "columnName", None) or (item.get("columnName") if isinstance(item, dict) else "")
+            if not ev or not str(ev).strip() or not col or not str(col).strip():
+                return {"success": False, "error": "Each evidence item must contain non-empty evidenceName and columnName"}
+            normalized_evidences.append({"evidenceName": str(ev).strip(), "columnName": str(col).strip()})
 
         assessment_id = assessmentId.strip()
         control_id = controlId.strip()
@@ -3036,7 +3035,7 @@ async def assit_update_filtered_evidence(
 
         # Step 3: Construct Rule Payload keeping existing rule_name
         rule_payload = assistant_utils.construct_assistant_rule(
-            evidence_names=evidenceNames,
+            evidence_names=normalized_evidences,
             plan_name=plan_name,
             plan_id=plan_id,
             plan_control_displayable=displayable,
@@ -3073,7 +3072,7 @@ async def assit_update_filtered_evidence(
         if err:
             return err
 
-        filtered_evidences = [f"{ev}_filtered" for ev in evidenceNames]
+        filtered_evidences = [f"{ev['evidenceName']}_filtered" for ev in normalized_evidences]
         result = {
             "success": True,
             "message": f"Rule '{rule_name}' updated and published successfully",

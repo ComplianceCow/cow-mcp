@@ -3,7 +3,7 @@ import json
 import re
 import secrets
 import string
-from typing import Any, Dict, List, Optional, Union
+from typing import Any, Dict, List, Optional, Tuple, Union
 
 from fastmcp import Context
 from constants import constants
@@ -26,7 +26,7 @@ def generate_random_alphanumeric_string(length: int = 6) -> str:
 
 
 def construct_assistant_rule(
-    evidence_names: Union[List[str], str],
+    evidence_names: List[Dict[str, str]],
     plan_name: str,
     plan_id: str,
     plan_control_displayable: str,
@@ -35,7 +35,7 @@ def construct_assistant_rule(
     """Construct rule dictionary payload based on inputs.
 
     Args:
-        evidence_names: List of evidence names or a single evidence name string.
+        evidence_names: List of evidence objects/dicts, each containing evidenceName and columnName.
         plan_name: Name of the plan (plan.Name).
         plan_id: ID of the plan (plan.ID).
         plan_control_displayable: Displayable control name (planControl.Displayable).
@@ -44,8 +44,14 @@ def construct_assistant_rule(
     Returns:
         Dictionary representation of the constructed rule payload.
     """
-    if isinstance(evidence_names, str):
-        evidence_names = [evidence_names]
+    evidence_items: List[Tuple[str, str]] = [
+        (
+            str(getattr(item, "evidenceName", None) or (item.get("evidenceName", "") if isinstance(item, dict) else "")).strip(),
+            str(getattr(item, "columnName", None) or (item.get("columnName", "") if isinstance(item, dict) else "")).strip(),
+        )
+        for item in (evidence_names or [])
+        if (getattr(item, "evidenceName", None) or (item.get("evidenceName") if isinstance(item, dict) else None))
+    ]
 
     if not rule_name or not str(rule_name).strip():
         plan_id_prefix = plan_id.split("-")[0] if plan_id else ""
@@ -62,9 +68,7 @@ def construct_assistant_rule(
     else:
         rule_name = str(rule_name).strip()
 
-
-
-    n = len(evidence_names)
+    n = len(evidence_items)
     minio_file_path = "<<MINIO_FILE_PATH>>"
     task_name = "FilterServiceNowEvidence"
     task_purpose = "FilterServiceNowEvidence"
@@ -72,8 +76,9 @@ def construct_assistant_rule(
 
     # Construct spec.inputs
     inputs: Dict[str, Any] = {"EntityFilter": {}}
-    for ev in evidence_names:
+    for ev, col in evidence_items:
         inputs[ev] = minio_file_path
+        inputs[f"{ev}_columnname"] = col
 
     # Construct spec.inputsMeta__
     inputs_meta: List[Dict[str, Any]] = [
@@ -87,7 +92,7 @@ def construct_assistant_rule(
             "required": True,
         }
     ]
-    for ev in evidence_names:
+    for ev, col in evidence_items:
         inputs_meta.append(
             {
                 "name": ev,
@@ -99,10 +104,21 @@ def construct_assistant_rule(
                 "required": False,
             }
         )
+        inputs_meta.append(
+            {
+                "name": f"{ev}_columnname",
+                "dataType": "STRING",
+                "repeated": False,
+                "defaultValue": col,
+                "allowedValues": [],
+                "showField": True,
+                "required": False,
+            }
+        )
 
     # Construct spec.outputsMeta__
     outputs_meta: List[Dict[str, Any]] = []
-    for ev in evidence_names:
+    for ev, _ in evidence_items:
         outputs_meta.append(
             {
                 "name": f"{ev}_filtered",
@@ -141,11 +157,12 @@ def construct_assistant_rule(
         io_map.append(f"t{i}.Input.EntityFilter:=*.Input.EntityFilter")
 
     # 2. Evidence input mapping for tasks t1 .. tn
-    for i, ev in enumerate(evidence_names, 1):
+    for i, (ev, _) in enumerate(evidence_items, 1):
         io_map.append(f"t{i}.Input.EvidenceFile:=*.Input.{ev}")
+        io_map.append(f"t{i}.Input.EntityNameColumn:=*.Input.{ev}_columnname")
 
     # 3. Output filtered mapping for evidences (FilteredEvidenceFile)
-    for i, ev in enumerate(evidence_names, 1):
+    for i, (ev, _) in enumerate(evidence_items, 1):
         io_map.append(f"*.Output.{ev}_filtered:=t{i}.Output.FilteredEvidenceFile")
 
     # 4. Final compliance status & log mappings from tn (last task)
