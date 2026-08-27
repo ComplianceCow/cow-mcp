@@ -31,6 +31,7 @@ def construct_assistant_rule(
     plan_id: str,
     plan_control_displayable: str,
     rule_name: str = "",
+    meaningful_name: str = "",
 ) -> Dict[str, Any]:
     """Construct rule dictionary payload based on inputs.
 
@@ -40,6 +41,7 @@ def construct_assistant_rule(
         plan_id: ID of the plan (plan.ID).
         plan_control_displayable: Displayable control name (planControl.Displayable).
         rule_name: Optional explicit rule name. If empty, auto-generated using formula.
+        meaningful_name: Optional meaningful name (25-35 characters) for the rule.
 
     Returns:
         Dictionary representation of the constructed rule payload.
@@ -54,16 +56,8 @@ def construct_assistant_rule(
     ]
 
     if not rule_name or not str(rule_name).strip():
-        plan_id_prefix = plan_id.split("-")[0] if plan_id else ""
-        sanitized_plan_name = sanitize(plan_name)
-        sanitized_displayable = sanitize(plan_control_displayable)
-        displayable_part = (
-            sanitized_displayable
-            if sanitized_displayable.lower().startswith("control")
-            else f"Control-{sanitized_displayable}"
-        )
         random_str = generate_random_alphanumeric_string(6)
-        rule_name = f"{sanitized_plan_name}-{plan_id_prefix}-{displayable_part}-{random_str}"
+        rule_name = f"{sanitize(meaningful_name or plan_name)}ctl{sanitize(plan_control_displayable)}A{sanitize(plan_id)}{random_str}"
         rule_name = rule_name.replace("-", "").upper()
     else:
         rule_name = str(rule_name).strip()
