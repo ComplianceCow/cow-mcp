@@ -2917,7 +2917,7 @@ async def assit_create_filtered_evidence(
             logger.error(f"create_filtered_evidence step 5 failed: {err}")
             return err
 
-        link_resp = await assistant_utils.link_rule_to_control_api(control_id, rule_id, create_evidence=True, ctx=ctx)
+        link_resp = await assistant_utils.link_rule_to_control_api(control_id, rule_id, create_evidence=True, create_input=False, ctx=ctx)
         logger.info(f"create_filtered_evidence step 6 (link_rule_to_control_api) response:\n{json.dumps(link_resp, indent=2) if isinstance(link_resp, (dict, list)) else link_resp}")
         err = utils.handle_error_response(link_resp, "create_filtered_evidence:link_rule_to_control")
         if err:
@@ -2998,7 +2998,8 @@ async def assit_update_filtered_evidence(
             return err
 
         rule_obj = control_resp.get("rule") if isinstance(control_resp, dict) else None
-        if not rule_obj or not isinstance(rule_obj, dict):
+        rule_id = control_resp.get("ruleId") if isinstance(control_resp, dict) else None
+        if not rule_obj or not isinstance(rule_obj, dict) or not rule_id:
             err = {
                 "success": False,
                 "error": f"Control '{control_id}' does not have a rule linked to it."
@@ -3057,6 +3058,18 @@ async def assit_update_filtered_evidence(
         publish_resp = await assistant_utils.publish_rule_api(rule_name, cc_rule_name=rule_name, ctx=ctx)
         logger.info(f"update_filtered_evidence step 5 (publish_rule_api) response:\n{json.dumps(publish_resp, indent=2) if isinstance(publish_resp, (dict, list)) else publish_resp}")
         err = utils.handle_error_response(publish_resp, "update_filtered_evidence:publish_rule")
+        if err:
+            return err
+
+        rule_id = publish_resp.get("ruleId") if isinstance(publish_resp, dict) else None
+        if not rule_id:
+            err = {"success": False, "error": f"Rule published but ruleId not returned in response: {publish_resp}"}
+            logger.error(f"update_filtered_evidence step 5 failed: {err}")
+            return err
+
+        link_resp = await assistant_utils.link_rule_to_control_api(control_id, rule_id, create_evidence=True, create_input=False, ctx=ctx)
+        logger.info(f"create_filtered_evidence step 6 (link_rule_to_control_api) response:\n{json.dumps(link_resp, indent=2) if isinstance(link_resp, (dict, list)) else link_resp}")
+        err = utils.handle_error_response(link_resp, "update_filtered_evidence:link_rule_to_control")
         if err:
             return err
 
