@@ -2819,6 +2819,7 @@ async def assit_create_filtered_evidence(
     assessmentId: str,
     controlId: str,
     evidenceNames: list[FilteredEvidenceInputVO],
+    meaningfulName: str,
     ctx: Context | None = None
 ) -> dict:
     """
@@ -2827,7 +2828,8 @@ async def assit_create_filtered_evidence(
     Args:
         assessmentId (str): ID of the assessment plan (required).
         controlId (str): ID of the plan control (required).
-        evidenceNames (list[FilteredEvidenceInputVO]): List of evidence objects, each containing evidenceName and columnName (required).
+        evidenceNames (list[FilteredEvidenceInputVO]): List of evidence objects, each containing evidenceName and columnName (Column name in the evidence used for joining/filtering) (required).
+        meaningfulName (str): Meaningful descriptive name for the rule (25-35 characters) (required).
 
     Returns:
         dict:
@@ -2837,11 +2839,11 @@ async def assit_create_filtered_evidence(
             - error (str, optional)
     """
     try:
-        logger.info(f"create_filtered_evidence invoked: assessmentId={assessmentId}, controlId={controlId}, evidenceNames={evidenceNames}\n")
+        logger.info(f"create_filtered_evidence invoked: assessmentId={assessmentId}, controlId={controlId}, evidenceNames={evidenceNames}, meaningfulName={meaningfulName}\n")
 
         req_check = utils.require_fields(
-            {"assessmentId": assessmentId, "controlId": controlId},
-            ["assessmentId", "controlId"]
+            {"assessmentId": assessmentId, "controlId": controlId, "meaningfulName": meaningfulName},
+            ["assessmentId", "controlId", "meaningfulName"]
         )
         if req_check:
             logger.error(f"create_filtered_evidence validation failed: {req_check}")
@@ -2887,6 +2889,7 @@ async def assit_create_filtered_evidence(
             plan_name=plan_name,
             plan_id=plan_id,
             plan_control_displayable=displayable,
+            meaningful_name=meaningfulName.strip(),
         )
 
         rule_name = rule_payload.get("meta", {}).get("name")
@@ -2955,7 +2958,7 @@ async def assit_update_filtered_evidence(
     Args:
         assessmentId (str): ID of the assessment plan (required).
         controlId (str): ID of the plan control (required).
-        evidenceNames (list[FilteredEvidenceInputVO]): List of evidence objects, each containing evidenceName and columnName (required).
+        evidenceNames (list[FilteredEvidenceInputVO]): List of evidence objects, each containing evidenceName and columnName (Column name in the evidence used for joining/filtering) (required).
 
     Returns:
         dict:
