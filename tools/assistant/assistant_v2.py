@@ -2,13 +2,18 @@ import json
 import traceback
 import base64
 import asyncio
+import csv
+import io
+import secrets
 from typing import Any, List, Literal
 from typing import Tuple
 import constants.error_constants as error_constants
 
 from utils import utils
+from utils import assistant as assistant_utils
 from utils.debug import logger
 from mcpconfig.config import mcp
+
 
 from constants import constants
 import yaml
@@ -16,13 +21,13 @@ import yaml
 from mcptypes import assessment_config_tool_types as assessment_vo
 from mcptypes import workflow_tools_type as workflow_vo
 from mcptypes.graph_tool_types import UniqueNodeDataVO
-from mcptypes.assistant_tool_types import ControlSourceSummaryResponseVO, ControlSourceSummaryVO
+from mcptypes.assistant_tool_types import ControlSourceSummaryResponseVO, ControlSourceSummaryVO, FilteredEvidenceInputVO
 from fastmcp import Context
 
 from toon_format import encode
 
 @mcp.tool()
-async def create_assessment(yaml_content: str, ctx: Context | None = None) -> dict:
+async def assit_create_assessment(yaml_content: str, ctx: Context | None = None) -> dict:
     """
     Create a new assessment from YAML definition.
     
@@ -200,7 +205,7 @@ async def create_assessment(yaml_content: str, ctx: Context | None = None) -> di
 
 
 @mcp.tool()
-async def suggest_control_config_citations(
+async def assit_suggest_control_config_citations(
     controlName: str,
     assessmentId: str,
     description: str,
@@ -339,7 +344,7 @@ async def suggest_control_config_citations(
 
 
 @mcp.tool()
-async def list_assessments(
+async def assit_list_assessments(
     categoryId: str = "",
     categoryName: str = "",
     assessmentName: str = "",
@@ -401,7 +406,7 @@ async def list_assessments(
 
 
 @mcp.tool()
-async def list_assessment_control_configs(
+async def assit_list_assessment_control_configs(
     assessmentId: str,
     ctx: Context | None = None
 ) -> dict:
@@ -503,7 +508,7 @@ async def list_assessment_control_configs(
 
 
 # @mcp.tool()
-async def create_control_config(
+async def assit_create_control_config(
     assessmentId: str,
     name: str,
     alias: str,
@@ -597,7 +602,7 @@ async def create_control_config(
 
 
 @mcp.tool()
-async def attach_citation_to_control_config(
+async def assit_attach_citation_to_control_config(
     assessmentId: str,
     controlId: str,
     authorityDocument: str,
@@ -821,7 +826,7 @@ async def attach_citation_to_control_config(
         return {"success": False, "error": f"Unexpected error attaching citation to control: {e}"}
 
 @mcp.tool()
-async def create_sql_query_evidence(
+async def assit_create_sql_query_evidence(
     controlConfigId: str,
     sqlquery: str,
     referedEvidenceNames: list[str],
@@ -980,7 +985,7 @@ async def create_sql_query_evidence(
         return {"success": False, "error": f"Unexpected error creating SQL query: {e}"}
 
 @mcp.tool()
-async def list_sql_query_evidence(
+async def assit_list_sql_query_evidence(
     controlConfigId: str,
     ctx: Context | None = None
 ) -> dict:
@@ -1044,7 +1049,7 @@ async def list_sql_query_evidence(
         return {"success": False, "error": f"Unexpected error listing SQL query evidences: {e}"}
 
 @mcp.tool()
-async def update_sql_query_evidence(
+async def assit_update_sql_query_evidence(
     controlConfigId: str,
     evidenceId: str,
     sqlquery: str,
@@ -1183,7 +1188,7 @@ async def update_sql_query_evidence(
         return {"success": False, "error": f"Unexpected error updating SQL query evidence: {e}"}
 
 @mcp.tool()
-async def fetch_control_source_summary(controlId: str, ctx: Context | None = None) -> ControlSourceSummaryResponseVO:
+async def assit_fetch_control_source_summary(controlId: str, ctx: Context | None = None) -> ControlSourceSummaryResponseVO:
     """
     Fetch aggregated source summary for a control config, including linked control configs, evidences (including schema), and lineage depth.
     This tool is the PRIMARY way to gather SQL query context for a control config.
@@ -1285,7 +1290,7 @@ async def fetch_control_source_summary(controlId: str, ctx: Context | None = Non
         )
 
 @mcp.tool()
-async def get_evidence_sample_data(controlConfigId: str, evidenceNames: list[str] | None = None, records: int = 3, ctx: Context | None = None) -> dict:
+async def assit_get_evidence_sample_data(controlConfigId: str, evidenceNames: list[str] | None = None, records: int = 3, ctx: Context | None = None) -> dict:
     """
     Fetch concrete evidence samples for a control config.
 
@@ -1381,7 +1386,7 @@ async def get_evidence_sample_data(controlConfigId: str, evidenceNames: list[str
         return {"success": False, "error": f"Unexpected error fetching evidence samples: {e}"}
 
 # @mcp.tool()
-async def get_entity_hierarchy(ctx: Context | None = None) -> dict:
+async def assit_get_entity_hierarchy(ctx: Context | None = None) -> dict:
     """
     Use this tool when the user wants to automate control operations,
     or before creating an SQL query.
@@ -1423,7 +1428,7 @@ async def get_entity_hierarchy(ctx: Context | None = None) -> dict:
         return {"success": False, "error": f"Unexpected error fetching entity hierarchy: {e}"}
 
 @mcp.tool()
-async def create_control_config_note(
+async def assit_create_control_config_note(
     controlConfigId: str,
     assessmentId: str,
     notes: str,
@@ -1563,7 +1568,7 @@ async def create_control_config_note(
         return {"success": False, "error": f"Unexpected error creating control config note: {e}"}
 
 @mcp.tool()
-async def list_control_config_notes(
+async def assit_list_control_config_notes(
     controlConfigId: str,
     ctx: Context | None = None
 ) -> dict:
@@ -1636,7 +1641,7 @@ async def list_control_config_notes(
         return {"success": False, "error": f"Unexpected error listing control config notes: {e}"}
 
 @mcp.tool()
-async def update_control_config_note(
+async def assit_update_control_config_note(
     controlConfigId: str,
     noteId: str,
     assessmentId: str,
@@ -1766,7 +1771,7 @@ async def update_control_config_note(
         return {"success": False, "error": f"Unexpected error updating control config note: {e}"}
     
 @mcp.tool()
-async def fetch_rule_readme(name: str, ctx: Context | None = None) -> workflow_vo.RuleReadmeResponseVO:
+async def assit_fetch_rule_readme(name: str, ctx: Context | None = None) -> workflow_vo.RuleReadmeResponseVO:
     """
     Use this tool to get details about the rule to add in SQL query control config notes.
 
@@ -1846,13 +1851,11 @@ async def fetch_rule_readme(name: str, ctx: Context | None = None) -> workflow_v
         return workflow_vo.RuleReadmeResponseVO(error="Facing internal error")
 
 @mcp.tool()
-async def validate_sql_query(
+async def assit_validate_sql_query(
     sqlQuery: str,
     referenceEvidences: list[dict],
     assessmentId: str,
-    controlId :str,
-    entityHierarchyReferenceName: str = None,
-    additionalContextReferenceName: str = None,
+    controlId: str,
     ctx: Context | None = None,
 ) -> dict:
     """
@@ -1860,7 +1863,7 @@ async def validate_sql_query(
     
     This tool validates a SQL query by executing it against provided evidence data.
     The evidence data can be provided in two ways:
-    1. Using runEvidenceId (id) - obtained from `get_evidence_sample_data` response
+    1. Using evidence ID (id) - evidence CSV data will be fetched automatically
     2. Using file content - base64 encoded CSV or JSON file content
     
     ⚠️ IMPORTANT REQUIREMENTS
@@ -1871,16 +1874,14 @@ async def validate_sql_query(
     Args:
         sqlQuery (str): The SQL query to validate (required).
         referenceEvidences (list[dict]): List of evidence objects, each containing:
-            - name (str): Evidence config name (table name used in SQL query) (required).
-            - id (str, optional): runEvidenceId obtained from `get_evidence_sample_data` response.
+            - name (str): Evidence config name (table name used in SQL query) (required). Pass only name filtered evidences
+            - id (str, optional): runEvidenceId obtained from `get_evidence_sample_data` response
             - file (dict, optional): File object containing:
                 - content (str): Base64 encoded file content (required if using file).
                 - type (str): File type, either "csv" or "json" (required if using file).
             - Either `id` OR `file` must be provided for each evidence (not both).
         assessmentId (str): The assessment ID that contains the control config (required).
         controlId (str): Control ID (required).
-        entityHierarchyReferenceName (str, optional): Reference name for entity hierarchy table.
-        additionalContextReferenceName (str, optional): Reference name for additional control context table.
     
     Returns:
         Dict with validation status and executed query data:
@@ -1935,7 +1936,35 @@ async def validate_sql_query(
             }
             
             if evidence_id:
-                evidence_payload["id"] = str(evidence_id).strip()
+                # Fetch evidence CSV base64 bytes using filter-evidence-data API
+                data_payload = {
+                    "evidenceID": str(evidence_id).strip()
+                }
+                fetch_output = await utils.make_API_call_to_CCow(
+                    data_payload,
+                    constants.URL_FILTER_EVIDENCE_DATA,
+                    ctx=ctx
+                )
+                logger.debug("validate_sql_query fetch_evidence_data output: {}\n".format(json.dumps(fetch_output) if isinstance(fetch_output, dict) else fetch_output))
+
+                if isinstance(fetch_output, str) or (isinstance(fetch_output, dict) and "error" in fetch_output):
+                    logger.error(f"validate_sql_query error fetching evidence data for ID '{evidence_id}': {fetch_output}\n")
+                    return {"success": False, "error": f"Failed to fetch evidence data for ID '{evidence_id}'"}
+
+                if isinstance(fetch_output, dict) and fetch_output.get("Message") == "CANNOT_FIND_THE_FILE":
+                    return {"success": False, "error": f"No evidence data file found for ID '{evidence_id}'"}
+
+                file_content = None
+                if isinstance(fetch_output, dict):
+                    file_content = fetch_output.get("FileContent") or fetch_output.get("fileBytes")
+
+                if not file_content:
+                    return {"success": False, "error": f"No evidence data file content available for ID '{evidence_id}'"}
+
+                evidence_payload["file"] = {
+                    "content": str(file_content).strip(),
+                    "type": "csv"
+                }
             elif evidence_file:
                 if not isinstance(evidence_file, dict):
                     logger.error(f"validate_sql_query error: referenceEvidences[{idx}].file must be a dict\n")
@@ -1948,13 +1977,14 @@ async def validate_sql_query(
                     logger.error(f"validate_sql_query error: referenceEvidences[{idx}].file.content is mandatory\n")
                     return {"success": False, "error": f"referenceEvidences[{idx}].file.content is mandatory"}
                 
-                if not file_type or str(file_type).strip().lower() not in ["csv", "json"]:
+                clean_file_type = str(file_type).strip().lower() if file_type else ""
+                if clean_file_type not in ["csv", "json"]:
                     logger.error(f"validate_sql_query error: referenceEvidences[{idx}].file.type must be 'csv' or 'json'\n")
                     return {"success": False, "error": f"referenceEvidences[{idx}].file.type must be 'csv' or 'json'"}
-                
+
                 evidence_payload["file"] = {
                     "content": str(file_content).strip(),
-                    "type": str(file_type).strip().lower()
+                    "type": clean_file_type
                 }
             
             validated_evidences.append(evidence_payload)
@@ -1965,13 +1995,6 @@ async def validate_sql_query(
             "assessmentID": assessmentId,
             "assessmentControlID": controlId
         }
-        
-        # Add optional context reference names if provided
-        if entityHierarchyReferenceName and str(entityHierarchyReferenceName).strip():
-            payload["entityHierarchyEvidenceName"] = str(entityHierarchyReferenceName).strip()
-        
-        if additionalContextReferenceName and str(additionalContextReferenceName).strip():
-            payload["controlContextEvidenceName"] = str(additionalContextReferenceName).strip()
         
         logger.debug("validate_sql_query payload: {}\n".format(json.dumps(payload)))
 
@@ -2026,7 +2049,7 @@ async def validate_sql_query(
         return {"success": False, "error": f"Unexpected error validating SQL query: {e}"}
 
 # @mcp.tool()
-async def fetch_sql_query_feedback(
+async def assit_fetch_sql_query_feedback(
     control_name: str, 
     control_description: str, 
     control_context:str, 
@@ -2150,7 +2173,7 @@ async def fetch_sql_query_feedback(
 
 
 @mcp.tool()
-async def mark_control_ready_for_execution(
+async def assit_mark_control_ready_for_execution(
     assessmentId: str,
     assessmentName: str,
     controlName: str,
@@ -2250,8 +2273,8 @@ async def mark_control_ready_for_execution(
         return {"success": False, "error": f"Unexpected error marking control ready: {e}"}
     
 
-@mcp.tool()
-async def get_context_tables(controlId: str, ctx: Context | None = None) -> dict:
+# @mcp.tool()
+async def assit_get_context_tables(controlId: str, ctx: Context | None = None) -> dict:
     """
     Get flattened context tables for:
     1. Entity hierarchy
@@ -2530,7 +2553,7 @@ async def get_context_tables(controlId: str, ctx: Context | None = None) -> dict
         }
 
 @mcp.tool()
-async def create_control_config(
+async def assit_create_control_config(
     assessmentName: str,
     controlObjectiveName: str,
     controlObjectiveDescription: str,
@@ -2662,7 +2685,7 @@ async def create_control_config(
     
 
 @mcp.tool()
-async def update_control_config_contexts(
+async def assit_update_control_config_contexts(
     controlConfigId: str,
     entityClass: str,
     entities: list[str],
@@ -2789,3 +2812,399 @@ async def update_control_config_contexts(
             "success": False,
             "error": f"Unexpected error while updating control contexts: {e}"
         }
+
+
+@mcp.tool(annotations=utils.tool_annotations("Create Filtered Evidence", read_only=False))
+async def assit_create_filtered_evidence(
+    assessmentId: str,
+    controlId: str,
+    evidenceNames: list[FilteredEvidenceInputVO],
+    meaningfulName: str,
+    ctx: Context | None = None
+) -> dict:
+    """
+    Create a new rule for an assessment control to generate filtered evidence, publish it, and link it to the control.
+
+    Args:
+        assessmentId (str): ID of the assessment plan (required).
+        controlId (str): ID of the plan control (required).
+        evidenceNames (list[FilteredEvidenceInputVO]): List of evidence objects, each containing evidenceName and columnName (Column name in the evidence used for joining/filtering) (required).
+        meaningfulName (str): Meaningful descriptive name for the rule (25-35 characters) (required).
+
+    Returns:
+        dict:
+            - success (bool)
+            - message (str)
+            - filtered_evidences (list[str])
+            - error (str, optional)
+    """
+    try:
+        logger.info(f"create_filtered_evidence invoked: assessmentId={assessmentId}, controlId={controlId}, evidenceNames={evidenceNames}, meaningfulName={meaningfulName}\n")
+
+        req_check = utils.require_fields(
+            {"assessmentId": assessmentId, "controlId": controlId, "meaningfulName": meaningfulName},
+            ["assessmentId", "controlId", "meaningfulName"]
+        )
+        if req_check:
+            logger.error(f"create_filtered_evidence validation failed: {req_check}")
+            return req_check
+
+        if not evidenceNames or not isinstance(evidenceNames, list):
+            return {"success": False, "error": "evidenceNames must be a non-empty list of evidence objects"}
+
+        normalized_evidences = []
+        for item in evidenceNames:
+            ev = getattr(item, "evidenceName", None) or (item.get("evidenceName") if isinstance(item, dict) else "")
+            col = getattr(item, "columnName", None) or (item.get("columnName") if isinstance(item, dict) else "")
+            if not ev or not str(ev).strip() or not col or not str(col).strip():
+                return {"success": False, "error": "Each evidence item must contain non-empty evidenceName and columnName"}
+            normalized_evidences.append({"evidenceName": str(ev).strip(), "columnName": str(col).strip()})
+
+        assessment_id = assessmentId.strip()
+        control_id = controlId.strip()
+
+        assessment_resp = await assistant_utils.get_assessment_details_api(assessment_id, ctx=ctx)
+        logger.info(f"create_filtered_evidence step 1 (get_assessment_details_api) response:\n{json.dumps(assessment_resp, indent=2) if isinstance(assessment_resp, (dict, list)) else assessment_resp}")
+        err = utils.handle_error_response(assessment_resp, "create_filtered_evidence:get_assessment_details")
+        if err:
+            return err
+
+        plan_name = assessment_resp.get("name")
+        plan_id = assessment_resp.get("id")
+        if not plan_name:
+            err = {"success": False, "error": f"Failed to retrieve assessment name for assessmentId: {assessment_id}"}
+            logger.error(f"create_filtered_evidence step 1 failed: {err}")
+            return err
+
+        control_resp = await assistant_utils.get_control_details_api(control_id, ctx=ctx)
+        logger.info(f"create_filtered_evidence step 2 (get_control_details_api) response:\n{json.dumps(control_resp, indent=2) if isinstance(control_resp, (dict, list)) else control_resp}")
+        err = utils.handle_error_response(control_resp, "create_filtered_evidence:get_control_details")
+        if err:
+            return err
+
+        displayable = control_resp.get("displayable") or control_resp.get("alias") or control_resp.get("name") or ""
+
+        rule_payload = assistant_utils.construct_assistant_rule(
+            evidence_names=normalized_evidences,
+            plan_name=plan_name,
+            plan_id=plan_id,
+            plan_control_displayable=displayable,
+            meaningful_name=meaningfulName.strip(),
+        )
+
+        rule_name = rule_payload.get("meta", {}).get("name")
+        if not rule_name:
+            err = {"success": False, "error": "Failed to construct rule name"}
+            logger.error(f"create_filtered_evidence step 3 failed: {err}")
+            return err
+
+        yaml_payload = yaml.dump(rule_payload, sort_keys=False)
+        logger.info(f"create_filtered_evidence step 3 (construct_assistant_rule) YAML payload:\n{yaml_payload}")
+
+        create_resp = await assistant_utils.create_rule_api(yaml_payload, type="yaml", ctx=ctx)
+        logger.info(f"create_filtered_evidence step 4 (create_rule_api) response:\n{json.dumps(create_resp, indent=2) if isinstance(create_resp, (dict, list)) else create_resp}")
+        err = utils.handle_error_response(create_resp, "create_filtered_evidence:create_rule")
+        if err:
+            return err
+
+        publish_resp = await assistant_utils.publish_rule_api(rule_name, cc_rule_name=rule_name, ctx=ctx)
+        logger.info(f"create_filtered_evidence step 5 (publish_rule_api) response:\n{json.dumps(publish_resp, indent=2) if isinstance(publish_resp, (dict, list)) else publish_resp}")
+        err = utils.handle_error_response(publish_resp, "create_filtered_evidence:publish_rule")
+        if err:
+            return err
+
+        rule_id = publish_resp.get("ruleId") if isinstance(publish_resp, dict) else None
+        if not rule_id:
+            err = {"success": False, "error": f"Rule published but ruleId not returned in response: {publish_resp}"}
+            logger.error(f"create_filtered_evidence step 5 failed: {err}")
+            return err
+
+        link_resp = await assistant_utils.link_rule_to_control_api(control_id, rule_id, create_evidence=True, create_input=False, ctx=ctx)
+        logger.info(f"create_filtered_evidence step 6 (link_rule_to_control_api) response:\n{json.dumps(link_resp, indent=2) if isinstance(link_resp, (dict, list)) else link_resp}")
+        err = utils.handle_error_response(link_resp, "create_filtered_evidence:link_rule_to_control")
+        if err:
+            return err
+
+        filtered_evidences = [f"{ev['evidenceName']}_filtered" for ev in normalized_evidences]
+        result = {
+            "success": True,
+            "message": f"Rule '{rule_name}' created, published, and linked to control successfully",
+            "filtered_evidences": filtered_evidences,
+            "filtered_evidence": filtered_evidences,
+        }
+        logger.info(f"create_filtered_evidence final output:\n{json.dumps(result, indent=2)}")
+        return result
+
+    except Exception as e:
+        logger.error(traceback.format_exc())
+        err = {
+            "success": False,
+            "error": f"Unexpected error while creating assistant rule: {e}"
+        }
+        logger.error(f"create_filtered_evidence exception: {err}")
+        return err
+
+
+@mcp.tool(annotations=utils.tool_annotations("Update Filtered Evidence", read_only=False))
+async def assit_update_filtered_evidence(
+    assessmentId: str,
+    controlId: str,
+    evidenceNames: list[FilteredEvidenceInputVO],
+    ctx: Context | None = None
+) -> dict:
+    """
+    Update an existing rule for an assessment control to generate filtered evidence using its current rule name and publish it.
+
+    Args:
+        assessmentId (str): ID of the assessment plan (required).
+        controlId (str): ID of the plan control (required).
+        evidenceNames (list[FilteredEvidenceInputVO]): List of evidence objects, each containing evidenceName and columnName (Column name in the evidence used for joining/filtering) (required).
+
+    Returns:
+        dict:
+            - success (bool)
+            - message (str)
+            - filtered_evidences (list[str])
+            - error (str, optional)
+    """
+    try:
+        logger.info(f"update_filtered_evidence invoked: assessmentId={assessmentId}, controlId={controlId}, evidenceNames={evidenceNames}\n")
+
+        req_check = utils.require_fields(
+            {"assessmentId": assessmentId, "controlId": controlId},
+            ["assessmentId", "controlId"]
+        )
+        if req_check:
+            logger.error(f"update_filtered_evidence validation failed: {req_check}")
+            return req_check
+
+        if not evidenceNames or not isinstance(evidenceNames, list):
+            return {"success": False, "error": "evidenceNames must be a non-empty list of evidence objects"}
+
+        normalized_evidences = []
+        for item in evidenceNames:
+            ev = getattr(item, "evidenceName", None) or (item.get("evidenceName") if isinstance(item, dict) else "")
+            col = getattr(item, "columnName", None) or (item.get("columnName") if isinstance(item, dict) else "")
+            if not ev or not str(ev).strip() or not col or not str(col).strip():
+                return {"success": False, "error": "Each evidence item must contain non-empty evidenceName and columnName"}
+            normalized_evidences.append({"evidenceName": str(ev).strip(), "columnName": str(col).strip()})
+
+        assessment_id = assessmentId.strip()
+        control_id = controlId.strip()
+
+        # Step 1: Fetch Control Details & check rule & rule.name
+        control_resp = await assistant_utils.get_control_details_api(control_id, ctx=ctx)
+        logger.info(f"update_filtered_evidence step 1 (get_control_details_api) response:\n{json.dumps(control_resp, indent=2) if isinstance(control_resp, (dict, list)) else control_resp}")
+        err = utils.handle_error_response(control_resp, "update_filtered_evidence:get_control_details")
+        if err:
+            return err
+
+        rule_obj = control_resp.get("rule") if isinstance(control_resp, dict) else None
+        rule_id = control_resp.get("ruleId") if isinstance(control_resp, dict) else None
+        if not rule_obj or not isinstance(rule_obj, dict) or not rule_id:
+            err = {
+                "success": False,
+                "error": f"Control '{control_id}' does not have a rule linked to it."
+            }
+            logger.error(f"update_filtered_evidence step 1 failed: {err}")
+            return err
+
+        rule_name = rule_obj.get("name")
+        if not rule_name or not str(rule_name).strip():
+            err = {
+                "success": False,
+                "error": f"Control '{control_id}' has a rule linked, but rule.name is missing or empty."
+            }
+            logger.error(f"update_filtered_evidence step 1 failed: {err}")
+            return err
+
+        rule_name = str(rule_name).strip()
+
+        # Step 2: Fetch Assessment Details
+        assessment_resp = await assistant_utils.get_assessment_details_api(assessment_id, ctx=ctx)
+        logger.info(f"update_filtered_evidence step 2 (get_assessment_details_api) response:\n{json.dumps(assessment_resp, indent=2) if isinstance(assessment_resp, (dict, list)) else assessment_resp}")
+        err = utils.handle_error_response(assessment_resp, "update_filtered_evidence:get_assessment_details")
+        if err:
+            return err
+
+        plan_name = assessment_resp.get("name")
+        plan_id = assessment_resp.get("id")
+        if not plan_name:
+            err = {"success": False, "error": f"Failed to retrieve assessment name for assessmentId: {assessment_id}"}
+            logger.error(f"update_filtered_evidence step 2 failed: {err}")
+            return err
+
+        displayable = control_resp.get("displayable") or control_resp.get("alias") or control_resp.get("name") or ""
+
+        # Step 3: Construct Rule Payload keeping existing rule_name
+        rule_payload = assistant_utils.construct_assistant_rule(
+            evidence_names=normalized_evidences,
+            plan_name=plan_name,
+            plan_id=plan_id,
+            plan_control_displayable=displayable,
+            rule_name=rule_name,
+        )
+
+        # Convert payload dict to YAML content string
+        yaml_payload = yaml.dump(rule_payload, sort_keys=False)
+        logger.info(f"update_filtered_evidence step 3 (construct_assistant_rule) YAML payload:\n{yaml_payload}")
+
+        # Step 4: Create/Update Rule via API using existing rule_name (YAML content)
+        create_resp = await assistant_utils.create_rule_api(yaml_payload, type="yaml", ctx=ctx)
+        logger.info(f"update_filtered_evidence step 4 (create_rule_api) response:\n{json.dumps(create_resp, indent=2) if isinstance(create_resp, (dict, list)) else create_resp}")
+        err = utils.handle_error_response(create_resp, "update_filtered_evidence:create_rule")
+        if err:
+            return err
+
+        # Step 5: Publish Rule via API
+        publish_resp = await assistant_utils.publish_rule_api(rule_name, cc_rule_name=rule_name, ctx=ctx)
+        logger.info(f"update_filtered_evidence step 5 (publish_rule_api) response:\n{json.dumps(publish_resp, indent=2) if isinstance(publish_resp, (dict, list)) else publish_resp}")
+        err = utils.handle_error_response(publish_resp, "update_filtered_evidence:publish_rule")
+        if err:
+            return err
+
+        rule_id = publish_resp.get("ruleId") if isinstance(publish_resp, dict) else None
+        if not rule_id:
+            err = {"success": False, "error": f"Rule published but ruleId not returned in response: {publish_resp}"}
+            logger.error(f"update_filtered_evidence step 5 failed: {err}")
+            return err
+
+        link_resp = await assistant_utils.link_rule_to_control_api(control_id, rule_id, create_evidence=True, create_input=False, ctx=ctx)
+        logger.info(f"create_filtered_evidence step 6 (link_rule_to_control_api) response:\n{json.dumps(link_resp, indent=2) if isinstance(link_resp, (dict, list)) else link_resp}")
+        err = utils.handle_error_response(link_resp, "update_filtered_evidence:link_rule_to_control")
+        if err:
+            return err
+
+        filtered_evidences = [f"{ev['evidenceName']}_filtered" for ev in normalized_evidences]
+        result = {
+            "success": True,
+            "message": f"Rule '{rule_name}' updated and published successfully",
+            "filtered_evidences": filtered_evidences,
+            "filtered_evidence": filtered_evidences,
+        }
+        logger.info(f"update_filtered_evidence final output:\n{json.dumps(result, indent=2)}")
+        return result
+
+    except Exception as e:
+        logger.error(traceback.format_exc())
+        err = {
+            "success": False,
+            "error": f"Unexpected error while updating assistant rule: {e}"
+        }
+        return err
+
+
+@mcp.tool(annotations=utils.tool_annotations("Get Sample Data for Filtered Evidences", read_only=False))
+async def assit_get_sample_data_for_filtered_evidences(
+    controlId: str,
+    filteredEvidenceNames: list[str],
+    originalEvidenceIds: list[str],
+    ctx: Context | None = None
+) -> dict:
+    """
+    Fetch sample evidence data for filtered evidences.
+
+    Args:
+        controlId (str): ID of the plan control (required).
+        filteredEvidenceNames (list[str] | str): List of filtered evidence names (required).
+        originalEvidenceIds (list[str] | str): List of original evidence IDs corresponding to the evidence names (Get from get_evidence_sample_data tool)(required).
+
+    Returns:
+        dict:
+            - success (bool)
+            - controlId (str)
+            - results (dict): Mapping of filtered evidence name to sample data response.
+            - error (str, optional)
+    """
+    try:
+        logger.info(
+            f"get_sample_data_for_filtered_evidences invoked: controlId={controlId}, "
+            f"filteredEvidenceNames={filteredEvidenceNames}, originalEvidenceIds={originalEvidenceIds}, "
+        )
+
+        req_check = utils.require_fields(
+            {"controlId": controlId},
+            ["controlId"]
+        )
+        if req_check:
+            logger.error(f"get_sample_data_for_filtered_evidences validation failed: {req_check}")
+            return req_check
+
+        if isinstance(filteredEvidenceNames, str):
+            filteredEvidenceNames = [filteredEvidenceNames]
+
+        if isinstance(originalEvidenceIds, str):
+            originalEvidenceIds = [originalEvidenceIds]
+
+        if not isinstance(filteredEvidenceNames, list) or not filteredEvidenceNames:
+            err = {"success": False, "error": "filteredEvidenceNames must be a non-empty list of strings"}
+            logger.error(f"get_sample_data_for_filtered_evidences validation failed: {err}")
+            return err
+
+        if not isinstance(originalEvidenceIds, list) or not originalEvidenceIds:
+            err = {"success": False, "error": "originalEvidenceIds must be a non-empty list of strings"}
+            logger.error(f"get_sample_data_for_filtered_evidences validation failed: {err}")
+            return err
+
+        if len(filteredEvidenceNames) != len(originalEvidenceIds):
+            err = {
+                "success": False,
+                "error": (
+                    f"Length mismatch: filteredEvidenceNames count ({len(filteredEvidenceNames)}) "
+                    f"does not match originalEvidenceIds count ({len(originalEvidenceIds)})"
+                )
+            }
+            logger.error(f"get_sample_data_for_filtered_evidences validation failed: {err}")
+            return err
+
+        sample_data_results = {}
+        for ev_name, ev_id in zip(filteredEvidenceNames, originalEvidenceIds):
+            ev_name_clean = str(ev_name).strip()
+            ev_id_clean = str(ev_id).strip()
+
+            logger.info(f"Fetching sample data for evidence '{ev_name_clean}' (evidenceId={ev_id_clean})...")
+            payload = {"evidenceID": ev_id_clean}
+            resp = await utils.make_API_call_to_CCow(
+                payload,
+                constants.URL_FILTER_EVIDENCE_DATA,
+                ctx=ctx
+            )
+
+            records = []
+            if isinstance(resp, dict):
+                b64_file = resp.get("FileContent") or resp.get("fileBytes")
+                if b64_file and isinstance(b64_file, str):
+                    try:
+                        decoded_csv = base64.b64decode(b64_file).decode('utf-8')
+                        f_in = io.StringIO(decoded_csv)
+                        reader = csv.DictReader(f_in)
+                        for row in reader:
+                            clean_row = {k: v for k, v in row.items() if k and not k.endswith("__") and k != "id"}
+                            records.append(clean_row)
+                            if len(records) == 3:
+                                break
+                    except Exception as parse_err:
+                        logger.warning(f"Failed to parse CSV records: {parse_err}")
+                sample_data_results[ev_name_clean] = {"items": records}
+            else:
+                sample_data_results[ev_name_clean] = {"error": str(resp)}
+
+        result = {
+            "success": True,
+            "controlId": controlId.strip(),
+            "results": sample_data_results,
+        }
+        logger.info(f"get_sample_data_for_filtered_evidences final output:\n{json.dumps(result, indent=2) if isinstance(result, dict) else result}")
+        return result
+
+    except Exception as e:
+        logger.error(traceback.format_exc())
+        err = {
+            "success": False,
+            "error": f"Unexpected error while fetching sample data: {e}"
+        }
+        logger.error(f"get_sample_data_for_filtered_evidences exception: {err}")
+        return err
+
+
+

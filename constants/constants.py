@@ -15,6 +15,7 @@ else:
     headers["Authorization"]= "Basic " + base64.b64encode((cid + ":" + cs).encode("ascii")).decode("ascii")
 
 host = os.environ.get("CCOW_HOST", "http://cowapiservice:80")
+COW_BASE_URL = os.environ.get("COW_BASE_URL", "https://dev.compliancecow.live")
 
 ENABLE_CONTEXTUAL_VECTOR_SEARCH = os.environ.get("ENABLE_CONTEXTUAL_VECTOR_SEARCH", "false").lower() == "true"
 ENABLE_CCOW_API_TOOLS = os.environ.get("ENABLE_CCOW_API_TOOLS", "true").lower() == "true"
@@ -58,6 +59,7 @@ URL_LINK_CONTROL = "/v1/link-plan-controls/bulk-upsert"
 URL_PLAN_INSTANCES = "/v1/plan-instances"
 URL_PLAN_INSTANCE_CONTROLS = "/v1/plan-instance-controls"
 URL_PLAN_INSTANCE_EVIDENCES = "/v1/plan-instance-evidences"
+URL_FILTER_EVIDENCE_DATA = "/v1/plan-instance-evidences/filter-evidence-data"
 URL_PLAN_INSTANCE_NOTES = "/v1/notes"
 
 
@@ -96,6 +98,8 @@ URL_WORKFLOW_PREBUILD_RULES = "/v1/rules"
 URL_WORKFLOW_PREDEFINED_VARIABLES = "/v1/workflow-catalog/predefined-variables"
 
 URL_WORKFLOW_CREATE = "/v3/workflow-configs"
+URL_WORKFLOW_V1 = "/v1/workflow-configs"
+URL_WORKFLOW_INSTANCE = "/v1/workflow-instances"
 
 URL_WORKFLOW_RESOURCE_DATA = "/v2/aggregator/fetch-resource-data"
 
@@ -186,3 +190,14 @@ SANDBOX_EXECUTE_URL = "/v1/sandbox/execute-shell-cmd"
 
 #audit
 AUDIT_HISTORY = "/v1/audits/history"
+
+# custom report
+URL_INSIGHTS_CATEGORY = "/v1/get-insightscategory"
+URL_INSIGHTS_DASHBOARD = "/v1/get-insightsdashboards"
+REPORT_WORKFLOW_APPROVAL_URL = "/ui/custom-reports-workflow"
+
+#application
+URL_APPLICATION_CONFIGS = "/v1/app-configs"
+URL_CREDENTIAL_CONFIGS = "/v1/cred-configs"
+URL_CREATE_APPLICATION = "/v1/credential"
+URL_CREATE_APPLICATION_SCOPE = "/v1/configuration"

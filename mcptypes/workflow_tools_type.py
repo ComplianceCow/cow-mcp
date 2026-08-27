@@ -231,3 +231,12 @@ class RuleReadmeResponseVO(BaseModel):
     readmeText: Optional[str] = ""
     ruleName: Optional[str] = ""
     error: Optional[str] = ""
+    
+class WorkflowConfigVO(BaseModel):
+    id: Optional[str] = ""
+    name: Optional[str] = ""
+    error: Optional[str] = ""
+    
+class WorkflowInanceVO(BaseModel):
+    id: Optional[str] = ""
+    error: Optional[str] = ""
