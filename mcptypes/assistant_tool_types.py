@@ -82,3 +82,12 @@ class ControlSourceSummaryResponseVO(BaseModel):
         "extra": "ignore"
     }
 
+
+class FilteredEvidenceInputVO(BaseModel):
+    evidenceName: str = Field(..., description="Name of the source evidence (required)")
+    columnName: str = Field(..., description="Column name in the evidence used for joining/filtering (required)")
+    model_config = {
+        "extra": "ignore"
+    }
+
+
