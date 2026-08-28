@@ -57,8 +57,7 @@ def construct_assistant_rule(
 
     if not rule_name or not str(rule_name).strip():
         random_str = generate_random_alphanumeric_string(6)
-        rule_name = f"{sanitize(meaningful_name or plan_name)}ctl{sanitize(plan_control_displayable)}A{sanitize(plan_id)}{random_str}"
-        rule_name = rule_name.replace("-", "").upper()
+        rule_name = f"{sanitize(meaningful_name or plan_name)}ctl{sanitize(plan_control_displayable)}A{sanitize(plan_id)}{random_str}".replace("-", "")
     else:
         rule_name = str(rule_name).strip()
 
