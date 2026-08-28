@@ -2907,7 +2907,9 @@ async def assit_create_filtered_evidence(
         if err:
             return err
 
-        publish_resp = await assistant_utils.publish_rule_api(rule_name, cc_rule_name=rule_name, ctx=ctx)
+        created_rule_name = create_resp.get("name") if isinstance(create_resp, dict) and create_resp.get("name") else rule_name
+
+        publish_resp = await assistant_utils.publish_rule_api(created_rule_name, cc_rule_name=created_rule_name, ctx=ctx)
         logger.info(f"create_filtered_evidence step 5 (publish_rule_api) response:\n{json.dumps(publish_resp, indent=2) if isinstance(publish_resp, (dict, list)) else publish_resp}")
         err = utils.handle_error_response(publish_resp, "create_filtered_evidence:publish_rule")
         if err:
@@ -2928,7 +2930,7 @@ async def assit_create_filtered_evidence(
         filtered_evidences = [f"{ev['evidenceName']}_filtered" for ev in normalized_evidences]
         result = {
             "success": True,
-            "message": f"Rule '{rule_name}' created, published, and linked to control successfully",
+            "message": f"Rule '{created_rule_name}' created, published, and linked to control successfully",
             "filtered_evidences": filtered_evidences,
             "filtered_evidence": filtered_evidences,
         }
@@ -3056,8 +3058,10 @@ async def assit_update_filtered_evidence(
         if err:
             return err
 
+        updated_rule_name = create_resp.get("name") if isinstance(create_resp, dict) and create_resp.get("name") else rule_name
+
         # Step 5: Publish Rule via API
-        publish_resp = await assistant_utils.publish_rule_api(rule_name, cc_rule_name=rule_name, ctx=ctx)
+        publish_resp = await assistant_utils.publish_rule_api(updated_rule_name, cc_rule_name=updated_rule_name, ctx=ctx)
         logger.info(f"update_filtered_evidence step 5 (publish_rule_api) response:\n{json.dumps(publish_resp, indent=2) if isinstance(publish_resp, (dict, list)) else publish_resp}")
         err = utils.handle_error_response(publish_resp, "update_filtered_evidence:publish_rule")
         if err:
@@ -3078,7 +3082,7 @@ async def assit_update_filtered_evidence(
         filtered_evidences = [f"{ev['evidenceName']}_filtered" for ev in normalized_evidences]
         result = {
             "success": True,
-            "message": f"Rule '{rule_name}' updated and published successfully",
+            "message": f"Rule '{updated_rule_name}' updated and published successfully",
             "filtered_evidences": filtered_evidences,
             "filtered_evidence": filtered_evidences,
         }
