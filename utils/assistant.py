@@ -63,7 +63,7 @@ def construct_assistant_rule(
 
     n = len(evidence_items)
     minio_file_path = "<<MINIO_FILE_PATH>>"
-    task_name = "FilterServiceNowEvidence"
+    task_name = "FilterServiceNowEvidenceV2"
     task_purpose = "FilterServiceNowEvidence"
     task_description = "FilterServiceNowEvidence"
 

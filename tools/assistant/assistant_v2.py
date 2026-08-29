@@ -1863,7 +1863,7 @@ async def assit_validate_sql_query(
     
     This tool validates a SQL query by executing it against provided evidence data.
     The evidence data can be provided in two ways:
-    1. Using evidence ID (id) - evidence CSV data will be fetched automatically
+    1. Using evidence ID (id) - evidence data will be fetched automatically
     2. Using file content - base64 encoded CSV or JSON file content
     
     ⚠️ IMPORTANT REQUIREMENTS
@@ -1936,7 +1936,7 @@ async def assit_validate_sql_query(
             }
             
             if evidence_id:
-                # Fetch evidence CSV base64 bytes using filter-evidence-data API
+                # Fetch evidence JSON base64 bytes using filter-evidence-data API
                 data_payload = {
                     "evidenceID": str(evidence_id).strip()
                 }
@@ -1963,7 +1963,7 @@ async def assit_validate_sql_query(
 
                 evidence_payload["file"] = {
                     "content": str(file_content).strip(),
-                    "type": "csv"
+                    "type": "json"
                 }
             elif evidence_file:
                 if not isinstance(evidence_file, dict):
@@ -3179,16 +3179,20 @@ async def assit_get_sample_data_for_filtered_evidences(
                 b64_file = resp.get("FileContent") or resp.get("fileBytes")
                 if b64_file and isinstance(b64_file, str):
                     try:
-                        decoded_csv = base64.b64decode(b64_file).decode('utf-8')
-                        f_in = io.StringIO(decoded_csv)
-                        reader = csv.DictReader(f_in)
-                        for row in reader:
-                            clean_row = {k: v for k, v in row.items() if k and not k.endswith("__") and k != "id"}
+                        decoded_json = base64.b64decode(b64_file).decode('utf-8')
+                        data = json.loads(decoded_json)
+                        if isinstance(data, list):
+                            for item in data:
+                                if isinstance(item, dict):
+                                    clean_row = {k: v for k, v in item.items() if k and not k.endswith("__") and k != "id"}
+                                    records.append(clean_row)
+                                    if len(records) == 3:
+                                        break
+                        elif isinstance(data, dict):
+                            clean_row = {k: v for k, v in data.items() if k and not k.endswith("__") and k != "id"}
                             records.append(clean_row)
-                            if len(records) == 3:
-                                break
                     except Exception as parse_err:
-                        logger.warning(f"Failed to parse CSV records: {parse_err}")
+                        logger.warning(f"Failed to parse JSON records: {parse_err}")
                 sample_data_results[ev_name_clean] = {"items": records}
             else:
                 sample_data_results[ev_name_clean] = {"error": str(resp)}
