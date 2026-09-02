@@ -2921,7 +2921,7 @@ async def assit_create_filtered_evidence(
             logger.error(f"create_filtered_evidence step 5 failed: {err}")
             return err
 
-        link_resp = await assistant_utils.link_rule_to_control_api(control_id, rule_id, create_evidence=True, create_input=False, ctx=ctx)
+        link_resp = await assistant_utils.link_rule_to_control_api(control_id, rule_id, create_evidence=True, evidence_weight=0, create_input=False, ctx=ctx)
         logger.info(f"create_filtered_evidence step 6 (link_rule_to_control_api) response:\n{json.dumps(link_resp, indent=2) if isinstance(link_resp, (dict, list)) else link_resp}")
         err = utils.handle_error_response(link_resp, "create_filtered_evidence:link_rule_to_control")
         if err:
@@ -3073,7 +3073,7 @@ async def assit_update_filtered_evidence(
             logger.error(f"update_filtered_evidence step 5 failed: {err}")
             return err
 
-        link_resp = await assistant_utils.link_rule_to_control_api(control_id, rule_id, create_evidence=True, create_input=False, ctx=ctx)
+        link_resp = await assistant_utils.link_rule_to_control_api(control_id, rule_id, create_evidence=True, evidence_weight=0, create_input=False, ctx=ctx)
         logger.info(f"create_filtered_evidence step 6 (link_rule_to_control_api) response:\n{json.dumps(link_resp, indent=2) if isinstance(link_resp, (dict, list)) else link_resp}")
         err = utils.handle_error_response(link_resp, "update_filtered_evidence:link_rule_to_control")
         if err:
