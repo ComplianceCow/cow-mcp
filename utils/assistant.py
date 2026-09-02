@@ -233,7 +233,7 @@ async def publish_rule_api(rule_name: str, cc_rule_name: Optional[str] = None, c
     return resp
 
 
-async def link_rule_to_control_api(control_id: str, rule_id: str,  create_evidence: bool = True, create_input: bool = False,  ctx: Optional[Context] = None) -> Union[Dict[str, Any], str]:
+async def link_rule_to_control_api(control_id: str, rule_id: str,  create_evidence: bool = True, create_input: bool = False, evidence_weight: float = None,  ctx: Optional[Context] = None) -> Union[Dict[str, Any], str]:
     """Link a published rule to a plan control."""
     url = f"{constants.URL_PLAN_CONTROLS}/{control_id}/link-rule"
     payload = {
@@ -241,6 +241,9 @@ async def link_rule_to_control_api(control_id: str, rule_id: str,  create_eviden
         "createEvidence": create_evidence,
         "addAsAssessmentUserInput": create_input,
     }
+
+    if evidence_weight is not None:
+        payload["evidenceWeight"] = evidence_weight
     logger.info(f"link_rule_to_control_api: POST {url}\nPayload:\n{json.dumps(payload, indent=2)}")
     resp = await utils.make_API_call_to_CCow_and_get_response(url,"POST",payload, ctx=ctx)
     logger.info(f"link_rule_to_control_api response:\n{json.dumps(resp, indent=2) if isinstance(resp, (dict, list)) else resp}")
