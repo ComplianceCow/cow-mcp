@@ -69,6 +69,11 @@ URL_DATAHANDLER_FETCH_DATA = "/v1/datahandler/fetch-data"
 # ACTIONS
 URL_FETCH_AVAILABLE_ACTIONS = "/v1/actions/fetch-available-actions"
 URL_ACTIONS_EXECUTIONS = "/v1/actions/executions"
+URL_ACTION_SPECS = "/v1/actions/specs"
+URL_ACTION_DEPLOYMENTS = "/v1/actions/deployments"
+URL_ACTION_BINDINGS = "/v1/actions/bindings"
+URL_ACTION_LOOPBACKS = "/v1/actions/loopbacks"
+
 
 
 # GRAPHDB
