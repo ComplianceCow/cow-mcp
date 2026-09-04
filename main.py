@@ -67,6 +67,10 @@ if "reports" in MCP_TOOLS:
 if "applications" in MCP_TOOLS:
     from tools.applications import applications
     
+if "playbook" in MCP_TOOLS:
+    from tools.playbook import usecasematcher
+    from prompts.playbook import use_case_matcher_prompt
+    
 def signal_handler(sig, frame):
     print("Shutting down...")
     sys.exit(0)
