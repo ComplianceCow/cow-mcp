@@ -22,7 +22,7 @@ from fastmcp import Context
 from toon_format import encode
 
 @mcp.tool()
-async def create_assessment_with_yaml(yaml_content: str, ctx: Context | None = None) -> dict:
+async def create_assessment(yaml_content: str, ctx: Context | None = None) -> dict:
     """
     Create a new assessment from YAML definition.
     
@@ -38,17 +38,17 @@ async def create_assessment_with_yaml(yaml_content: str, ctx: Context | None = N
         Dict with success status, assessment data, UI URL, category name, or error details
     """
     try:
-        logger.info("create_assessment_with_yaml: \n")
+        logger.info("create_assessment: \n")
         
         if not yaml_content or not yaml_content.strip():
-            logger.error("create_assessment_with_yaml error: YAML content is empty\n")
+            logger.error("create_assessment error: YAML content is empty\n")
             return {"success": False, "error": "YAML content is empty"}
 
         try:
             parsed = yaml.safe_load(yaml_content)
-            logger.debug("create_assessment_with_yaml yaml_content: {}\n".format(yaml_content))
+            logger.debug("create_assessment yaml_content: {}\n".format(yaml_content))
         except Exception as ye:
-            logger.error(f"create_assessment_with_yaml error: Invalid YAML: {ye}\n")
+            logger.error(f"create_assessment error: Invalid YAML: {ye}\n")
             return {"success": False, "error": f"Invalid YAML: {ye}"}
 
         # Extract name
@@ -59,7 +59,7 @@ async def create_assessment_with_yaml(yaml_content: str, ctx: Context | None = N
                 name = meta.get("name")
 
         if not name or not str(name).strip():
-            logger.error("create_assessment_with_yaml error: Assessment name not found in metadata.name\n")
+            logger.error("create_assessment error: Assessment name not found in metadata.name\n")
             return {"success": False, "error": "Assessment name not found in metadata.name"}
 
         # Extract categoryName from metadata
@@ -70,7 +70,7 @@ async def create_assessment_with_yaml(yaml_content: str, ctx: Context | None = N
                 category_name = meta.get("categoryName")
 
         if not category_name or not isinstance(category_name, str) or not category_name.strip():
-            logger.error("create_assessment_with_yaml error: categoryName not found in metadata.categoryName\n")
+            logger.error("create_assessment error: categoryName not found in metadata.categoryName\n")
             return {"success": False, "error": "categoryName is required in metadata.categoryName"}
 
         category_name = category_name.strip()
@@ -82,11 +82,11 @@ async def create_assessment_with_yaml(yaml_content: str, ctx: Context | None = N
             
             # Handle error response
             if isinstance(categories_resp, str):
-                logger.error(f"create_assessment_with_yaml error: Failed to fetch categories: {categories_resp}\n")
+                logger.error(f"create_assessment error: Failed to fetch categories: {categories_resp}\n")
                 return {"success": False, "error": f"Failed to fetch assessment categories"}
             
             if isinstance(categories_resp, dict) and categories_resp.get("Description"):
-                logger.error(f"create_assessment_with_yaml error: Failed to fetch categories: {categories_resp}\n")
+                logger.error(f"create_assessment error: Failed to fetch categories: {categories_resp}\n")
                 return {"success": False, "error": f"Failed to fetch assessment categories"}
             
             # Expect list response
@@ -110,37 +110,37 @@ async def create_assessment_with_yaml(yaml_content: str, ctx: Context | None = N
                 create_category_resp = await utils.make_API_call_to_CCow_and_get_response(constants.URL_ASSESSMENT_CATEGORIES,"POST",create_category_payload, ctx=ctx)
                 # Handle error response from category creation
                 if isinstance(create_category_resp, str):
-                    logger.error(f"create_assessment_with_yaml error: Failed to create category: {create_category_resp}\n")
+                    logger.error(f"create_assessment error: Failed to create category: {create_category_resp}\n")
                     return {"success": False, "error": f"Failed to create category"}
                 
                 if isinstance(create_category_resp, dict):
                     if "Message" in create_category_resp:
-                        logger.error(f"create_assessment_with_yaml error: Failed to create category: {create_category_resp}\n")
+                        logger.error(f"create_assessment error: Failed to create category: {create_category_resp}\n")
                         return {"success": False, "error": create_category_resp}
 
                     # Extract category ID from successful creation
                     category_id = create_category_resp.get("id")
                     if not category_id:
-                        logger.error(f"create_assessment_with_yaml error: Category created but no ID returned: {create_category_resp}\n")
+                        logger.error(f"create_assessment error: Category created but no ID returned: {create_category_resp}\n")
                         return {"success": False, "error": f"Failed to create category"}
                     
                     logger.info(f"Category '{category_name}' created successfully with ID: {category_id}\n")
                 else:
-                    logger.error(f"create_assessment_with_yaml error: Unexpected response type when creating category: {type(create_category_resp)}\n")
+                    logger.error(f"create_assessment error: Unexpected response type when creating category: {type(create_category_resp)}\n")
                     return {"success": False, "error": f"Unexpected response type when creating category"}
             else:
                 logger.info(f"Using existing category '{category_name}' with ID: {category_id}\n")
                 
         except Exception as e:
             logger.error(traceback.format_exc())
-            logger.error(f"create_assessment_with_yaml error: Unable to resolve or create category: {e}\n")
+            logger.error(f"create_assessment error: Unable to resolve or create category: {e}\n")
             return {"success": False, "error": f"Unable to resolve or create category: {e}"}
 
         try:
             file_bytes = yaml_content.encode("utf-8")
             file_b64 = base64.b64encode(file_bytes).decode("utf-8")
         except Exception as be:
-            logger.error(f"create_assessment_with_yaml error: Failed to encode YAML content: {be}\n")
+            logger.error(f"create_assessment error: Failed to encode YAML content: {be}\n")
             return {"success": False, "error": f"Failed to encode YAML content: {be}"}
 
         payload = {
@@ -154,20 +154,20 @@ async def create_assessment_with_yaml(yaml_content: str, ctx: Context | None = N
         payload["categoryId"] = category_id
 
 
-        logger.debug("create_assessment_with_yaml payload: {}\n".format(json.dumps({**payload, "fileContent": "<base64-encoded>"})))
+        logger.debug("create_assessment payload: {}\n".format(json.dumps({**payload, "fileContent": "<base64-encoded>"})))
         
         resp = await utils.make_API_call_to_CCow_and_get_response(constants.URL_ASSESSMENTS,"POST",payload, ctx=ctx)
-        logger.debug("create_assessment_with_yaml output: {}\n".format(json.dumps(resp) if isinstance(resp, dict) else resp))
+        logger.debug("create_assessment output: {}\n".format(json.dumps(resp) if isinstance(resp, dict) else resp))
         
         # Ensure response is always a dict (utils can return string on error)
         if isinstance(resp, str):
-            logger.error("create_assessment_with_yaml error: {}\n".format(resp))
+            logger.error("create_assessment error: {}\n".format(resp))
             return {"success": False, "error": resp}
         
         # If response is already a dict, check for error fields
         if isinstance(resp, dict):
             if "Message" in resp:
-                logger.error("create_assessment_with_yaml error: {}\n".format(resp))
+                logger.error("create_assessment error: {}\n".format(resp))
                 return {"success": False, "error": resp}
             
             # Extract assessment ID from response
@@ -190,94 +190,8 @@ async def create_assessment_with_yaml(yaml_content: str, ctx: Context | None = N
             return {"success": True, "data": resp, "url": ui_url, "categoryName": category_name}
         
         # Fallback: wrap unexpected response type
-        logger.error("create_assessment_with_yaml error: Unexpected response type: {}\n".format(type(resp)))
+        logger.error("create_assessment error: Unexpected response type: {}\n".format(type(resp)))
         return {"success": False, "error": f"Unexpected response type: {resp}"}
-    except Exception as e:
-        logger.error(traceback.format_exc())
-        logger.error("create_assessment_with_yaml error: {}\n".format(e))
-        return {"success": False, "error": f"Unexpected error creating assessment: {e}"}
-
-
-@mcp.tool()
-async def create_assessment(
-    categoryName: str,
-    assessmentName: str,
-    ctx: Context | None = None
-) -> dict:
-    """
-    Create a new assessment with category name and assessment name.
-    
-    This function creates a category (or reuses an existing category if it already exists),
-    and then creates a new assessment.
-    
-    Args:
-        categoryName (str): Name of the assessment category.
-        assessmentName (str): Name of the assessment to create.
-        
-    Returns:
-        Dict with success status and created assessment data (AssessmentVO) or error details:
-        - success (bool): Whether the request was successful
-        - data (AssessmentVO, optional): Created assessment details containing id, name, categoryName
-        - error (str | dict, optional): Error message or details if creation failed
-    """
-    try:
-        logger.info("create_assessment: \n")
-
-        if not categoryName or not str(categoryName).strip():
-            logger.error("create_assessment error: categoryName is required\n")
-            return {"success": False, "error": "categoryName is required"}
-
-        if not assessmentName or not str(assessmentName).strip():
-            logger.error("create_assessment error: assessmentName is required\n")
-            return {"success": False, "error": "assessmentName is required"}
-
-        category_name = str(categoryName).strip()
-        assessment_name = str(assessmentName).strip()
-
-        category_create_payload = {
-            "name": category_name
-        }
-
-        create_category = await utils.make_API_call_to_CCow_and_get_response(
-            constants.URL_ASSESSMENT_CATEGORIES, "POST", category_create_payload, ctx=ctx
-        )
-
-        error = utils.handle_error_response(create_category, "create_assessment")
-        if error:
-            logger.error("create_assessment create_category_error: {}\n".format(error))
-            if isinstance(create_category, dict) and create_category.get("Description") != "category name already exists":
-                return error
-
-        payload = {
-            "name": assessment_name,
-            "type": "generic",
-            "applicationType": "generic",
-            "status": "active",
-            "categoryName": category_name,
-            "linkDefaultCCFPlan": {
-                "propagate": "evidence",
-                "propagateToSource": "none",
-                "nonReportable": True,
-            },
-        }
-
-        create_output = await utils.make_API_call_to_CCow_and_get_response(
-            constants.URL_PLANS, "POST", payload, ctx=ctx
-        )
-        error = utils.handle_error_response(create_output, "create_assessment")
-        if error:
-            logger.error("create_assessment create_error: {}\n".format(error))
-            return error
-
-        if isinstance(create_output, dict) and create_output.get("id"):
-            assessment = assessment_vo.AssessmentVO(
-                id=create_output.get("id"),
-                name=assessment_name,
-                categoryName=category_name
-            )
-            return {"success": True, "data": assessment}
-
-        return {"success": False, "error": f"Failed to create assessment: {create_output}"}
     except Exception as e:
         logger.error(traceback.format_exc())
         logger.error("create_assessment error: {}\n".format(e))
@@ -905,187 +819,6 @@ async def attach_citation_to_control_config(
         logger.error(traceback.format_exc())
         logger.error("attach_citation_to_control_config error: {}\n".format(e))
         return {"success": False, "error": f"Unexpected error attaching citation to control: {e}"}
-
-
-@mcp.tool() 
-async def suggest_asset_controls(    
-    controlName: str,
-    assessmentId: str = "",
-    description: str = "",
-    controlId: str = "",
-    ctx: Context | None = None
-) -> dict: 
-    """
-    Suggest asset controls for a given control name or description.
-    
-    WORKFLOW / USAGE NOTE:
-    This tool should be used ONLY when `suggest_control_config_citations` does not return any suggestions or returns empty results.
-    
-    This tool searches for matching asset control resources using the provided control name and description as keywords.
-    The suggested asset control IDs can then be linked to a target control config using `link_control_config_to_asset_controls`.
-
-    Args:
-        controlName (str): Name of the control to get asset suggestions for.
-        assessmentId (str, optional): Assessment ID for context.
-        description (str, optional): Description of the control to get suggestions for.
-        controlId (str, optional): Control ID if updating an existing control config.
-
-    Returns:
-        Dict containing:
-        - success (bool): Whether the request was successful
-        - items (list[dict]): List of matching asset control objects, each containing:
-            - id (str): Control ID 
-            - name (str): Control name
-            - description (str): Control description
-            - context (str): Control context
-            - assetAssessmentName (str): Asset plan/assessment name (maps from plan_name)
-        - next_action (str): Recommended next step ("link_control_config_to_asset_controls")
-        - error (str, optional): Error message if request failed
-    """
-    try:
-        logger.info("suggest_asset_controls: \n")
-
-        name_str = str(controlName).strip() if controlName else ""
-        desc_str = str(description).strip() if description else ""
-
-        if name_str and desc_str:
-            keyword = f"{name_str} - {desc_str}"
-        elif name_str:
-            keyword = name_str
-        else:
-            keyword = desc_str
-
-        if not keyword:
-            logger.error("suggest_asset_controls error: controlName or description is required\n")
-            return {"success": False, "error": "controlName or description is required"}
-
-        payload = {
-            "keyword": keyword,
-            "model": "huggingface"
-        }
-
-        logger.debug(f"suggest_asset_controls payload: {json.dumps(payload)}\n")
-
-        output = await utils.make_API_call_to_CCow_and_get_response(
-            constants.URL_FETCH_MATCHING_ASSET_CONTROLS,
-            "POST",
-            payload,
-            ctx=ctx
-        )
-
-        logger.debug("suggest_asset_controls output: {}\n".format(json.dumps(output) if isinstance(output, dict) else output))
-
-        error = utils.handle_error_response(output, "suggest_asset_controls")
-        if error:
-            logger.error(f"suggest_asset_controls error: {error}\n")
-            return error
-
-        items = []
-        if isinstance(output, dict):
-            raw_items = output.get("items", [])
-            if isinstance(raw_items, list):
-                for raw_item in raw_items:
-                    if isinstance(raw_item, dict):
-                        payload = raw_item.get("payload", {})
-                        if not isinstance(payload, dict):
-                            payload = {}
-
-                        abstracted_item = {
-                            "id": raw_item.get("resourceId") or payload.get("plan_control_id") or raw_item.get("id", ""),
-                            "name": payload.get("name") or raw_item.get("name", ""),
-                            "description": payload.get("description") or raw_item.get("description", ""),
-                            "context": payload.get("context") or raw_item.get("context", ""),
-                            "assetAssessmentName": payload.get("plan_name") or raw_item.get("plan_name", "")
-                        }
-                        items.append(abstracted_item)
-
-        logger.info(f"suggest_asset_controls: Found {len(items)} matching item(s)\n")
-        return {"success": True, "items": items, "next_action": "link_control_config_to_asset_controls"}
-
-    except Exception as e:
-        logger.error(traceback.format_exc())
-        logger.error("suggest_asset_controls error: {}\n".format(e))
-        return {"success": False, "error": f"Unexpected error suggesting asset controls: {e}"}
-
-
-@mcp.tool() 
-async def link_control_config_to_asset_controls(
-    sourceAssetControlIds: list[str],
-    targetControlConfigId: str,
-    ctx: Context | None = None
-) -> dict: 
-    """
-    Link one or more source asset controls to a target control config.
-
-    This tool establishes linking between source asset controls and a target control config in an assessment.
-
-    Args:
-        sourceAssetControlIds (list[str]): List of source asset control IDs to link.
-        targetControlConfigId (str): Target control config ID to link the source asset controls to.
-
-    Returns:
-        Dict containing:
-        - success (bool): Whether the linking operation was successful
-        - message (str, optional): Success description
-        - next_action (str): Recommended next step ("fetch_control_source_summary")
-        - data (dict, optional): Raw response from the link API
-        - error (str, optional): Error message if request failed
-    """
-    try:
-        logger.info("link_control_config_to_asset_controls: \n")
-
-        if not sourceAssetControlIds or not isinstance(sourceAssetControlIds, list) or len(sourceAssetControlIds) == 0:
-            logger.error("link_control_config_to_asset_controls error: sourceAssetControlIds is required and must be a non-empty list\n")
-            return {"success": False, "error": "sourceAssetControlIds is required and must be a non-empty list"}
-
-        if not targetControlConfigId or not str(targetControlConfigId).strip():
-            logger.error("link_control_config_to_asset_controls error: targetControlConfigId is required\n")
-            return {"success": False, "error": "targetControlConfigId is required"}
-
-        target_id = str(targetControlConfigId).strip()
-        valid_source_ids = [str(sid).strip() for sid in sourceAssetControlIds if sid and str(sid).strip()]
-
-        if not valid_source_ids:
-            logger.error("link_control_config_to_asset_controls error: sourceAssetControlIds contains no valid strings\n")
-            return {"success": False, "error": "sourceAssetControlIds contains no valid control IDs"}
-
-        payload = [
-            {
-                "sourcePlan": {
-                    "controlId": source_id
-                },
-                "targetPlan": {
-                    "controlId": target_id
-                },
-                "userGenerated": True,
-                "propagate": "evidence",
-                "propagateToSource": "none",
-                "nonReportable": True,
-            }
-            for source_id in valid_source_ids
-        ]
-
-        logger.debug(f"link_control_config_to_asset_controls payload: {json.dumps(payload)}\n")
-
-        output = await utils.make_API_call_to_CCow_and_get_response(
-            constants.URL_LINK_CONTROL,
-            "POST",
-            payload,
-            ctx=ctx
-        )
-
-        error = utils.handle_error_response(output, "link_control_config_to_asset_controls")
-        if error:
-            logger.error(f"link_control_config_to_asset_controls error: {error}\n")
-            return error
-
-        logger.info(f"link_control_config_to_asset_controls: Successfully linked {len(valid_source_ids)} source asset control(s) to target {target_id}\n")
-        return {"success": True, "message": "Source asset controls were successfully linked to the target control config.", "next_action": "fetch_control_source_summary", "data": output}
-
-    except Exception as e:
-        logger.error(traceback.format_exc())
-        logger.error("link_control_config_to_asset_controls error: {}\n".format(e))
-        return {"success": False, "error": f"Unexpected error linking asset controls to target control config: {e}"}
 
 @mcp.tool()
 async def create_sql_query_evidence(
@@ -2799,265 +2532,132 @@ async def get_context_tables(controlId: str, ctx: Context | None = None) -> dict
 @mcp.tool()
 async def create_control_config(
     assessmentName: str,
-    controlName: str,
-    controlDescription: str,
-    controlCategory: str,
-    entityClass: str | None = None,
-    entities: list[str] | None = None,
+    controlObjectiveName: str,
+    controlObjectiveDescription: str,
+    controlObjectiveCategory: str,
+    entityClass: str,
+    entities: list[str],
     controlContext: str | None = None,
     ctx: Context | None = None
 ) -> dict:
     """
-    Create or update an assessment by adding a control config.
+    Create or update an assessment by adding a control config (control objective).
 
     Important:
     - Use only user-provided inputs and do not assume any values.
 
     Behavior:
-    - If `entityClass` and `entities` are provided, uses the entity-based control creation flow.
-    - If `entityClass` or `entities` are missing/empty, uses direct control config creation flow.
-
+    - If an assessment with the given `assessmentName` already exists, the control objective
+      is added to the existing assessment.
+    - If no assessment with the given `assessmentName` exists, a new assessment is created
+      and the control objective is added to it.
+    
     Args:
         assessmentName (str): Name of the assessment (required).
-        controlName (str): Control name (required).
-        controlDescription (str): Control description (required).
-        controlCategory (str): Parent control category name (required).
-        entityClass (str, optional): Entity class name.
-        entities (list[str], optional): List of entity names.
+        controlObjectiveName (str): Control objective name (required).
+        controlObjectiveDescription (str): Control objective description (required).
+        controlObjectiveCategory (str): Parent control name that will be a first-level control (required).
+        entityClass (str): Entity class name (required).
+        entities (list[str]): List of entity names (required).
         controlContext (str, optional): Additional control context.
 
     Returns:
-        Dict with success status and created control/assessment details or error message.
+        Dict with:
+        - success (bool)
+        - data (dict, optional): API response
+            - assessment id (str)
+        - error (str, optional)
     """
     try:
         logger.info("create_control_config invoked\n")
-        if not assessmentName or not str(assessmentName).strip():
+
+        if not assessmentName or not assessmentName.strip():
             return {"success": False, "error": "assessmentName is mandatory"}
 
-        if not controlName or not str(controlName).strip():
-            return {"success": False, "error": "controlName is mandatory"}
+        if not controlObjectiveName or not controlObjectiveName.strip():
+            return {"success": False, "error": "controlObjectiveName is mandatory"}
 
-        if not controlDescription or not str(controlDescription).strip():
-            return {"success": False, "error": "controlDescription is mandatory"}
+        if not controlObjectiveDescription or not controlObjectiveDescription.strip():
+            return {"success": False, "error": "controlObjectiveDescription is mandatory"}
         
-        if not controlCategory or not str(controlCategory).strip():
-            return {"success": False, "error": "controlCategory is mandatory"}
+        if not controlObjectiveCategory or not controlObjectiveCategory.strip():
+            return {"success": False, "error": "controlObjectiveCategory is mandatory"}
 
-        # Flow A: If entityClass and entities are both provided, use existing add-control-objective API
-        if entityClass and str(entityClass).strip() and isinstance(entities, list) and len(entities) > 0:
-            valid_entities = [e.strip() for e in entities if isinstance(e, str) and e.strip()]
-            if valid_entities:
-                entity_payload = [
-                    {
-                        "name": entity,
-                        "class": entityClass.strip()
-                    }
-                    for entity in valid_entities
-                ]
+        if not entityClass or not entityClass.strip():
+            return {"success": False, "error": "entityClass is mandatory"}
 
-                payload = {
-                    "assessmentName": assessmentName.strip(),
-                    "controlObjectives": [
-                        {
-                            "name": controlName.strip(),
-                            "description": controlDescription.strip(),
-                            "category": controlCategory.strip(),
-                            "context": controlContext.strip() if controlContext else "",
-                            "additionalContext": {
-                                "entities": entity_payload
-                            }
-                        }
-                    ]
-                }
+        if not isinstance(entities, list) or not entities:
+            return {"success": False, "error": "entities must be a non-empty array of strings"}
 
-                logger.debug("create_control_config payload (entity flow):\n{}\n".format(json.dumps(payload, indent=2)))
+        for e in entities:
+            if not isinstance(e, str) or not e.strip():
+                return {"success": False, "error": "Each entity must be a non-empty string"}
 
-                resp = await utils.make_API_call_to_CCow_and_get_response(
-                    constants.URL_ADD_CONTROL_OBJECTIVE,
-                    "POST",
-                    payload,
-                    ctx=ctx
-                )
 
-                logger.debug(
-                    "create_control_config response (entity flow):\n{}\n".format(
-                        json.dumps(resp) if isinstance(resp, dict) else resp
-                    )
-                )
-
-                if isinstance(resp, str):
-                    logger.error(f"create_control_config error: {resp}\n")
-                    return {"success": False, "error": resp}
-
-                if isinstance(resp, dict):
-                    if "Message" in resp:
-                        logger.error(f"create_control_config error: {resp}\n")
-                        return {"success": False, "error": resp}
-                    result = {
-                        "assessment_id": resp.get("id")
-                    }
-                    logger.info(
-                        f"create_control_config: Successfully created custom control with ID: {result.get('assessment_id')}\n"
-                    )
-                    return {"success": True, "data": result}
-
-                return {
-                    "success": False,
-                    "error": f"Unexpected response type: {type(resp)}"
-                }
-
-        # Flow B: Direct control config creation without entities
-        logger.info("create_control_config: executing direct control creation flow (no entities provided)\n")
-        
-        # Step 1: Resolve assessmentId (planId)
-        assessment_id = None
-        category_name = str(controlCategory).strip()
-        assessment_name = str(assessmentName).strip()
-
-        try:
-            plans_resp = await utils.make_GET_API_call_to_CCow(
-                f"{constants.URL_PLANS}?fields=basic&name_contains={assessment_name}",
-                ctx=ctx
-            )
-            if isinstance(plans_resp, dict) and "items" in plans_resp:
-                items = plans_resp.get("items", [])
-                for item in items:
-                    if isinstance(item, dict) and item.get("name") == assessment_name:
-                        assessment_id = item.get("id")
-                        break
-                if not assessment_id and items and isinstance(items[0], dict):
-                    assessment_id = items[0].get("id")
-        except Exception as pe:
-            logger.error(f"create_control_config: Error fetching plans: {pe}\n")
-
-        # If assessment plan does not exist, return error directly
-        if not assessment_id:
-            logger.error(f"create_control_config: Assessment '{assessment_name}' not found\n")
-            return {"success": False, "error": f"Assessment '{assessment_name}' not found"}
-
-        # Step 2: Fetch existing controls for this plan to find/increment parents and children
-        existing_controls = []
-        try:
-            ctrl_resp = await utils.make_GET_API_call_to_CCow(
-                f"{constants.URL_PLAN_CONTROLS}?page=1&page_size=1000&plan_id={assessment_id}&fields=basic&include_additional_context=true",
-                ctx=ctx
-            )
-            if isinstance(ctrl_resp, dict) and "items" in ctrl_resp and isinstance(ctrl_resp["items"], list):
-                existing_controls = ctrl_resp["items"]
-        except Exception as ce:
-            logger.error(f"create_control_config: Error fetching plan controls: {ce}\n")
-
-        # Step 3: Find or Create Parent Control
-        parent_id = None
-        parent_alias = None
-
-        for ctrl in existing_controls:
-            if isinstance(ctrl, dict):
-                c_name = (ctrl.get("name") or "").strip().lower()
-                if c_name == category_name.lower():
-                    parent_id = ctrl.get("id")
-                    parent_alias = str(ctrl.get("alias") or ctrl.get("displayable") or "1")
-                    break
-
-        if not parent_id:
-            # Determine incremented parent alias (1, 2, 3, ...)
-            parent_nums = []
-            for ctrl in existing_controls:
-                if isinstance(ctrl, dict):
-                    # Top-level control if parentId is empty/null or alias is simple integer
-                    p_id = ctrl.get("parentId")
-                    alias_val = str(ctrl.get("alias") or ctrl.get("displayable") or "")
-                    if not p_id and alias_val.isdigit():
-                        parent_nums.append(int(alias_val))
-
-            next_parent_num = (max(parent_nums) + 1) if parent_nums else 1
-            parent_alias = str(next_parent_num)
-
-            parent_payload = {
-                "name": category_name,
-                "description": category_name,
-                "displayable": parent_alias,
-                "alias": parent_alias,
-                "planId": str(assessment_id),
-                "isPreRequisite": False
+        entity_payload = [
+            {
+                "name": entity.strip(),
+                "class": entityClass.strip()
             }
+            for entity in entities
+        ]
 
-            logger.debug(f"create_control_config parent payload: {json.dumps(parent_payload)}\n")
-            parent_resp = await utils.make_API_call_to_CCow_and_get_response(
-                constants.URL_PLAN_CONTROLS,
-                "POST",
-                parent_payload,
-                ctx=ctx
-            )
-
-            if isinstance(parent_resp, str):
-                return {"success": False, "error": parent_resp}
-            if isinstance(parent_resp, dict) and "Message" in parent_resp:
-                return {"success": False, "error": parent_resp}
-
-            if isinstance(parent_resp, dict) and parent_resp.get("id"):
-                parent_id = parent_resp.get("id")
-            else:
-                return {"success": False, "error": f"Failed to create parent control: {parent_resp}"}
-
-        # Step 4: Create Child Control under parent (alias: 1.1, 1.2, 2.1, etc.)
-        child_suffixes = []
-        if parent_id and parent_alias:
-            for ctrl in existing_controls:
-                if isinstance(ctrl, dict):
-                    c_parent = ctrl.get("parentId")
-                    c_alias = str(ctrl.get("alias") or ctrl.get("displayable") or "")
-                    if (c_parent and c_parent == parent_id) or c_alias.startswith(f"{parent_alias}."):
-                        parts = c_alias.split(".")
-                        if len(parts) == 2 and parts[0] == parent_alias and parts[1].isdigit():
-                            child_suffixes.append(int(parts[1]))
-
-        next_child_suffix = (max(child_suffixes) + 1) if child_suffixes else 1
-        child_alias = f"{parent_alias}.{next_child_suffix}"
-
-        child_payload = {
-            "name": str(controlName).strip(),
-            "description": str(controlDescription).strip() if controlDescription else "",
-            "displayable": child_alias,
-            "alias": child_alias,
-            "planId": str(assessment_id),
-            "parentId": str(parent_id),
-            "isPreRequisite": False
+        payload = {
+            "assessmentName": assessmentName.strip(),
+            "controlObjectives": [
+                {
+                    "name": controlObjectiveName.strip(),
+                    "description": controlObjectiveDescription.strip(),
+                    "category": controlObjectiveCategory.strip(),
+                    "context": controlContext.strip() if controlContext else "",
+                    "additionalContext": {
+                        "entities": entity_payload
+                    }
+                }
+            ]
         }
 
-        logger.debug(f"create_control_config child payload: {json.dumps(child_payload)}\n")
-        child_resp = await utils.make_API_call_to_CCow_and_get_response(
-            constants.URL_PLAN_CONTROLS,
+        logger.debug("create_control_config payload:\n{}\n".format(json.dumps(payload, indent=2)))
+
+        resp = await utils.make_API_call_to_CCow_and_get_response(
+            constants.URL_ADD_CONTROL_OBJECTIVE,
             "POST",
-            child_payload,
+            payload,
             ctx=ctx
         )
 
-        if isinstance(child_resp, str):
-            return {"success": False, "error": child_resp}
-        if isinstance(child_resp, dict) and "Message" in child_resp:
-            return {"success": False, "error": child_resp}
+        logger.debug(
+            "create_control_config response:\n{}\n".format(
+                json.dumps(resp) if isinstance(resp, dict) else resp
+            )
+        )
 
-        if isinstance(child_resp, dict) and child_resp.get("id"):
-            control_data = {
-                "id": child_resp.get("id"),
-                "displayable": child_resp.get("displayable", child_alias),
-                "alias": child_resp.get("alias", child_alias),
-                "name": child_resp.get("name", controlName.strip()),
-                "parentId": parent_id,
-                "assessment_id": assessment_id
+        if isinstance(resp, str):
+            logger.error(f"create_control_config error: {resp}\n")
+            return {"success": False, "error": resp}
+
+        if isinstance(resp, dict):
+            if "id" not in resp:
+                return {"success": False, "error": f"Unexpected response: {resp}"}
+            result = {
+                "assessment_id": resp.get("id")
             }
-            logger.info(f"create_control_config: Successfully created child control with ID: {control_data['id']}\n")
-            return {"success": True, "data": control_data}
+            logger.info(
+                f"create_control_config: Successfully created custom control with ID: {result['assessment_id']}\n"
+            )
+            return {"success": True, "data": result}
 
-        return {"success": False, "error": f"Failed to create child control: {child_resp}"}
+        return {
+            "success": False,
+            "error": f"Unexpected response type: {type(resp)}"
+        }
 
     except Exception as e:
         logger.error(traceback.format_exc())
-        logger.error(f"create_control_config error: {e}\n")
+        logger.error("create_control_config error: {}\n".format(e))
         return {
             "success": False,
-            "error": f"Unexpected error while adding control config: {e}"
+            "error": f"Unexpected error while adding custom control: {e}"
         }
     
 
@@ -3070,7 +2670,7 @@ async def update_control_config_contexts(
     ctx: Context | None = None
 ) -> dict:
     """
-    Update both context and additionalContext (entities) of an existing control config.
+    Update both context and additionalContext (entities) of an existing control config (control objective).
 
     Args:
         controlConfigId (str): ID of the control config to update (required).
@@ -3189,37 +2789,3 @@ async def update_control_config_contexts(
             "success": False,
             "error": f"Unexpected error while updating control contexts: {e}"
         }
-
-
-@mcp.tool(annotations=utils.tool_annotations("List All Assessment Categories",read_only=True))
-async def assitant_list_all_assessment_categories(ctx: Context | None = None) -> assessment_vo.CategoryListV2VO:
-    """
-        Get all assessment categories
-        
-        Returns:
-            - categories (list[Category]): A list of category objects, where each category includes:
-                - id (str): Unique identifier of the assessment category.
-                - name (str): Name of the category.
-            - error : An error message if any issues occurred during retrieval.
-
-    """
-    try:
-        logger.info("get_all_assessment_categories: \n")
-
-        output=await utils.make_API_call_to_CCow_and_get_response(constants.URL_ASSESSMENT_CATEGORIES, "GET", ctx=ctx)
-        
-        error = utils.build_structured_error(output, "assessments:list_all_assessment_categories")
-        if error:
-            logger.error("list_all_assessment_categories error: {}\n".format(output))
-            return assessment_vo.CategoryListV2VO(error=error)
-
-        category_list: list[assessment_vo.CategoryVO] = []
-        for item in output:
-            if "id" in item and "name" in item:
-                category_list.append(assessment_vo.CategoryVO(id=item["id"],name=item["name"]))
-        
-        logger.debug("categories: {}\n".format(category_list))
-        return assessment_vo.CategoryListV2VO(categories=category_list)
-    except Exception as e:
-        logger.error("list_all_assessment_categories error: {}\n".format(e))
-        return assessment_vo.CategoryListV2VO(error=utils.build_structured_error(f"Unexpected error: {e}", "assessments:list_all_assessment_categories"))
