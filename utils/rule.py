@@ -1387,3 +1387,66 @@ def update_rule_api(rule_structure: dict[str, Any], ctx: Optional[Context] = Non
     wsutils.post(path=wsutils.build_api_url(
         endpoint=constants.URL_UPDATE_RULE), data=json.dumps(rule_structure), header=headers)
     return {"rule_id": rule_id, "status": "udpated", "message": "Rule updated successfully", "timestamp": datetime.now().isoformat()}
+
+def fetch_action_rules_api(params: dict[str, Any] = None, include_read_me: bool = True, ctx: Optional[Context] = None) -> list[vo.SimplifiedRuleVO]:
+    if params is None:
+        params = {}
+
+    if not is_valid_key(params, "page_size"):
+        params["page_size"] = 50
+
+    request_params = {**params, "tags": "action"}
+    if include_read_me:
+        request_params["include_read_me"] = "true"
+
+    headers = wsutils.create_header(ctx)
+    cur_page = 1
+    has_next = True
+    combined_rules = []
+
+    while has_next:
+        paginated_params = {**request_params, "page": cur_page}
+
+        response = wsutils.get(
+            path=wsutils.build_api_url(endpoint=constants.URL_FETCH_RULES),
+            params=paginated_params,
+            header=headers,
+        )
+
+        if is_valid_key(response, "items", array_check=True):
+            rules = response["items"]
+
+            for data in rules:
+                if data.get("readmeData"):
+                    try:
+                        readme = data["readmeData"]
+                        if isinstance(readme, bytes):
+                            readme = readme.decode("utf-8")
+                        elif isinstance(readme, str):
+                            try:
+                                readme = base64.b64decode(readme).decode("utf-8")
+                            except Exception:
+                                pass
+                        data["readmeData"] = readme
+                    except Exception as e:
+                        logger.warning(f"Failed to decode base64 content: {e}")
+
+                meta = data.get('meta', None)
+                if not meta:
+                    meta = {
+                        "name": data.get("name", ""),
+                        "purpose": data.get("purpose", ""),
+                        "description": data.get("description", "")
+                    }
+                if data.get("readmeData") and isinstance(meta, dict):
+                    meta["readmeData"] = data["readmeData"]
+                if meta:
+                    combined_rules.append(vo.SimplifiedRuleVO.model_validate(meta))
+
+            total_pages = int(response.get("totalPage", 0))
+            cur_page += 1
+            has_next = cur_page <= total_pages
+        else:
+            has_next = False
+
+    return combined_rules
