@@ -293,6 +293,15 @@ async def package_and_upload_custom_report(
         logger.error(f"package_and_upload_custom_report error: {e}")
         return WorkflowInanceVO(error=f"Packaging or upload failed: {str(e)}")
 
+
+@mcp.tool()
+async def get_user_info(ctx: Context):
+    logger.info("fetch get_user_info : \n")
+    output = await utils.make_API_call_to_CCow_and_get_response(
+                constants.URL_USERS_ME, "GET", ctx=ctx
+            )
+    logger.info(f"fetch get_user_info - output : {output}")
+    return output
         
 @mcp.tool()
 async def send_custom_report_approval_workflow_url(ctx: Context | None = None) -> str:
@@ -307,9 +316,7 @@ async def send_custom_report_approval_workflow_url(ctx: Context | None = None) -
     import os
     try:
         logger.info("send_workflow_url")
-        output = await utils.make_API_call_to_CCow_and_get_response(
-            constants.URL_USERS_ME, "GET", ctx=ctx
-        )
+        output = await get_user_info(ctx=ctx)
         logger.debug("users/me - output: %s", output)
 
         if not isinstance(output, dict) or "error" in output or "Message" in output:
