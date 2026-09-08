@@ -283,6 +283,9 @@ async def match_use_case(utterance: str, limit: int = 5, ctx: Context | None = N
             u.description AS description,
             u.inScope AS inScope, u.outOfScope AS outOfScope,
             u.blockingInputs AS blockingInputs, u.levels AS levels,
+            s.detail AS detail,
+            s.config AS config,
+            s.requiresApplication AS requiresApplication,
             count(s) AS steps
     """, ctx=ctx)
 
@@ -414,12 +417,60 @@ async def match_steps(utterance: str, limit: int = 8, exclude_use_case: str | No
 @mcp.tool()
 async def describe_use_case(use_case_id: str, ctx: Context | None = None) -> dict:
     """
-    The full use case in client-facing terms: what it covers, what it does not,
-    what the client must decide, and the ordered sequence.
+    The full use case in client-facing terms.
 
-    The order is this use case's own. There is no canonical pipeline — another
-    use case declares a different set in a different order, so do not describe
-    the sequence as standard.
+    When describing a UseCase, explain every step clearly and do not expose raw
+    Neo4j structure unless necessary.
+
+    STEP INTERPRETATION:
+    - type=create_control means the step is a Control.
+    - type=create_application means the step is an Application.
+    - For other step types, preserve the type but explain it in human-readable terms.
+
+    FOR EACH STEP, EXPLAIN:
+    1. ID
+    2. Type
+    3. Level
+    4. Name
+    5. Description
+    6. Intent phrases
+    7. Prerequisites/dependencies
+    8. Required answers
+    9. Application requirements
+    10. All references available under detail.refs
+    11. All configuration available under config
+
+    DATA INTERPRETATION:
+    - `detail` may be a JSON string. Parse it before explaining it.
+    - If `detail.refs` exists, treat it as a dynamic collection of key/value pairs
+    and show every available key/value pair.
+    - Do not hard-code, whitelist, or assume specific reference keys.
+    - `config` may be a JSON string. Parse it before explaining it.
+    - Treat `config` as a dynamic collection of key/value pairs and show every
+    available key/value pair.
+    - Do not hard-code, whitelist, or assume specific configuration keys.
+    - `dependsOn` represents actual prerequisites/dependencies between steps.
+    - `requiresApplication` identifies an application required by the step.
+
+    MATCH EXPLANATION:
+    When explaining a FULL match:
+    - Explain why the user's request matches the UseCase.
+    - State the relevant in-scope capability.
+    - Check outOfScope and explicitly communicate applicable limitations.
+    - Then explain the controls, applications, prerequisites, evidence sources,
+    assessment/control configuration, and configuration.
+
+    When explaining a PARTIAL match:
+    - Clearly separate what the UseCase supports from what it does not support.
+    - Do not present the UseCase as a complete solution.
+    - Identify the missing capability.
+    - Explain which existing steps are reusable.
+    - The agent may use match_steps to find additional reusable steps.
+
+    Never invent a rule, evidence source, assessment, application, prerequisite,
+    configuration, or capability that is not present in the returned catalog data.
+
+    If a field is absent or empty, say it is not defined rather than guessing.
     """
     head = await q("""
         MATCH (u:UseCase {id:$id, isLatest:true})
@@ -430,13 +481,24 @@ async def describe_use_case(use_case_id: str, ctx: Context | None = None) -> dic
     """, ctx=ctx, id=use_case_id)
     if not head:
         return {"error": f"no use case {use_case_id!r} — try list_use_cases"}
+    
     steps = await q("""
         MATCH (u:UseCase {id:$id, isLatest:true})-[:HAS_STEP]->(s:UseCaseStep)
         OPTIONAL MATCH (s)-[:DEPENDS_ON]->(d:UseCaseStep)
-        RETURN s.seq AS seq, s.id AS id, s.type AS type, s.level AS level,
-            s.name AS name, s.description AS description,
+        RETURN
+            s.seq AS seq,
+            s.id AS id,
+            s.type AS type,
+            s.level AS level,
+            s.name AS name,
+            s.description AS description,
+            s.inScope AS inScope,
+            s.outOfScope AS outOfScope,
             s.mustAnswer AS mustAnswer,
-            collect(d.id) AS dependsOn
+            s.detail AS detail,
+            s.config AS config,
+            s.requiresApplication AS requiresApplication,
+            collect(DISTINCT d.id) AS dependsOn
         ORDER BY s.seq
     """, ctx=ctx, id=use_case_id)
     return {**head[0], "steps": steps,
