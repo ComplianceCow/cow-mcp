@@ -207,3 +207,5 @@ URL_APPLICATION_CONFIGS = "/v1/app-configs"
 URL_CREDENTIAL_CONFIGS = "/v1/cred-configs"
 URL_CREATE_APPLICATION = "/v1/credential"
 URL_CREATE_APPLICATION_SCOPE = "/v1/configuration"
+
+URL_PLAYBOOK_FETCH_DATA = "/v1/graphloader/playbook/fetch-data"
