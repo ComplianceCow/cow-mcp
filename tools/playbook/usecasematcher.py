@@ -140,14 +140,231 @@ def band(score: float) -> str:
     return "FULL" if score >= FULL_MATCH else "PARTIAL" if score >= PARTIAL_MATCH else "NONE"
 
 
+async def _control_lineage_rows(use_case_id: str, step_id: str | None = None,
+        ctx: Context | None = None) -> list[dict]:
+    """
+    Walk the control lineage from source to target using the stored
+    :ROLLS_UP_FROM edges. The graph direction is target -> source, so we
+    reverse the path to return a source-first ordering.
+    """
+    rows = await q("""
+        MATCH (:UseCase {id:$uc, isLatest:true})-[:HAS_STEP]->(target:UseCaseStep)
+        WHERE ($stepId IS NULL OR target.id = $stepId)
+        OPTIONAL MATCH path = (source:UseCaseStep)<-[:ROLLS_UP_FROM*1..]-(target)
+        WITH target, collect(path) AS paths
+        UNWIND paths AS p
+        WITH target, p,
+             [n IN nodes(p) | {
+                id: n.id,
+                type: n.type,
+                level: n.level,
+                name: n.name
+             }] AS chain,
+             [n IN nodes(p) | n.id] AS chainIds,
+             length(p) AS depth
+        RETURN target.id AS targetStep,
+               target.name AS targetName,
+               chain,
+               chainIds,
+               depth
+        ORDER BY depth ASC, targetStep
+    """, ctx=ctx, uc=use_case_id, stepId=step_id)
+    return rows
+
+
+async def _step_control_details(use_case_id: str, step_ids: list[str],
+        ctx: Context | None = None) -> dict[str, dict]:
+    """Fetch user-facing control details for a set of steps."""
+    if not step_ids:
+        return {}
+    rows = await q("""
+        MATCH (:UseCase {id:$uc, isLatest:true})-[:HAS_STEP]->(s:UseCaseStep)
+        WHERE s.id IN $stepIds
+        OPTIONAL MATCH (s)-[:IN_ASSESSMENT]->(assessment:Assessment)
+        OPTIONAL MATCH (s)-[:EXECUTES]->(rule:Rule)
+        OPTIONAL MATCH (s)-[:USES_RULE]->(ruleList:Rule)
+        OPTIONAL MATCH (s)-[:REFERENCES]->(evidence:EvidenceSchema)
+        OPTIONAL MATCH (s)-[:CONFIGURES]->(cfg:ControlConfig)
+        RETURN s.id AS id,
+               s.type AS type,
+               s.level AS level,
+               s.name AS name,
+               s.description AS description,
+               s.config AS config,
+               collect(DISTINCT assessment.name) AS assessmentNames,
+               collect(DISTINCT assessment.ref) AS assessmentRefs,
+               collect(DISTINCT rule.name) AS ruleNames,
+               collect(DISTINCT rule.ref) AS ruleRefs,
+               collect(DISTINCT ruleList.name) AS ruleListNames,
+               collect(DISTINCT ruleList.ref) AS ruleListRefs,
+               collect(DISTINCT evidence.name) AS evidenceNames,
+               collect(DISTINCT evidence.ref) AS evidenceRefs,
+               collect(DISTINCT cfg.ref) AS controlConfigRefs
+        ORDER BY s.id
+    """, ctx=ctx, uc=use_case_id, stepIds=step_ids)
+
+    details: dict[str, dict] = {}
+    for r in rows:
+        cfg = r["config"] or {}
+        assessment_names = [x for x in (r["assessmentNames"] or []) if x]
+        assessment_refs = [x for x in (r["assessmentRefs"] or []) if x]
+        rule_names = [x for x in ((r["ruleNames"] or []) + (r["ruleListNames"] or [])) if x]
+        rule_refs = [x for x in ((r["ruleRefs"] or []) + (r["ruleListRefs"] or [])) if x]
+        evidence_names = [x for x in (r["evidenceNames"] or []) if x]
+        evidence_refs = [x for x in (r["evidenceRefs"] or []) if x]
+        displayable = (cfg or {}).get("displayable") or (cfg or {}).get("alias")
+        details[r["id"]] = {
+            "id": r["id"],
+            "type": r["type"],
+            "level": r["level"],
+            "name": r["name"],
+            "description": r["description"],
+            "displayable": displayable,
+            "assessment": assessment_names[0] if assessment_names else (
+                assessment_refs[0] if assessment_refs else "Not configured"
+            ),
+            "assessmentRefs": assessment_refs,
+            "ruleNames": rule_names,
+            "ruleRefs": rule_refs,
+            "evidenceNames": evidence_names,
+            "evidenceRefs": evidence_refs,
+            "controlConfigRefs": r["controlConfigRefs"] or [],
+            "config": cfg,
+        }
+    return details
+
+
+async def get_control_lineage(use_case_id: str, step_id: str | None = None,
+        ctx: Context | None = None) -> dict:
+    """
+    Return linked control lineage in a source-first ordering: lowest source step
+    first, then intermediate steps, ending with the target control.
+
+    This is intentionally additive and does not change the existing match logic.
+    """
+    rows = await _control_lineage_rows(use_case_id, step_id, ctx=ctx)
+    seen: set[str] = set()
+    ordered: list[dict] = []
+    for r in rows:
+        for node in r["chain"] or []:
+            node_id = node["id"]
+            if node_id in seen:
+                continue
+            seen.add(node_id)
+            ordered.append({
+                **node,
+                "order": len(ordered) + 1,
+                "position": "source" if len(ordered) == 0 else (
+                    "target" if node_id == step_id else "intermediate"
+                ),
+            })
+
+    direct = await q("""
+        MATCH (:UseCase {id:$uc, isLatest:true})-[:HAS_STEP]->(target:UseCaseStep)
+        WHERE ($stepId IS NULL OR target.id = $stepId)
+        OPTIONAL MATCH (target)-[r:ROLLS_UP_FROM]->(source:UseCaseStep)
+        RETURN target.id AS targetStep,
+               collect({
+                   id: source.id,
+                   type: source.type,
+                   level: source.level,
+                   name: source.name,
+                   description: source.description,
+                   displayable: source.config.displayable,
+                   assessment: source.refs.assessment,
+                   linkType: r.linkType,
+                   propagation: r.propagation,
+                   linkedBy: r.linkedBy
+               }) AS directSources
+        ORDER BY targetStep
+    """, ctx=ctx, uc=use_case_id, stepId=step_id)
+
+    mapped = {row["targetStep"]: row["directSources"] or [] for row in direct}
+    target = step_id if step_id else None
+    source_steps = [n for n in ordered if n.get("position") == "source"]
+    target_steps = [n for n in ordered if n.get("position") == "target"]
+    source_ids = [n["id"] for n in source_steps]
+    target_ids = [n["id"] for n in target_steps]
+    step_ids = list(dict.fromkeys(source_ids + target_ids))
+    step_details = await _step_control_details(use_case_id, step_ids, ctx=ctx)
+
+    source_details = []
+    for item in source_steps:
+        detail = step_details.get(item["id"], {})
+        source_details.append({
+            "id": item["id"],
+            "name": detail.get("name") or item.get("name"),
+            "description": detail.get("description"),
+            "displayable": detail.get("displayable"),
+            "assessment": detail.get("assessment"),
+            "level": detail.get("level") or item.get("level"),
+            "type": detail.get("type") or item.get("type"),
+            "ruleNames": detail.get("ruleNames", []),
+            "evidenceNames": detail.get("evidenceNames", []),
+            "linkedTo": target_ids[0] if target_ids else None,
+            "linkType": "control",
+        })
+
+    target_details = []
+    for item in target_steps:
+        detail = step_details.get(item["id"], {})
+        target_details.append({
+            "id": item["id"],
+            "name": detail.get("name") or item.get("name"),
+            "description": detail.get("description"),
+            "displayable": detail.get("displayable"),
+            "assessment": detail.get("assessment"),
+            "level": detail.get("level") or item.get("level"),
+            "type": detail.get("type") or item.get("type"),
+            "ruleNames": detail.get("ruleNames", []),
+            "evidenceNames": detail.get("evidenceNames", []),
+            "linkedFrom": source_ids[0] if source_ids else None,
+            "linkType": "control",
+        })
+
+    chain_text = " -> ".join(
+        [f"{n['id']} ({n['name'] or n['type']})" for n in ordered] or ["no linked controls"]
+    )
+    return {
+        "useCaseId": use_case_id,
+        "targetStep": target,
+        "orderedChain": ordered,
+        "sourceControls": source_steps,
+        "targetControls": target_steps,
+        "sourceControlDetails": source_details,
+        "targetControlDetails": target_details,
+        "lineageByTarget": mapped,
+        "hasLineage": bool(ordered),
+        "summaryText": (
+            f"Linked control chain: {chain_text}. "
+            f"Source controls appear first, and the final target control is last."
+            if ordered else "No linked control lineage found for the requested step."
+        ),
+    }
+
+
 # ── tools ────────────────────────────────────────────────────────────────────
 
 @mcp.tool()
 async def catalog_stats(ctx: Context | None = None) -> dict:
     """
-    Size and shape of the catalog. Useful as a connectivity check and to know
-    whether vector matching is available, and whether PLAYBOOK_LLM_MATCH has
-    handed matching off to the calling agent.
+    Purpose:
+        Return the current Playbook catalog size, shape, and matcher mode.
+
+    When to call:
+        Use this as a connectivity check or a quick health/status probe before
+        matching against the catalog.
+
+    Inputs:
+        None.
+
+    Output contract:
+        Returns use-case count, step count, domains, open gaps, matcher mode,
+        and the fetch database endpoint.
+
+    Rules:
+        Keep this call simple and read-only. Do not substitute it for a requirement
+        match when the agent is trying to determine capability coverage.
     """
     r = await q("""
         MATCH (u:UseCase {isLatest:true})
@@ -163,13 +380,23 @@ async def catalog_stats(ctx: Context | None = None) -> dict:
 @mcp.tool()
 async def list_use_cases(domain: str | None = None, lifecycle: str = "published", ctx: Context | None = None) -> list[dict]:
     """
-    Browse the catalog. Latest version of each use case only.
+    Purpose:
+        Browse the catalog and list the latest version of each use case.
 
-    Use this when the client asks what exists rather than describing a problem —
-    for a described problem, use match_use_case instead.
+    When to call:
+        Use this when the caller asks what use cases exist, not when they describe
+        a required capability or a specific problem to solve.
 
-    `lifecycle` is the authored state — draft | published | deprecated. Pass null
-    for all of them.
+    Inputs:
+        domain: optional domain filter.
+        lifecycle: published | draft | deprecated or null for all.
+
+    Output contract:
+        Returns a list of use cases with id, version, name, domain, levels, and
+        step count.
+
+    Rules:
+        Do not use this as a substitute for the requirement-driven match tools.
     """
     return await q("""
         MATCH (u:UseCase {isLatest:true})
@@ -186,95 +413,41 @@ async def list_use_cases(domain: str | None = None, lifecycle: str = "published"
 @mcp.tool()
 async def match_use_case(utterance: str, limit: int = 5, ctx: Context | None = None) -> dict:
     """
-    Match a user's requirement, expressed in their own words, against the
-    ComplianceCow Playbook catalog.
+    Purpose:
+        Match a user's requirement to the best Playbook use-case candidates.
 
-    MANDATORY FIRST TOOL:
-    This tool MUST be called first for every requirement-driven request before
-    calling any other Playbook, ComplianceCow, workflow, or capability tool.
+    When to call:
+        This is the mandatory first step for any requirement-driven request. Call
+        it before any workflow, capability, or assessment tool when the user is
+        describing what they need.
 
-    Requirement-driven requests include requests for a desired capability,
-    outcome, automation, workflow, analysis, data collection, modification,
-    compliance-related functionality, or any other request asking whether
-    ComplianceCow can perform something.
+    Inputs:
+        utterance: the user requirement in natural language.
+        limit: maximum number of candidate use cases to return.
 
-    Do NOT skip this tool simply because another tool appears to be directly
-    related to the user's request.
+    Output contract:
+        Returns the utterance, matcher mode, candidate list, thresholds, guidance,
+        and the best-match classification.
 
-    This tool only determines catalog coverage and returns candidates. The
-    calling agent is responsible for deciding and executing the next step.
+    Rules:
+        - Match actual intent and required outcome, not keywords alone.
+        - Treat outOfScope as authoritative catalog information.
+        - Do not claim FULL from a similar name or description alone.
+        - Consider blockingInputs and use-case coverage.
+        - For control-heavy scenarios, a matched use case may expose linked
+          controls through ROLLS_UP_FROM; the source controls should appear before
+          the target control in the chain.
+        - Do not invent capabilities, integrations, inputs, outputs, or steps.
 
-    MATCHING RULES:
-    - Match the user's actual intent and required outcome, not just keywords.
-    - Do not claim FULL based only on a similar use-case name or description.
-    - Consider the use case's inScope and outOfScope information.
-    - Consider blockingInputs when determining whether the capability can
-        satisfy the requested requirement.
-    - Do not invent capabilities, integrations, inputs, outputs, or steps that
-        are not present in the Playbook catalog.
-    - A similar name or keyword does not by itself constitute a match.
+    Result classes:
+        FULL: the use case satisfies the requirement.
+        PARTIAL: useful coverage exists but the requirement is not fully met.
+        NONE: no suitable use case exists, so record a gap.
 
-    MATCH RESULTS:
-
-    FULL:
-    - The existing use case satisfies the user's requested capability.
-    - Return the relevant use case and supporting catalog information.
-    - The calling agent may continue with the matched use case.
-    - Do NOT call match_steps for a straightforward FULL match.
-    - Do NOT call record_gap for a FULL match.
-    - describe_use_case may be called later if additional details are required.
-
-    PARTIAL:
-    - An existing use case provides useful capability but does not completely
-        satisfy the user's requirement.
-    - Clearly identify the supported and missing capability.
-    - A PARTIAL result must never be presented as a complete solution.
-    - The calling agent should call match_steps to determine whether reusable
-        steps can cover the missing capability.
-    - The calling agent should record the remaining gap with record_gap.
-
-    NONE:
-    - No existing Playbook use case adequately satisfies the requirement.
-    - The calling agent should call record_gap with resolution="no_match".
-    - Do not invent a use case or claim that the capability exists.
-    - match_steps may be used when existing reusable steps could provide
-        useful building blocks despite the absence of a complete use case.
-
-    IMPORTANT — outOfScope:
-    - Treat outOfScope as authoritative catalog information.
-    - When a candidate has relevant outOfScope information, the calling agent
-        must not present the candidate as fully suitable without communicating
-        the applicable limitation.
-    - Do not invent, reinterpret, or silently omit catalog scope limitations.
-
-    TOOL ORDER:
-    For a requirement-driven request:
-
-        match_use_case FIRST
-            -> FULL    -> continue with the matched use case
-            -> PARTIAL -> match_steps -> record_gap
-            -> NONE    -> record_gap
-            -> match_steps only if useful
-
-    Do not use list_use_cases as a substitute for match_use_case when the user
-    has described a specific requirement.
-
-    LLM MATCHING:
-    If PLAYBOOK_LLM_MATCH is enabled, this tool returns candidates without
-    computing a lexical or vector score. The calling agent must evaluate the
-    candidates using the returned catalog fields and determine FULL, PARTIAL,
-    or NONE.
-
-    EXECUTION BOUNDARY:
-    This tool only determines coverage against the global Playbook catalog.
-
-    It does not:
-    - Execute customer workflows.
-    - Inspect tenant infrastructure.
-    - Perform live customer-environment assessments.
-    - Modify customer resources.
-    - Publish or deploy workflows.
-    - Claim that a customer's environment is compliant.
+    Flow:
+        match_use_case -> FULL => continue with the matched use case
+        match_use_case -> PARTIAL => match_steps -> record_gap
+        match_use_case -> NONE => record_gap
     """
     rows = await q("""
         MATCH (u:UseCase {isLatest:true})
@@ -353,30 +526,29 @@ async def match_use_case(utterance: str, limit: int = 5, ctx: Context | None = N
 async def match_steps(utterance: str, limit: int = 8, exclude_use_case: str | None = None,
                 use_case_ids: list[str] | None = None, ctx: Context | None = None) -> dict:
     """
-    Match individual steps across the catalog.
+    Purpose:
+        Match reusable steps rather than full use cases.
 
-    This is the compose path, and in practice the most common one — most requests
-    are neither a whole match nor a blank page. A client asking for "MFA on
-    service accounts, ticket to ServiceNow" can take a create_application step
-    from one use case and a ServiceNow create_action step from another, and author
-    only the gap.
+    When to call:
+        Use this after a PARTIAL match or when a requirement is best satisfied by
+        composing multiple reusable building blocks.
 
-    Steps returned here can be adapted into a new use case; each carries
-    `adaptedFrom` so the composed use case stays explainable.
+    Inputs:
+        utterance: the requirement or gap to cover.
+        limit: maximum number of matching steps to return.
+        exclude_use_case: optional use case to exclude from the search.
+        use_case_ids: optional use-case subset to search within.
 
-    `use_case_ids` narrows the search to those use cases only — pass the FULL
-    and PARTIAL candidates from match_use_case here rather than searching the
-    whole catalog. Omit it to search every use case; on a small catalog that's
-    fine, but it stops scaling once match_use_case's NONE candidates outnumber
-    its real ones.
+    Output contract:
+        Returns candidate steps with their metadata and an `adaptedFrom` path.
 
-    If PLAYBOOK_LLM_MATCH is set, this returns every step in scope unscored —
-    weigh `inScope`/`description` against the utterance yourself. Under that
-    mode especially, call match_use_case first and pass its FULL/PARTIAL
-    candidates as `use_case_ids`: that tool already sent you the base
-    description/intent to judge relevance from, so pulling every step in the
-    catalog here — rather than just the use cases you already judged worth a
-    closer look — repeats work you've done and hands you a pile you don't need.
+    Rules:
+        - Prefer the FULL and PARTIAL candidates from match_use_case to narrow the
+          step search.
+        - A step is not a complete solution; it is a reusable building block.
+        - Preserve the source chain when a matching step belongs to a linked
+          control lineage by checking the control lineage metadata and source
+          relationships.
     """
     rows = await q("""
         MATCH (u:UseCase {isLatest:true})-[:HAS_STEP]->(s:UseCaseStep)
@@ -417,60 +589,27 @@ async def match_steps(utterance: str, limit: int = 8, exclude_use_case: str | No
 @mcp.tool()
 async def describe_use_case(use_case_id: str, ctx: Context | None = None) -> dict:
     """
-    The full use case in client-facing terms.
+    Purpose:
+        Return the full use case in client-facing terms, including steps, links,
+        dependencies, and config.
 
-    When describing a UseCase, explain every step clearly and do not expose raw
-    Neo4j structure unless necessary.
+    When to call:
+        Use this after a FULL or PARTIAL match to explain the candidate in a human-
+        readable way.
 
-    STEP INTERPRETATION:
-    - type=create_control means the step is a Control.
-    - type=create_application means the step is an Application.
-    - For other step types, preserve the type but explain it in human-readable terms.
+    Inputs:
+        use_case_id: the use case to describe.
 
-    FOR EACH STEP, EXPLAIN:
-    1. ID
-    2. Type
-    3. Level
-    4. Name
-    5. Description
-    6. Intent phrases
-    7. Prerequisites/dependencies
-    8. Required answers
-    9. Application requirements
-    10. All references available under detail.refs
-    11. All configuration available under config
+    Output contract:
+        Returns the use case metadata and all declared steps with structured
+        dependencies and configuration.
 
-    DATA INTERPRETATION:
-    - `detail` may be a JSON string. Parse it before explaining it.
-    - If `detail.refs` exists, treat it as a dynamic collection of key/value pairs
-    and show every available key/value pair.
-    - Do not hard-code, whitelist, or assume specific reference keys.
-    - `config` may be a JSON string. Parse it before explaining it.
-    - Treat `config` as a dynamic collection of key/value pairs and show every
-    available key/value pair.
-    - Do not hard-code, whitelist, or assume specific configuration keys.
-    - `dependsOn` represents actual prerequisites/dependencies between steps.
-    - `requiresApplication` identifies an application required by the step.
-
-    MATCH EXPLANATION:
-    When explaining a FULL match:
-    - Explain why the user's request matches the UseCase.
-    - State the relevant in-scope capability.
-    - Check outOfScope and explicitly communicate applicable limitations.
-    - Then explain the controls, applications, prerequisites, evidence sources,
-    assessment/control configuration, and configuration.
-
-    When explaining a PARTIAL match:
-    - Clearly separate what the UseCase supports from what it does not support.
-    - Do not present the UseCase as a complete solution.
-    - Identify the missing capability.
-    - Explain which existing steps are reusable.
-    - The agent may use match_steps to find additional reusable steps.
-
-    Never invent a rule, evidence source, assessment, application, prerequisite,
-    configuration, or capability that is not present in the returned catalog data.
-
-    If a field is absent or empty, say it is not defined rather than guessing.
+    Rules:
+        - Explain steps in plain language.
+        - Keep raw Neo4j internals only when they matter for the explanation.
+        - If a field is absent, say it is not defined rather than guessing.
+        - For control-heavy use cases, include any relevant upstream linkage as part
+          of the explanation, ordered from source to target.
     """
     head = await q("""
         MATCH (u:UseCase {id:$id, isLatest:true})
@@ -512,10 +651,25 @@ async def describe_use_case(use_case_id: str, ctx: Context | None = None) -> dic
 @mcp.tool()
 async def explain_step(use_case_id: str, step_id: str, ctx: Context | None = None) -> dict:
     """
-    What one step touches, what it needs, and what needs it.
+    Purpose:
+        Explain one step: what it touches, what it depends on, and what depends on it.
 
-    Use this when a client asks why a step is there, or before proposing to drop
-    one — `neededBy` is what breaks if it goes.
+    When to call:
+        Use this when the caller asks why a step exists, before proposing to drop a
+        step, or when the control lineage for one step needs to be explained.
+
+    Inputs:
+        use_case_id: the owning use case.
+        step_id: the step to explain.
+
+    Output contract:
+        Returns the step metadata, direct dependencies, dependent steps, touched
+        objects, and the source-to-target control lineage when relevant.
+
+    Rules:
+        - Keep the explanation step-centric.
+        - Always include dependency context and upstream control lineage if present.
+        - Source controls should appear before the target control in the returned chain.
     """
     head = await q("""
         MATCH (:UseCase {id:$uc, isLatest:true})-[:HAS_STEP]->(s:UseCaseStep {id:$sid})
@@ -541,24 +695,76 @@ async def explain_step(use_case_id: str, step_id: str, ctx: Context | None = Non
         OPTIONAL MATCH (s)<-[:DEPENDS_ON]-(n)
         RETURN collect(DISTINCT d.id) AS dependsOn, collect(DISTINCT n.id) AS neededBy
     """, ctx=ctx, uc=use_case_id, sid=step_id)[0]
-    return {**head[0], **deps, "touches": touches}
+    lineage = await get_control_lineage(use_case_id, step_id, ctx=ctx)
+    return {**head[0], **deps, "touches": touches,
+            "controlLineage": lineage["orderedChain"],
+            "sourceControls": lineage["sourceControls"],
+            "targetControls": lineage["targetControls"],
+            "sourceControlDetails": lineage["sourceControlDetails"],
+            "targetControlDetails": lineage["targetControlDetails"],
+            "directControlSources": lineage["lineageByTarget"].get(step_id, []),
+            "controlLineageSummary": lineage["summaryText"]}
+
+
+@mcp.tool()
+async def get_control_lineage_summary(use_case_id: str, step_id: str | None = None,
+        ctx: Context | None = None) -> dict:
+    """
+    Purpose:
+        Return the full upstream control lineage for a use case or a specific step.
+
+    When to call:
+        Use this when the requirement is based on source-to-target control mapping,
+        such as source controls linked to target controls in a control lineage.
+
+    Inputs:
+        use_case_id: the use case to inspect.
+        step_id: optional target step to inspect; omit to inspect the full use case.
+
+    Output contract:
+        Returns the ordered chain, source controls, target controls, and a summary
+        string with the source-first order preserved.
+
+    Rules:
+        - Keep the final chain ordered from source to target.
+        - The target control should be the last element in the chain.
+        - This is additive and should not replace the standard match logic.
+    """
+    data = await get_control_lineage(use_case_id, step_id, ctx=ctx)
+    return {
+        "useCaseId": data["useCaseId"],
+        "targetStep": data["targetStep"],
+        "orderedChain": data["orderedChain"],
+        "sourceControls": data["sourceControls"],
+        "targetControls": data["targetControls"],
+        "sourceControlDetails": data["sourceControlDetails"],
+        "targetControlDetails": data["targetControlDetails"],
+        "summaryText": data["summaryText"],
+        "hasLineage": data["hasLineage"],
+    }
 
 
 @mcp.tool()
 async def get_modification_surface(use_case_id: str, ctx: Context | None = None) -> dict:
     """
-    What a client may change, per step, and what they must answer first.
+    Purpose:
+        Return the editable surface of a use case: what can change, and which
+        inputs must be answered first.
 
-    `blockingInputs` must be answered before any plan exists, and `inputSchema`
-    is the WHOLE modification surface — every value a client may change is an
-    input, typed and declared once. A step's `config` shows which of its values
-    are wired to an input (`${{ inputs.x }}`) and which are literals fixed by the
-    author. A literal is not negotiable without authoring work.
+    When to call:
+        Use this before offering a plan or describing what a client may change.
 
-    Dropping is not a third tier and there is no droppable list. No step is
-    authored as optional — ask validate_modifications with the specific set the
-    client wants gone, and it answers from structure. An author's guess at what is
-    droppable can contradict the dependency and schema facts, and did.
+    Inputs:
+        use_case_id: the use case whose modification surface is needed.
+
+    Output contract:
+        Returns the blocking inputs, full input schema, and step-level config.
+
+    Rules:
+        - `blockingInputs` must be answered before any plan exists.
+        - A literal value is not negotiable without authoring work.
+        - A step is not optional merely because it looks small; legality is based on
+          structure and validation, not author intent.
     """
     head = await q("""
         MATCH (u:UseCase {id:$id, isLatest:true})
@@ -586,23 +792,28 @@ async def get_modification_surface(use_case_id: str, ctx: Context | None = None)
 async def validate_modifications(use_case_id: str, drop_steps: list[str] | None = None,
         answers: dict[str, Any] | None = None, ctx: Context | None = None) -> dict:
     """
-    Check a requested set of changes BEFORE promising anything to the client.
+    Purpose:
+        Validate a proposed set of changes before any plan is offered.
 
-    Three classes of failure, all hard blocks rather than warnings:
+    When to call:
+        Call this before committing to a change, especially before dropping steps
+        or answering a client request with a plan.
 
-    dependency  — a surviving step DEPENDS_ON one being dropped
-    schema      — a reconcile rule reads a schema nothing surviving produces.
-                    This is the dangerous one: the join returns no rows, which
-                    reads as "nobody is non-compliant" — a wrong answer that
-                    looks like good news
-    inputs      — a blocking input still unanswered
-    unknown     — no such step in this use case
+    Inputs:
+        use_case_id: the use case being modified.
+        drop_steps: step ids the client wants removed.
+        answers: any blocking inputs already answered.
 
-    There is no "this step is required" class. Nothing is authored as optional;
-    legality comes entirely from the three structural checks above. If dropping a
-    step breaks nothing and orphans no schema, it is legal.
+    Output contract:
+        Returns whether the change set is legal and enumerates any hard-block
+        problems.
 
-    Call this before any sentence that commits to a change.
+    Rules:
+        - Hard blocks are dependency, schema, input, and unknown-step issues.
+        - Nothing is authored as optional; legality comes from structure, not
+          author guesswork.
+        - If the set is legal, the planner can continue; if not, explain the issue
+          instead of proceeding.
     """
     drop = list(drop_steps or [])
     ans = dict(answers or {})

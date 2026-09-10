@@ -28,6 +28,12 @@
     Clear matching result
     ```
 
+    The internal matcher result may be FULL, PARTIAL, or NONE. The user-facing output should map as:
+
+    * FULL -> FULL MATCH
+    * PARTIAL -> PARTIAL
+    * NONE -> Not matched
+
     `match_use_case` MUST be the first capability-discovery tool for a requirement.
 
     Do not bypass it because the request appears familiar or because another tool appears relevant.
@@ -38,68 +44,47 @@
 
     Every requirement-driven request MUST produce exactly one of these results:
 
-    ### FULL
+    ### FULL MATCH
 
-    Use `FULL` only when an existing Use Case covers the user's requested capability.
+    Use `FULL MATCH` when the catalog contains relevant matched control entries for the requirement.
 
-    The response must clearly explain:
-
-    * What requirement was matched
-    * Which Use Case matched
-    * Why it matches
-    * What capability is covered
-    * Relevant scope and limitations
-    * Relevant catalog details
-
-    A FULL match means the catalog contains the requested capability.
-
-    It does **not** mean the capability has been executed or that the customer's environment is compliant.
+    The response must be a compact matched-controls list with the actual catalog values, followed by the execution plan for the matched controls.
 
     ### PARTIAL
 
-    Use `PARTIAL` when an existing Use Case covers only part of the user's requirement.
+    Use `PARTIAL` when the catalog covers only part of the requirement.
 
-    The response MUST clearly separate:
+    The output must still show the matched controls and the execution plan, and then clearly show the remaining gap as `Not matched`.
 
-    **Matched**
+    ### Not matched
 
-    * What part of the requirement is supported
-    * Which Use Case or catalog capability provides that support
-    * Which relevant steps, controls, applications, assessments, or other catalog elements match
+    Use `Not matched` when no relevant control or Use Case in the catalog matches the requirement.
 
-    **Not Matched**
+    The response must be exactly:
 
-    * What part of the user's requirement is not covered by the existing catalog capability
-    * Any missing capability that can be established directly from the catalog comparison
+    ```text
+    Not matched
+    ```
 
-    Do not represent a PARTIAL match as complete.
-
-    Do not suggest how to solve the missing portion.
-
-    Do not recommend another Use Case as a solution.
-
-    ### NONE
-
-    Use `NONE` when no existing Playbook Use Case adequately matches the user's requirement.
-
-    The response should simply make this clear:
-
-    * **NONE**
-    * Nothing in the current catalog matched the requested requirement.
-
-    Do not suggest unrelated Use Cases.
-
-    Do not invent a capability.
-
-    Do not propose a solution.
-
-    Do not recommend a next step.
+    Do not add recommendations, next steps, or extra explanation.
 
     ---
 
     ## 4. Matching Rules
 
     Match against the actual meaning of the user's requirement, not keywords alone.
+
+    Distinguish clearly between:
+
+    * a real matched Use Case
+    * a supporting source assessment or source control definition
+    * a related rule, evidence schema, or configuration object
+
+    Only real Use Cases belong in the "Matched Use Cases" section.
+
+    Source assessments, source control definitions, rule definitions, evidence schemas, and other supporting catalog objects may be shown under supporting details only.
+
+    Do not include them as matched Use Cases just because they help explain the match.
 
     Consider the available Playbook catalog information, including where applicable:
 
@@ -117,14 +102,17 @@
     * Inputs
     * Steps
     * Step descriptions
-    * Step types
+    * Step types, including `create_control`, `create_rule`, `create_workflow`, and `link_control`
     * Dependencies
     * Applications
     * References
     * Configuration
+    * Control and assessment references attached to rule and workflow steps
     * Other catalog metadata
 
     Similar terminology does not automatically mean a match.
+
+    A true exact match remains `FULL MATCH` even if more than one related control or source artifact is visible in the catalog.
 
     Do not infer a capability merely because two concepts sound related.
 
@@ -136,9 +124,13 @@
 
     When a Use Case matches, report the actual catalog information that explains the match.
 
+    The response must be step-by-step and explicit. Do not give a vague summary.
+
     At minimum, include when available:
 
-    ### Use Case
+    ### Step 1: Matched Use Case
+
+    Only list real Playbook Use Cases here.
 
     * ID
     * Name
@@ -149,7 +141,22 @@
     * In-scope information
     * Out-of-scope information
 
-    ### Inputs
+    Do not list source assessments, source control definitions, or referenced support objects in this section.
+
+    If the source data comes from a referenced external assessment or framework, show it under "Supporting details" instead of "Matched Use Cases".
+
+    ### Step 2: Matching Reason
+
+    Explain, in plain language, why the user's requirement matches this Use Case.
+
+    Show:
+
+    * What capability is covered
+    * Which catalog facts support the match
+    * Which scope statements are relevant
+    * Whether any limitation is present
+
+    ### Step 3: Relevant Inputs
 
     Show available input information, including:
 
@@ -166,31 +173,71 @@
 
     Do not invent missing input information.
 
-    ### Steps
+    ### Step 4: Relevant Steps in Order
 
-    For relevant matching steps, show available catalog information including:
+    Show the matching steps in the order they are defined in the catalog.
+
+    For each relevant step, include:
 
     * ID
     * Type
     * Level
     * Name
     * Description
-    * In-scope information
-    * Out-of-scope information
-    * Required answers
     * Dependencies
-    * Required application
     * References
     * Configuration
 
-    Interpret known step types:
+    Step types are not limited to control creation. Real catalog steps may include `create_control`, `create_rule`, `create_workflow`, and `link_control`.
 
-    * `create_control` → Control
-    * `create_application` → Application
+    A `create_rule` step is tied to the owning control and assessment through its references. A `create_workflow` step is also tied to the owning control and assessment through its references.
 
-    Preserve unknown types according to the catalog.
+    If this is a source-to-target control mapping, show the source controls first and the target controls second.
 
-    Do not infer dependencies from step order. Use only actual dependency information returned by the catalog.
+    If a rule or workflow belongs to a control, show it as a separate step immediately under that control, and keep the assessment reference visible.
+
+    ### Step 5: Linked Control Flow
+
+    If the catalog contains control lineage, explain it clearly in the same flow:
+
+    ```text
+    source control(s)
+    -> related rule step(s), if any
+    -> target control(s)
+    ```
+
+    Show the actual control relationship and explain it in plain language.
+
+    For each control, include the actual values that are present in the catalog:
+
+    * assessment name
+    * control name
+    * control description
+    * displayable value
+    * rule name(s)
+    * linked source/target control
+    * link type
+
+    ### Step 6: Supporting Details
+
+    When available, show the supporting catalog facts clearly:
+
+    * assessment
+    * control
+    * rule
+    * evidence schema or evidence source
+    * relevant configuration
+
+    Show the actual catalog values. Do not invent or replace them with generic labels.
+
+    ### Step 7: Final Match Summary
+
+    End with a brief summary that tells the user:
+
+    * what matched
+    * what was covered
+    * what is outside the catalog
+    * what the source-to-target chain looks like
 
     ---
 
@@ -253,62 +300,122 @@
 
     The match explanation must directly connect the user's requirement to the catalog.
 
-    For a FULL match:
+    The response must use a fixed structure. Do not improvise a different layout.
+
+    For a MATCHED result:
 
     ```text
-    Result: FULL
+    Result: MATCHED
 
-    Requirement matched:
-    <what the user asked for>
+    Requirement:
+    <user requirement>
 
-    Matched Use Case:
-    <name>
+    Matched Controls
+    ----------------------------------------
+    1. <target_control_id>
+       Name: <target_control_name>
+       Assessment: <<displayable_assessment_name>>
+       Display Name: <<displayable_target_control_name>>
+       Description: <target_control_description>
 
-    Why it matched:
-    <clear explanation based on catalog data>
+       Linked From:
+       <source_control_id>
+       Name: <source_control_name>
+       Assessment: <<displayable_source_assessment_name>>
+       Display Name: <<displayable_source_control_name>>
+       Description: <source_control_description>
+       Rule: <<rule_name_if_available>>
+       Link Type: control
+       Relationship: <source_control_id> -> <target_control_id>
 
-    Matched catalog details:
-    <assessment>
-    <control>
-    <application>
-    <evidence>
-    <rules>
-    <configuration>
-    <steps>
-    <dependencies>
-    <other relevant catalog data>
+    Execution Plan
+    ----------------------------------------
+    1. Create / execute <source_control_id>
+       Assessment: <<displayable_source_assessment_name>>
+       Name: <source_control_name>
+       Resource: <<resource_type_or_resource_name>>
+
+    2. Create / execute <target_control_id>
+       Assessment: <<displayable_target_assessment_name>>
+       Name: <target_control_name>
+       Display Name: <<displayable_target_control_name>>
+       Resource: <<resource_type_or_resource_name>>
+
+    3. Apply link
+       <source_display_name> -> <target_display_name>
+       <source_assessment_name> -> <target_assessment_name>
+       Rule: <<rule_name_if_available>>
     ```
 
-    For a PARTIAL match:
+    For a PARTIAL result:
 
     ```text
     Result: PARTIAL
 
     Requirement:
-    <what the user asked for>
+    <user requirement>
 
-    Matched:
-    <exact portion supported by the catalog>
+    Matched Controls
+    ----------------------------------------
+    1. <target_control_id>
+       Name: <target_control_name>
+       Assessment: <<displayable_assessment_name>>
+       Display Name: <<displayable_target_control_name>>
+       Description: <target_control_description>
 
-    Matched Use Case:
-    <name>
+       Linked From:
+       <source_control_id>
+       Name: <source_control_name>
+       Assessment: <<displayable_source_assessment_name>>
+       Display Name: <<displayable_source_control_name>>
+       Description: <source_control_description>
+       Rule: <<rule_name_if_available>>
+       Link Type: control
+       Relationship: <source_control_id> -> <target_control_id>
 
-    Matched catalog details:
-    <relevant assessment/control/application/etc.>
+    Execution Plan
+    ----------------------------------------
+    1. Create / execute <source_control_id>
+       Assessment: <<displayable_source_assessment_name>>
+       Name: <source_control_name>
+       Resource: <<resource_type_or_resource_name>>
 
-    Not matched:
+    2. Create / execute <target_control_id>
+       Assessment: <<displayable_target_assessment_name>>
+       Name: <target_control_name>
+       Display Name: <<displayable_target_control_name>>
+       Resource: <<resource_type_or_resource_name>>
+
+    3. Apply link
+       <source_display_name> -> <target_display_name>
+       <source_assessment_name> -> <target_assessment_name>
+       Rule: <<rule_name_if_available>>
+
+    Not matched
     <exact portion not covered by the catalog>
     ```
 
-    For NONE:
+    For a Not matched result:
 
     ```text
-    Result: NONE
-
-    Nothing matched the requested requirement.
+    Not matched
     ```
 
+    Rules:
+    - Use actual catalog values only; do not hard-code NIST, Microsoft, or any fixed vendor names.
+    - Prefer displayable assessment names and displayable control names over raw config keys or IDs such as `si-2-5-automatic-updates`.
+    - Treat `Control Config` as a displayable value only when the catalog actually provides a human-readable name; otherwise omit it.
+    - Keep the response compact and in the same order: matched controls first, then execution plan, then `Not matched` only when there is a partial gap.
+    - Use generic `Resource: <<resource_type_or_resource_name>>` wording when the catalog exposes a resource type or resource name, rather than forcing a raw config key into the output.
+    - For the final link line, prefer the readable display names: `<source_display_name> -> <target_display_name>`, and when a rule is involved, append `Rule: <<rule_name_if_available>>` and the relevant assessment mapping.
+    - If there is no match, return exactly `Not matched`.
+    - Use placeholders like `<<displayable_assessment_name>>`, `<<displayable_target_control_name>>`, `<<source_control_name>>`, and `<<rule_name_if_available>>` when the exact value is not being printed verbatim.
+
     Do not turn a NONE result into a recommendation.
+
+    The matcher must always produce the required structure in the same order for MATCHED and PARTIAL results.
+
+    Do not collapse the sequence into a vague paragraph.
 
     ---
 
@@ -403,6 +510,12 @@
     NONE
     ```
 
+    The returned classification may be mapped to the user-facing result as:
+
+    * FULL -> `FULL MATCH`
+    * PARTIAL -> `PARTIAL`
+    * NONE -> `Not matched`
+
     ### `describe_use_case`
 
     Use only when:
@@ -439,7 +552,7 @@
     Always lead with:
 
     ```text
-    FULL
+    FULL MATCH
     ```
 
     or
@@ -451,12 +564,12 @@
     or
 
     ```text
-    NONE
+    Not matched
     ```
 
     Then explain the result.
 
-    For FULL and PARTIAL matches, clearly identify the actual matched catalog information.
+    For FULL MATCH and PARTIAL results, clearly identify the actual matched catalog information.
 
     When useful, explicitly name the catalog entities involved, such as:
 
@@ -518,16 +631,16 @@
         +----------------+----------------+
         |                |                |
         v                v                v
-        FULL            PARTIAL           NONE
+    FULL MATCH          PARTIAL          Not matched
         |                |                |
         v                v                v
-    Explain what       Explain what      Say what
-    matched            matched           matched nothing
+    Explain what     Explain what      Say what
+    matched          matched           matched nothing
         |                |
         v                v
-    Catalog details    Matched details
+    Catalog details  Matched details
                     +
-                    Not matched
+                    Remaining gap
     ```
 
     The final output must answer one question:
