@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import json
 import os
 import re
 import sys
@@ -74,6 +75,64 @@ STOP = {
 def tokens(text: str) -> set[str]:
     return {t for t in re.findall(r"[a-z0-9]+", (text or "").lower())
             if t not in STOP and len(t) > 1}
+
+
+def _json_dict(value: Any) -> dict:
+    if isinstance(value, dict):
+        return value
+    if isinstance(value, str):
+        try:
+            loaded = json.loads(value)
+            return loaded if isinstance(loaded, dict) else {}
+        except (TypeError, ValueError, json.JSONDecodeError):
+            return {}
+    return {}
+
+
+def _ref_list(value: Any) -> list[str]:
+    """Normalize ref-like payloads into a flat list of strings.
+
+    Real catalog data may carry refs as a scalar string, a list, a nested list,
+    a dict such as {"ref": "..."}, or a JSON-encoded string. The matcher must
+    treat all of those as equivalent refs rather than stringifying the whole
+    nested structure and losing the actual values.
+    """
+    if value is None:
+        return []
+
+    if isinstance(value, (list, tuple, set)):
+        flattened: list[str] = []
+        for item in value:
+            flattened.extend(_ref_list(item))
+        return [str(v).strip() for v in flattened if str(v).strip()]
+
+    if isinstance(value, dict):
+        flattened: list[str] = []
+        for key in (
+            "ref", "name", "id", "value", "catalogRef",
+            "assessment", "controlConfig", "application",
+            "rule", "rules", "evidenceSchema", "workflow", "action",
+        ):
+            if key in value:
+                flattened.extend(_ref_list(value[key]))
+
+        if not flattened:
+            for item in value.values():
+                flattened.extend(_ref_list(item))
+
+        return [str(v).strip() for v in flattened if str(v).strip()]
+
+    if isinstance(value, str):
+        text = value.strip()
+        if not text:
+            return []
+        try:
+            parsed = json.loads(text)
+        except (TypeError, ValueError, json.JSONDecodeError):
+            return [text]
+        return _ref_list(parsed)
+
+    return [str(value).strip()] if str(value).strip() else []
 
 
 def lexical_score(utterance: str, entries: list[str], description: str = "") -> dict:
@@ -191,6 +250,7 @@ async def _step_control_details(use_case_id: str, step_ids: list[str],
                s.name AS name,
                s.description AS description,
                s.config AS config,
+               s.detail AS detail,
                collect(DISTINCT assessment.name) AS assessmentNames,
                collect(DISTINCT assessment.ref) AS assessmentRefs,
                collect(DISTINCT rule.name) AS ruleNames,
@@ -205,13 +265,39 @@ async def _step_control_details(use_case_id: str, step_ids: list[str],
 
     details: dict[str, dict] = {}
     for r in rows:
-        cfg = r["config"] or {}
+        cfg = _json_dict(r.get("config"))
+        detail_obj = _json_dict(r.get("detail"))
         assessment_names = [x for x in (r["assessmentNames"] or []) if x]
         assessment_refs = [x for x in (r["assessmentRefs"] or []) if x]
-        rule_names = [x for x in ((r["ruleNames"] or []) + (r["ruleListNames"] or [])) if x]
-        rule_refs = [x for x in ((r["ruleRefs"] or []) + (r["ruleListRefs"] or [])) if x]
-        evidence_names = [x for x in (r["evidenceNames"] or []) if x]
-        evidence_refs = [x for x in (r["evidenceRefs"] or []) if x]
+
+        direct_rule_names = [x for x in ((r["ruleNames"] or []) + (r["ruleListNames"] or [])) if x]
+        direct_rule_refs = [x for x in ((r["ruleRefs"] or []) + (r["ruleListRefs"] or [])) if x]
+        direct_evidence_names = [x for x in (r["evidenceNames"] or []) if x]
+        direct_evidence_refs = [x for x in (r["evidenceRefs"] or []) if x]
+
+        ref_rule_names = []
+        for key in ("rule", "rules"):
+            ref_rule_names.extend(_ref_list(detail_obj.get(key)))
+            ref_rule_names.extend(_ref_list(cfg.get(key)))
+        ref_evidence_names = []
+        for key in ("evidenceSchema",):
+            ref_evidence_names.extend(_ref_list(detail_obj.get(key)))
+            ref_evidence_names.extend(_ref_list(cfg.get(key)))
+
+        flat_rule_refs = []
+        for key in ("rule", "rules"):
+            flat_rule_refs.extend(_ref_list(detail_obj.get(key)))
+            flat_rule_refs.extend(_ref_list(cfg.get(key)))
+        flat_evidence_refs = []
+        for key in ("evidenceSchema",):
+            flat_evidence_refs.extend(_ref_list(detail_obj.get(key)))
+            flat_evidence_refs.extend(_ref_list(cfg.get(key)))
+
+        rule_names = list(dict.fromkeys([*direct_rule_names, *ref_rule_names]))
+        rule_refs = list(dict.fromkeys([*direct_rule_refs, *flat_rule_refs]))
+        evidence_names = list(dict.fromkeys([*direct_evidence_names, *ref_evidence_names]))
+        evidence_refs = list(dict.fromkeys([*direct_evidence_refs, *flat_evidence_refs]))
+
         displayable = (cfg or {}).get("displayable") or (cfg or {}).get("alias")
         details[r["id"]] = {
             "id": r["id"],
@@ -230,6 +316,7 @@ async def _step_control_details(use_case_id: str, step_ids: list[str],
             "evidenceRefs": evidence_refs,
             "controlConfigRefs": r["controlConfigRefs"] or [],
             "config": cfg,
+            "detail": detail_obj,
         }
     return details
 
@@ -342,7 +429,425 @@ async def get_control_lineage(use_case_id: str, step_id: str | None = None,
         ),
     }
 
+async def _get_lineage_steps(
+    use_case_id: str,
+    target_step_id: str,
+    ctx: Context | None = None,
+) -> list[dict]:
+    """
+    Return the actual declared steps needed to represent a control lineage.
 
+    Order:
+        source
+        intermediate source(s)
+        link_control, if actually declared
+        target
+    """
+
+    lineage = await get_control_lineage(
+        use_case_id,
+        target_step_id,
+        ctx=ctx,
+    )
+
+    if not lineage["hasLineage"]:
+        return []
+
+    ordered_chain = lineage["orderedChain"]
+
+    step_ids = [node["id"] for node in ordered_chain]
+
+    details = await _step_control_details(
+        use_case_id,
+        step_ids,
+        ctx=ctx,
+    )
+
+    steps: list[dict] = []
+
+    for index, node in enumerate(ordered_chain):
+
+        detail = details.get(node["id"], {})
+
+        steps.append({
+            "stepId": node["id"],
+            "operation": detail.get("type") or node.get("type"),
+            "level": detail.get("level") or node.get("level"),
+            "name": detail.get("name") or node.get("name"),
+            "description": detail.get("description"),
+            "assessment": detail.get("assessment"),
+            "ruleNames": detail.get("ruleNames", []),
+            "evidenceNames": detail.get("evidenceNames", []),
+        })
+
+        support_steps = await _get_related_support_steps(
+            use_case_id,
+            [node["id"]],
+            ctx=ctx,
+        )
+        for support in support_steps:
+            steps.append({
+                "stepId": support["stepId"],
+                "operation": support["type"],
+                "level": support["level"],
+                "name": support["name"],
+                "description": support["description"],
+                "assessment": None,
+                "ruleNames": [],
+                "evidenceNames": [],
+            })
+
+        # Check whether an actual link_control exists between
+        # this node and the next node.
+        if index < len(ordered_chain) - 1:
+            current_node = node
+            next_node = ordered_chain[index + 1]
+
+            link_step = await _get_link_control_step(
+                use_case_id=use_case_id,
+                target_step_id=next_node["id"],
+                source_step_id=current_node["id"],
+                ctx=ctx,
+            )
+
+            if link_step:
+                steps.append({
+                    "stepId": link_step["stepId"],
+                    "operation": link_step["type"],
+                    "level": link_step["level"],
+                    "name": link_step["name"],
+                    "description": link_step["description"],
+                })
+
+    # Deduplicate while preserving order.
+    seen: set[str] = set()
+    deduped: list[dict] = []
+    for step in steps:
+        sid = step["stepId"]
+        if sid in seen:
+            continue
+        seen.add(sid)
+        deduped.append(step)
+    return deduped
+
+async def _get_link_control_step(
+    use_case_id: str,
+    target_step_id: str,
+    source_step_id: str,
+    ctx: Context | None = None,
+) -> dict | None:
+    """Return the actual link_control step for a ROLLS_UP_FROM relationship."""
+
+    rows = await q("""
+        MATCH (u:UseCase {id:$uc, isLatest:true})-[:HAS_STEP]->(link:UseCaseStep)
+        MATCH (target:UseCaseStep {id:$target})
+              -[r:ROLLS_UP_FROM]->
+              (source:UseCaseStep {id:$source})
+        WHERE link.type = 'link_control'
+          AND r.linkedBy = link.id
+
+        RETURN
+            link.id AS stepId,
+            link.type AS type,
+            link.level AS level,
+            link.name AS name,
+            link.description AS description,
+            link.config AS config
+        LIMIT 1
+    """,
+        ctx=ctx,
+        uc=use_case_id,
+        target=target_step_id,
+        source=source_step_id,
+    )
+
+    return rows[0] if rows else None
+
+async def _get_related_support_steps(
+    use_case_id: str,
+    step_ids: list[str],
+    ctx: Context | None = None,
+) -> list[dict]:
+    """Return support steps related to a matched step via assessment or direct catalog refs.
+
+    This is intentionally generic: workflow/application/action/rule steps may be
+    assessment-scoped rather than control-scoped, and a real catalog node can be
+    connected to any support step by either graph edges or the step's stored
+    detail/config refs.
+    """
+    if not step_ids:
+        return []
+
+    current_rows = await q("""
+        MATCH (u:UseCase {id:$uc, isLatest:true})-[:HAS_STEP]->(s:UseCaseStep)
+        WHERE s.id IN $stepIds
+        OPTIONAL MATCH (s)-[:IN_ASSESSMENT]->(assessment:Assessment)
+        OPTIONAL MATCH (s)-[:CONFIGURES]->(control:ControlConfig)
+        OPTIONAL MATCH (s)-[:REQUIRES_APPLICATION]->(app:Application)
+        OPTIONAL MATCH (s)-[:EXECUTES]->(rule:Rule)
+        OPTIONAL MATCH (s)-[:USES_RULE]->(ruleList:Rule)
+        OPTIONAL MATCH (s)-[:REFERENCES]->(evidence:EvidenceSchema)
+        RETURN
+            s.id AS stepId,
+            s.type AS type,
+            s.level AS level,
+            s.name AS name,
+            s.description AS description,
+            collect(DISTINCT assessment.ref) AS assessmentRefs,
+            collect(DISTINCT assessment.name) AS assessmentNames,
+            collect(DISTINCT control.ref) AS controlRefs,
+            collect(DISTINCT control.name) AS controlNames,
+            collect(DISTINCT app.ref) AS appRefs,
+            collect(DISTINCT app.name) AS appNames,
+            collect(DISTINCT rule.ref) AS ruleRefs,
+            collect(DISTINCT rule.name) AS ruleNames,
+            collect(DISTINCT ruleList.ref) AS ruleListRefs,
+            collect(DISTINCT ruleList.name) AS ruleListNames,
+            collect(DISTINCT evidence.ref) AS evidenceRefs,
+            collect(DISTINCT evidence.name) AS evidenceNames,
+            s.detail AS detail,
+            s.config AS config
+    """,
+        ctx=ctx,
+        uc=use_case_id,
+        stepIds=step_ids,
+    )
+
+    base_ref_sets: dict[str, set[str]] = {}
+    for row in current_rows:
+        refs: set[str] = set()
+        refs |= {str(v) for v in (row.get("assessmentRefs") or []) if v}
+        refs |= {str(v) for v in (row.get("controlRefs") or []) if v}
+        refs |= {str(v) for v in (row.get("appRefs") or []) if v}
+        refs |= {str(v) for v in (row.get("ruleRefs") or []) if v}
+        refs |= {str(v) for v in (row.get("ruleListRefs") or []) if v}
+        refs |= {str(v) for v in (row.get("evidenceRefs") or []) if v}
+
+        detail_obj = _json_dict(row.get("detail"))
+        config_obj = _json_dict(row.get("config"))
+        refs |= {str(v) for v in _ref_list(detail_obj.get("assessment")) if v}
+        refs |= {str(v) for v in _ref_list(detail_obj.get("controlConfig")) if v}
+        refs |= {str(v) for v in _ref_list(detail_obj.get("application")) if v}
+        refs |= {str(v) for v in _ref_list(detail_obj.get("rule")) if v}
+        refs |= {str(v) for v in _ref_list(detail_obj.get("rules")) if v}
+        refs |= {str(v) for v in _ref_list(detail_obj.get("evidenceSchema")) if v}
+        refs |= {str(v) for v in _ref_list(config_obj.get("assessment")) if v}
+        refs |= {str(v) for v in _ref_list(config_obj.get("controlConfig")) if v}
+        refs |= {str(v) for v in _ref_list(config_obj.get("application")) if v}
+        refs |= {str(v) for v in _ref_list(config_obj.get("rule")) if v}
+        refs |= {str(v) for v in _ref_list(config_obj.get("rules")) if v}
+        refs |= {str(v) for v in _ref_list(config_obj.get("evidenceSchema")) if v}
+
+        base_ref_sets[row["stepId"]] = refs
+
+    support_rows = await q("""
+        MATCH (u:UseCase {id:$uc, isLatest:true})-[:HAS_STEP]->(support:UseCaseStep)
+        WHERE support.type IN ['create_rule', 'create_action', 'create_workflow', 'create_application']
+        RETURN
+            support.id AS stepId,
+            support.type AS type,
+            support.level AS level,
+            support.name AS name,
+            support.description AS description,
+            support.detail AS detail,
+            support.config AS config,
+            support.seq AS seq
+        ORDER BY support.seq
+    """,
+        ctx=ctx,
+        uc=use_case_id,
+    )
+
+    matched: list[dict] = []
+    seen: set[str] = set()
+
+    for row in current_rows:
+        step_id = row["stepId"]
+        detail_obj = _json_dict(row.get("detail"))
+        config_obj = _json_dict(row.get("config"))
+        step_refs: set[str] = set()
+        step_refs |= {str(v) for v in _ref_list(detail_obj.get("assessment")) if v}
+        step_refs |= {str(v) for v in _ref_list(detail_obj.get("controlConfig")) if v}
+        step_refs |= {str(v) for v in _ref_list(detail_obj.get("application")) if v}
+        step_refs |= {str(v) for v in _ref_list(detail_obj.get("rule")) if v}
+        step_refs |= {str(v) for v in _ref_list(detail_obj.get("rules")) if v}
+        step_refs |= {str(v) for v in _ref_list(detail_obj.get("evidenceSchema")) if v}
+        step_refs |= {str(v) for v in _ref_list(config_obj.get("assessment")) if v}
+        step_refs |= {str(v) for v in _ref_list(config_obj.get("controlConfig")) if v}
+        step_refs |= {str(v) for v in _ref_list(config_obj.get("application")) if v}
+        step_refs |= {str(v) for v in _ref_list(config_obj.get("rule")) if v}
+        step_refs |= {str(v) for v in _ref_list(config_obj.get("rules")) if v}
+        step_refs |= {str(v) for v in _ref_list(config_obj.get("evidenceSchema")) if v}
+
+        for key in ("rule", "rules"):
+            for value in dict.fromkeys(_ref_list(detail_obj.get(key)) + _ref_list(config_obj.get(key))):
+                if not value:
+                    continue
+                pseudo_id = f"{step_id}:rule:{value}"
+                if pseudo_id in seen:
+                    continue
+                seen.add(pseudo_id)
+                matched.append({
+                    "stepId": pseudo_id,
+                    "type": "rule",
+                    "level": row.get("level") or "L1",
+                    "name": value,
+                    "description": f"Referenced rule on {row.get('name') or step_id}",
+                    "config": config_obj,
+                    "detail": detail_obj,
+                    "assessment": None,
+                    "ruleNames": [value],
+                    "evidenceNames": [],
+                })
+
+        for value in dict.fromkeys(_ref_list(detail_obj.get("evidenceSchema")) + _ref_list(config_obj.get("evidenceSchema"))):
+            if not value:
+                continue
+            pseudo_id = f"{step_id}:evidence:{value}"
+            if pseudo_id in seen:
+                continue
+            seen.add(pseudo_id)
+            matched.append({
+                "stepId": pseudo_id,
+                "type": "evidence",
+                "level": row.get("level") or "L1",
+                "name": value,
+                "description": f"Referenced evidence on {row.get('name') or step_id}",
+                "config": config_obj,
+                "detail": detail_obj,
+                "assessment": None,
+                "ruleNames": [],
+                "evidenceNames": [value],
+            })
+
+        if not step_refs:
+            continue
+
+        # A support step can be represented by direct refs on the matched step
+        # itself, even when there is no standalone create_rule or create_action
+        # node in the catalog. Do not skip these because the object is optional.
+        for support in support_rows:
+            support_refs: set[str] = set()
+            detail_obj = _json_dict(support.get("detail"))
+            config_obj = _json_dict(support.get("config"))
+            support_refs |= {str(v) for v in _ref_list(detail_obj.get("assessment")) if v}
+            support_refs |= {str(v) for v in _ref_list(detail_obj.get("controlConfig")) if v}
+            support_refs |= {str(v) for v in _ref_list(detail_obj.get("application")) if v}
+            support_refs |= {str(v) for v in _ref_list(detail_obj.get("rule")) if v}
+            support_refs |= {str(v) for v in _ref_list(detail_obj.get("rules")) if v}
+            support_refs |= {str(v) for v in _ref_list(detail_obj.get("evidenceSchema")) if v}
+            support_refs |= {str(v) for v in _ref_list(config_obj.get("assessment")) if v}
+            support_refs |= {str(v) for v in _ref_list(config_obj.get("controlConfig")) if v}
+            support_refs |= {str(v) for v in _ref_list(config_obj.get("application")) if v}
+            support_refs |= {str(v) for v in _ref_list(config_obj.get("rule")) if v}
+            support_refs |= {str(v) for v in _ref_list(config_obj.get("rules")) if v}
+            support_refs |= {str(v) for v in _ref_list(config_obj.get("evidenceSchema")) if v}
+
+            if not any(support_refs & step_refs):
+                continue
+
+            rule_names = []
+            evidence_names = []
+            for key in ("rule", "rules"):
+                rule_names.extend(_ref_list(detail_obj.get(key)))
+                rule_names.extend(_ref_list(config_obj.get(key)))
+            for key in ("evidenceSchema",):
+                evidence_names.extend(_ref_list(detail_obj.get(key)))
+                evidence_names.extend(_ref_list(config_obj.get(key)))
+
+            support_entry = {
+                "stepId": support["stepId"],
+                "type": support["type"],
+                "level": support["level"],
+                "name": support["name"],
+                "description": support["description"],
+                "config": support.get("config"),
+                "detail": support.get("detail"),
+                "assessment": None,
+                "ruleNames": rule_names,
+                "evidenceNames": evidence_names,
+            }
+            if support["stepId"] in seen:
+                continue
+            seen.add(support["stepId"])
+            matched.append(support_entry)
+
+    return matched
+
+async def get_catalog_context(
+    catalog_type: str,
+    catalog_id: str,
+    ctx: Context | None = None,
+) -> dict:
+    """
+    Fetch the catalog object and its directly related catalog data.
+
+    This is additive to the existing matcher. It does not change how
+    match_use_case determines FULL/PARTIAL/NONE.
+
+    catalog_type examples:
+        ControlConfig
+        Rule
+        ActionSpec
+        WorkflowConfig
+        Application
+        Assessment
+        EvidenceSchema
+        UseCaseStep
+        UseCase
+    """
+
+    rows = await q("""
+        MATCH (n)
+        WHERE $catalogType IN labels(n)
+          AND coalesce(n.catalogRef, n.ref, n.id) = $catalogId
+
+        OPTIONAL MATCH (n)-[r]-(related)
+
+        WHERE related:ControlConfig
+           OR related:Rule
+           OR related:ActionSpec
+           OR related:WorkflowConfig
+           OR related:Application
+           OR related:Assessment
+           OR related:EvidenceSchema
+           OR related:UseCaseStep
+           OR related:UseCase
+
+        RETURN
+            labels(n) AS labels,
+            coalesce(n.catalogRef, n.ref, n.id) AS id,
+            n.name AS name,
+            n.description AS description,
+
+            collect(DISTINCT {
+                relationship: type(r),
+                type: labels(related),
+                id: coalesce(
+                    related.catalogRef,
+                    related.ref,
+                    related.id
+                ),
+                name: related.name
+            }) AS related
+    """,
+        ctx=ctx,
+        catalogType=catalog_type,
+        catalogId=catalog_id,
+    )
+
+    if not rows:
+        return {
+            "found": False,
+            "catalogType": catalog_type,
+            "catalogId": catalog_id,
+            "related": [],
+        }
+
+    return {
+        "found": True,
+        **rows[0],
+    }
 # ── tools ────────────────────────────────────────────────────────────────────
 
 @mcp.tool()
@@ -366,13 +871,17 @@ async def catalog_stats(ctx: Context | None = None) -> dict:
         Keep this call simple and read-only. Do not substitute it for a requirement
         match when the agent is trying to determine capability coverage.
     """
-    r = await q("""
+    rows = await q("""
         MATCH (u:UseCase {isLatest:true})
         OPTIONAL MATCH (u)-[:HAS_STEP]->(s:UseCaseStep)
         RETURN count(DISTINCT u) AS useCases, count(s) AS steps,
             collect(DISTINCT u.domainArea) AS domains
-    """, ctx=ctx)[0]
-    gaps = await q("MATCH (r:UseCaseRequest) RETURN count(r) AS c", ctx=ctx)[0]["c"]
+    """, ctx=ctx)
+    r = rows[0] if rows else {"useCases": 0, "steps": 0, "domains": []}
+
+    gap_rows = await q("MATCH (r:UseCaseRequest) RETURN count(r) AS c", ctx=ctx)
+    gaps = (gap_rows[0]["c"] if gap_rows else 0)
+
     matcher = "llm" if LLM_MATCH else ("vector" if await have_vectors(ctx) else "lexical")
     return {**r, "openGaps": gaps, "matcher": matcher, "database": constants.URL_PLAYBOOK_FETCH_DATA}
 
@@ -409,6 +918,75 @@ async def list_use_cases(domain: str | None = None, lifecycle: str = "published"
         ORDER BY u.name
     """, ctx=ctx, domain=domain, lifecycle=lifecycle)
 
+SEARCHABLE_CATALOG_TYPES = [
+    "UseCase",
+    "UseCaseStep",
+    "ControlConfig",
+    "Rule",
+    "Task",
+    "EvidenceSchema",
+    "Application",
+    "Assessment",
+    "WorkflowConfig",
+    "ActionSpec",
+    "CustomReport",
+    "UserBlock",
+]
+
+
+async def _get_catalog_match_candidates(
+    ctx: Context | None = None,
+) -> list[dict]:
+    """
+    Fetch catalog objects that can participate in requirement matching.
+
+    This is read-only. It does not change the existing UseCase matcher.
+    """
+
+    rows = await q("""
+        MATCH (n)
+        WHERE (
+            n:UseCase OR
+            n:UseCaseStep OR
+            n:ControlConfig OR
+            n:Rule OR
+            n:Task OR
+            n:EvidenceSchema OR
+            n:Application OR
+            n:Assessment OR
+            n:WorkflowConfig OR
+            n:ActionSpec OR
+            n:CustomReport OR
+            n:UserBlock
+        )
+
+        RETURN
+            CASE
+                WHEN n:UseCase THEN 'UseCase'
+                WHEN n:UseCaseStep THEN 'UseCaseStep'
+                WHEN n:ControlConfig THEN 'ControlConfig'
+                WHEN n:Rule THEN 'Rule'
+                WHEN n:Task THEN 'Task'
+                WHEN n:EvidenceSchema THEN 'EvidenceSchema'
+                WHEN n:Application THEN 'Application'
+                WHEN n:Assessment THEN 'Assessment'
+                WHEN n:WorkflowConfig THEN 'WorkflowConfig'
+                WHEN n:ActionSpec THEN 'ActionSpec'
+                WHEN n:CustomReport THEN 'CustomReport'
+                WHEN n:UserBlock THEN 'UserBlock'
+            END AS catalogType,
+
+            coalesce(n.catalogRef, n.ref, n.id) AS id,
+            coalesce(n.catalogRef, n.ref, n.id) AS catalogId,
+            n.name AS name,
+            n.description AS description,
+            n.inScope AS inScope,
+            n.outOfScope AS outOfScope
+
+        ORDER BY catalogType, name
+    """, ctx=ctx)
+
+    return rows
 
 @mcp.tool()
 async def match_use_case(utterance: str, limit: int = 5, ctx: Context | None = None) -> dict:
@@ -427,16 +1005,20 @@ async def match_use_case(utterance: str, limit: int = 5, ctx: Context | None = N
 
     Output contract:
         Returns the utterance, matcher mode, candidate list, thresholds, guidance,
-        and the best-match classification.
+        and the best-match classification. The result should be interpreted as a
+        matched capability explanation, not just a raw list of names.
 
     Rules:
         - Match actual intent and required outcome, not keywords alone.
+        - Search all relevant catalog objects, not just Use Cases.
         - Treat outOfScope as authoritative catalog information.
         - Do not claim FULL from a similar name or description alone.
-        - Consider blockingInputs and use-case coverage.
-        - For control-heavy scenarios, a matched use case may expose linked
-          controls through ROLLS_UP_FROM; the source controls should appear before
-          the target control in the chain.
+        - For assessment matches, walk upward through the parent hierarchy.
+        - For control matches, identify the owning assessment and keep source
+          lineage before target lineage.
+        - For rule/action/workflow matches, include only the object chain needed
+          to explain the capability and its relationship to the assessment or
+          control context.
         - Do not invent capabilities, integrations, inputs, outputs, or steps.
 
     Result classes:
@@ -449,7 +1031,7 @@ async def match_use_case(utterance: str, limit: int = 5, ctx: Context | None = N
         match_use_case -> PARTIAL => match_steps -> record_gap
         match_use_case -> NONE => record_gap
     """
-    rows = await q("""
+    use_case_rows = await q("""
         MATCH (u:UseCase {isLatest:true})
         OPTIONAL MATCH (u)-[:HAS_STEP]->(s:UseCaseStep)
         RETURN u.id AS id, u.version AS version, u.name AS name,
@@ -461,7 +1043,9 @@ async def match_use_case(utterance: str, limit: int = 5, ctx: Context | None = N
             s.requiresApplication AS requiresApplication,
             count(s) AS steps
     """, ctx=ctx)
-
+    
+    catalog_rows = await _get_catalog_match_candidates(ctx=ctx)
+    rows = use_case_rows + catalog_rows
     if LLM_MATCH:
         # No score, no threshold, no truncation — the correct candidate must
         # not be cut before the caller ever sees it. Judgment happens on the
@@ -521,6 +1105,56 @@ async def match_use_case(utterance: str, limit: int = 5, ctx: Context | None = N
             "guidance": guidance, "candidates": top,
             "thresholds": {"full": FULL_MATCH, "partial": PARTIAL_MATCH}}
 
+@mcp.tool()
+async def get_catalog_match_context(
+    catalog_type: str,
+    catalog_id: str,
+    use_case_id: str | None = None,
+    step_id: str | None = None,
+    ctx: Context | None = None,
+) -> dict:
+    """
+    Fetch useful catalog context after a catalog object has been matched.
+
+    This is intentionally separate from match_use_case so existing
+    matching behavior is unchanged.
+
+    If the matched object resolves to a UseCaseStep/control, its
+    ROLLS_UP_FROM lineage is returned source-first.
+
+    link_control is included only when an actual link_control step exists.
+    """
+
+    result = await get_catalog_context(
+        catalog_type=catalog_type,
+        catalog_id=catalog_id,
+        ctx=ctx,
+    )
+
+    response = {
+        "catalog": result,
+        "lineage": [],
+        "steps": [],
+    }
+
+    if not use_case_id or not step_id:
+        return response
+
+    lineage = await get_control_lineage(
+        use_case_id,
+        step_id,
+        ctx=ctx,
+    )
+
+    response["lineage"] = lineage
+
+    response["steps"] = await _get_lineage_steps(
+        use_case_id,
+        step_id,
+        ctx=ctx,
+    )
+
+    return response
 
 @mcp.tool()
 async def match_steps(utterance: str, limit: int = 8, exclude_use_case: str | None = None,
@@ -559,6 +1193,8 @@ async def match_steps(utterance: str, limit: int = 8, exclude_use_case: str | No
             s.mustAnswer AS mustAnswer,
             u.id AS useCaseId, u.name AS useCaseName
     """, ctx=ctx, exclude=exclude_use_case, ids=use_case_ids)
+    if use_case_ids:
+        rows = [r for r in rows if r["useCaseId"] in set(use_case_ids)]
     for r in rows:
         r["adaptedFrom"] = f"{r['useCaseId']}/{r['stepId']}"
 
@@ -590,26 +1226,29 @@ async def match_steps(utterance: str, limit: int = 8, exclude_use_case: str | No
 async def describe_use_case(use_case_id: str, ctx: Context | None = None) -> dict:
     """
     Purpose:
-        Return the full use case in client-facing terms, including steps, links,
-        dependencies, and config.
+        Return the matched use case in plain-language, catalog-driven terms,
+        including the key steps, lineage, dependencies, and config that explain
+        the match.
 
     When to call:
         Use this after a FULL or PARTIAL match to explain the candidate in a human-
         readable way.
 
     Inputs:
-        use_case_id: the use case to describe.
+        use_case_id: the matched use case to describe.
 
     Output contract:
-        Returns the use case metadata and all declared steps with structured
-        dependencies and configuration.
+        Returns the use case metadata and the declared steps with the dependency and
+        linkage information needed to explain what matched and why.
 
     Rules:
         - Explain steps in plain language.
         - Keep raw Neo4j internals only when they matter for the explanation.
         - If a field is absent, say it is not defined rather than guessing.
-        - For control-heavy use cases, include any relevant upstream linkage as part
+        - For control-heavy use cases, include any relevant upstream lineage as part
           of the explanation, ordered from source to target.
+        - Focus on useful explanation: what matched, why it matched, and how the
+          catalog objects relate, rather than returning an unfiltered dump of the graph.
     """
     head = await q("""
         MATCH (u:UseCase {id:$id, isLatest:true})
@@ -640,7 +1279,53 @@ async def describe_use_case(use_case_id: str, ctx: Context | None = None) -> dic
             collect(DISTINCT d.id) AS dependsOn
         ORDER BY s.seq
     """, ctx=ctx, id=use_case_id)
-    return {**head[0], "steps": steps,
+
+    normalized_steps = []
+    for step in steps:
+        detail_obj = {}
+        if isinstance(step.get("detail"), str):
+            try:
+                detail_obj = json.loads(step["detail"])
+            except json.JSONDecodeError:
+                detail_obj = {}
+        elif isinstance(step.get("detail"), dict):
+            detail_obj = step["detail"]
+
+        config_obj = {}
+        if isinstance(step.get("config"), str):
+            try:
+                config_obj = json.loads(step["config"])
+            except json.JSONDecodeError:
+                config_obj = {}
+        elif isinstance(step.get("config"), dict):
+            config_obj = step["config"]
+
+        refs = (detail_obj or {}).get("refs") or {}
+        normalized_steps.append({
+            **step,
+            "detailJson": detail_obj,
+            "configJson": config_obj,
+            "references": refs,
+            "assessment": refs.get("assessment"),
+            "controlConfig": refs.get("controlConfig"),
+            "ruleRefs": refs.get("rule") or refs.get("rules") or [],
+            "evidenceSchemas": refs.get("evidenceSchema") or [],
+            "application": refs.get("application"),
+            "workflow": refs.get("workflow"),
+            "relatedCatalogObjects": [
+                value for value in (
+                    refs.get("assessment"),
+                    refs.get("controlConfig"),
+                    refs.get("rule"),
+                    refs.get("rules"),
+                    refs.get("evidenceSchema"),
+                    refs.get("application"),
+                    refs.get("workflow"),
+                ) if value is not None
+            ],
+        })
+
+    return {**head[0], "steps": normalized_steps,
             "note": "Every step listed is declared by this use case; a step absent "
                     "from the list does not exist here rather than being disabled. "
                     "No step is marked optional — whether one can be dropped is "
@@ -689,12 +1374,17 @@ async def explain_step(use_case_id: str, step_id: str, ctx: Context | None = Non
             coalesce(t.catalogRef, t.ref, t.name) AS target
         ORDER BY edge
     """, ctx=ctx, uc=use_case_id, sid=step_id)
-    deps = await q("""
+    deps_rows = await q("""
         MATCH (:UseCase {id:$uc, isLatest:true})-[:HAS_STEP]->(s:UseCaseStep {id:$sid})
         OPTIONAL MATCH (s)-[:DEPENDS_ON]->(d)
         OPTIONAL MATCH (s)<-[:DEPENDS_ON]-(n)
         RETURN collect(DISTINCT d.id) AS dependsOn, collect(DISTINCT n.id) AS neededBy
-    """, ctx=ctx, uc=use_case_id, sid=step_id)[0]
+    """, ctx=ctx, uc=use_case_id, sid=step_id)
+    
+    deps = deps_rows[0] if deps_rows else {
+    "dependsOn": [],
+    "neededBy": [],
+    }
     lineage = await get_control_lineage(use_case_id, step_id, ctx=ctx)
     return {**head[0], **deps, "touches": touches,
             "controlLineage": lineage["orderedChain"],
