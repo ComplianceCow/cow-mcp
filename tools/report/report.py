@@ -296,6 +296,14 @@ async def package_and_upload_custom_report(
 
 @mcp.tool()
 async def get_user_info(ctx: Context):
+    """
+        It is used to fetch the information of the current user information
+    Args:
+        ctx (Context): 
+
+    Returns:
+        user information 
+    """
     logger.info("fetch get_user_info : \n")
     output = await utils.make_API_call_to_CCow_and_get_response(
                 constants.URL_USERS_ME, "GET", ctx=ctx
