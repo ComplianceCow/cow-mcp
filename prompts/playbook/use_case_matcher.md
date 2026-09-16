@@ -512,11 +512,89 @@ The plan must be ordered by dependency and lineage:
 
 ```text
 source object(s)
-   -> relevant rule/action/workflow/application objects
+   -> relevant intermediate objects only if they actually exist
    -> target object(s)
 ```
 
-This means the source side of a lineage must appear before the target side. If a control is matched, keep the source control before the target control. If a rule, action, or workflow is involved, include only the relevant supporting objects and keep them in the dependency path that the catalog actually defines.
+This means the source side of a lineage must appear before the target side. If a control is matched, keep the source control before the target control. If a rule, action, or workflow is involved, include only the relevant supporting objects that actually exist in the catalog, not generic placeholders.
+
+For control-mapping use cases, the expected output is usually:
+
+```text
+1. create_control
+   Source Control
+
+2. create_control
+   Target Control
+
+3. link_control
+   Source Control -> Target Control
+```
+
+For `link_control`, the real source and target details must be resolved from the actual step ids declared by the catalog:
+
+```yaml
+config:
+  targetControl: nist-19-3-11
+  rollsUpFrom:
+    - step: microsoft-5-1-2
+      linkType: control
+```
+
+The response must look up the step with id `nist-19-3-11`, look up the step with id `microsoft-5-1-2`, and then include their real values for:
+
+* name
+* description
+* assessment
+* level
+* displayable / alias
+* config.controlSource when present
+
+The `link_control` step itself is only the wrapper. The source and target details come from the referenced step ids, not from the wrapper node.
+
+Do not invent a `create_rule`, `create_action`, `create_workflow`, or `create_application` step unless the catalog actually contains one and it is relevant to the matched capability.
+
+Example dynamic pattern:
+
+```text
+1. Type: create_control
+   Name: Microsoft Defender Security Policy Configuration
+   Level: L1
+   Assessment: microsoft
+   Description: Microsoft Defender control for security policy configuration and malicious code protection enforcement.
+   Alias: 2
+   Displayable: 5.1.2
+   ControlSource: standard
+
+2. Type: create_control
+   Name: NIST 19.3.11 Malicious Code Protection Mechanisms
+   Level: L2
+   Assessment: nist-800-53-v5
+   Description: NIST 800-53 control requiring malicious code protection mechanisms at system entry and exit points.
+   Alias: 2
+   Displayable: 19.3.11
+   ControlSource: standard
+
+3. Type: link_control
+   Name: Link NIST 19.3.11 to Microsoft 5.1.2
+   Level: L1 to L2
+   Assessment: Microsoft
+   Description: Microsoft security policy configuration control feeds the NIST malicious code protection mechanism target.
+   Source:
+     Assessment: microsoft
+     ControlName: Microsoft Defender Security Policy Configuration
+     ControlDescription: Microsoft Defender control for security policy configuration and malicious code protection enforcement.
+     Displayable: 5.1.2
+   Target:
+     Assessment: nist-800-53-v5
+     ControlName: NIST 19.3.11 Malicious Code Protection Mechanisms
+     ControlDescription: NIST 800-53 control requiring malicious code protection mechanisms at system entry and exit points.
+     Displayable: 19.3.11
+```
+
+Every `create_control` step must include a `Description` field. Every `link_control` step must include the nested `Source` and `Target` blocks with their actual referenced step metadata, not just a summary string. This is dynamic data from the actual catalog and should be resolved from the referenced step ids in `config.targetControl` and `config.rollsUpFrom[].step`.
+
+If a source control carries rule or evidence refs, include them only when they are relevant and present in the catalog. Do not skip them merely because they are stored directly on the control step rather than as a separate `create_rule` step. The plan must reflect the actual catalog data, not a hardcoded control-only assumption.
 
 Possible values include:
 
@@ -526,8 +604,6 @@ Possible values include:
 * create_action
 * create_workflow
 * create_application
-
-If a source control carries rule or evidence refs, include them in the execution plan as supporting objects when they are relevant to the matched capability. Do not skip them simply because they are stored on the control step rather than as a separate `create_rule` step. The plan must reflect the actual catalog data, not a hardcoded control-only assumption.
 * create_report
 * link_control
 * any other actual catalog step type
@@ -543,22 +619,9 @@ When control lineage exists, source must appear before target:
 ```text
 Source
     ->
-required intermediate catalog objects
+required intermediate catalog objects only when they are real
     ->
 Target
-```
-
-For example:
-
-```text
-1. create_control
-   Source Control
-
-2. create_rule
-   Source Rule
-
-3. create_control
-   Target Control
 ```
 
 If an explicit link operation exists:
@@ -569,6 +632,8 @@ If an explicit link operation exists:
 ```
 
 If no explicit link operation exists, do not add one.
+
+For a source-to-target mapping use case, the response should be catalog-accurate and intentionally minimal: only the actual source controls, target controls, and any real `link_control` steps should appear. Do not add unrelated support steps, rule steps, or workflow steps simply because the general prompt mentions them.
 
 ---
 
@@ -679,24 +744,51 @@ Matched Catalog
    Type: <actual type>
    Relationship: <actual relationship>
 
+Source Controls
+----------------
+| Ref | Step Type | Control Name | Assessment | Control Config Ref | Displayable |
+| --- | --- | --- | --- | --- | --- |
+| <source-ref> | create_control | <source control name> | <assessment> | <config-ref> | <displayable> |
+
+Target Controls
+----------------
+| Ref | Step Type | Control Name | Assessment | Control Config Ref | Displayable |
+| --- | --- | --- | --- | --- | --- |
+| <target-ref> | create_control | <target control name> | <assessment> | <config-ref> | <displayable> |
+
+Linkage Operations
+------------------
+| Link Ref | Operation | Source Control | Target Control | Link Type | Depends On |
+| --- | --- | --- | --- | --- | --- |
+| <link-ref> | link_control | <source control> | <target control> | control | <source-ref>, <target-ref> |
+
+Why it matches:
+The requirement asks for <requested capability>.
+The catalog contains <actual catalog objects> and the explicit source-to-target lifecycle mapping that satisfies it.
+
 Execution Plan
 --------------
 
-1. <actual operation>
-   <actual object>
+1. Type: create_control
+   Name / ControlName: <source control name>
+   Level: <level>
+   Assessment: <source assessment>
+   Displayable: <displayable>
 
-2. <actual operation>
-   <actual object>
+2. Type: create_control
+   Name / ControlName: <target control name>
+   Level: <level>
+   Assessment: <target assessment>
+   Displayable: <displayable>
 
-3. <actual operation>
-   <actual object>
-
-Source:
-<source object when lineage exists>
-
-Target:
-<target object when lineage exists>
+3. Type: link_control
+   Source: <source control name>
+   Target: <target control name>
+   LinkType: control
+   DependsOn: <source-ref>, <target-ref>
 ```
+
+For source-to-target mapping use cases, only include the actual source controls, target controls, and actual `link_control` steps. Do not add create_rule, create_action, create_workflow, create_application, or generic support steps unless the catalog explicitly contains them and they are directly relevant to the matched capability.
 
 Do not show Source or Target when no source/target lineage exists.
 

@@ -463,61 +463,72 @@ async def _get_lineage_steps(
         ctx=ctx,
     )
 
-    steps: list[dict] = []
+    control_steps: list[dict] = []
+    link_steps: list[dict] = []
 
     for index, node in enumerate(ordered_chain):
 
         detail = details.get(node["id"], {})
+        cfg = detail.get("config") or {}
+        displayable = cfg.get("displayable") or cfg.get("alias") or node.get("id")
 
-        steps.append({
+        control_steps.append({
             "stepId": node["id"],
+            "type": detail.get("type") or node.get("type"),
             "operation": detail.get("type") or node.get("type"),
             "level": detail.get("level") or node.get("level"),
+            "assessmentName": detail.get("assessment"),
+            "assessment": detail.get("assessment"),
+            "controlName": detail.get("name") or node.get("name"),
             "name": detail.get("name") or node.get("name"),
             "description": detail.get("description"),
-            "assessment": detail.get("assessment"),
+            "displayable": displayable,
             "ruleNames": detail.get("ruleNames", []),
             "evidenceNames": detail.get("evidenceNames", []),
+            "sourceStepId": None,
+            "targetStepId": None,
+            "linkType": None,
+            "role": "source" if index == 0 else "target" if index == len(ordered_chain) - 1 else "intermediate",
         })
 
-        support_steps = await _get_related_support_steps(
-            use_case_id,
-            [node["id"]],
+    for index in range(len(ordered_chain) - 1):
+        current_node = ordered_chain[index]
+        next_node = ordered_chain[index + 1]
+
+        link_step = await _get_link_control_step(
+            use_case_id=use_case_id,
+            target_step_id=next_node["id"],
+            source_step_id=current_node["id"],
             ctx=ctx,
         )
-        for support in support_steps:
-            steps.append({
-                "stepId": support["stepId"],
-                "operation": support["type"],
-                "level": support["level"],
-                "name": support["name"],
-                "description": support["description"],
-                "assessment": None,
+
+        if link_step:
+            link_steps.append({
+                "stepId": link_step["stepId"],
+                "type": link_step["type"],
+                "operation": link_step["type"],
+                "level": link_step["level"],
+                "assessmentName": link_step.get("assessment"),
+                "assessment": link_step.get("assessment"),
+                "controlName": link_step["name"],
+                "name": link_step["name"],
+                "description": link_step["description"],
+                "displayable": link_step.get("displayable"),
                 "ruleNames": [],
                 "evidenceNames": [],
+                "sourceStepId": current_node["id"],
+                "targetStepId": next_node["id"],
+                "linkType": "control",
+                "role": "link",
+                "source": link_step.get("source"),
+                "target": link_step.get("target"),
+                "dependsOn": link_step.get("dependsOn", [current_node["id"], next_node["id"]]),
             })
 
-        # Check whether an actual link_control exists between
-        # this node and the next node.
-        if index < len(ordered_chain) - 1:
-            current_node = node
-            next_node = ordered_chain[index + 1]
-
-            link_step = await _get_link_control_step(
-                use_case_id=use_case_id,
-                target_step_id=next_node["id"],
-                source_step_id=current_node["id"],
-                ctx=ctx,
-            )
-
-            if link_step:
-                steps.append({
-                    "stepId": link_step["stepId"],
-                    "operation": link_step["type"],
-                    "level": link_step["level"],
-                    "name": link_step["name"],
-                    "description": link_step["description"],
-                })
+    # Keep all actual control creation steps in source-first order, then append
+    # the actual link_control steps afterward. This preserves lineage order while
+    # avoiding a link being inserted between a source and its target control.
+    steps = control_steps + link_steps
 
     # Deduplicate while preserving order.
     seen: set[str] = set()
@@ -530,13 +541,62 @@ async def _get_lineage_steps(
         deduped.append(step)
     return deduped
 
+async def _get_step_details_by_id(
+    use_case_id: str,
+    step_id: str,
+    ctx: Context | None = None,
+) -> dict | None:
+    """Fetch one UseCaseStep and its relevant metadata by its declared step id."""
+    rows = await q("""
+        MATCH (:UseCase {id:$uc, isLatest:true})-[:HAS_STEP]->(s:UseCaseStep {id:$sid})
+        OPTIONAL MATCH (s)-[:IN_ASSESSMENT]->(assessment:Assessment)
+        OPTIONAL MATCH (s)-[:CONFIGURES]->(control:ControlConfig)
+        RETURN
+            s.id AS stepId,
+            s.type AS type,
+            s.level AS level,
+            s.name AS name,
+            s.description AS description,
+            s.config AS config,
+            s.detail AS detail,
+            collect(DISTINCT assessment.name) AS assessmentNames,
+            collect(DISTINCT assessment.ref) AS assessmentRefs,
+            collect(DISTINCT control.ref) AS controlRefs,
+            collect(DISTINCT control.name) AS controlNames
+    """,
+        ctx=ctx,
+        uc=use_case_id,
+        sid=step_id,
+    )
+    if not rows:
+        return None
+    row = rows[0]
+    cfg = _json_dict(row.get("config"))
+    detail = _json_dict(row.get("detail"))
+    displayable = (cfg or {}).get("displayable") or (cfg or {}).get("alias") or step_id
+    assessment = (row["assessmentNames"] or [None])[0] or (row["assessmentRefs"] or [None])[0]
+    return {
+        "stepId": row["stepId"],
+        "type": row["type"],
+        "level": row["level"],
+        "name": row["name"],
+        "description": row["description"],
+        "displayable": displayable,
+        "assessment": assessment,
+        "config": cfg,
+        "detail": detail,
+        "controlRefs": row["controlRefs"] or [],
+        "controlNames": row["controlNames"] or [],
+    }
+
+
 async def _get_link_control_step(
     use_case_id: str,
     target_step_id: str,
     source_step_id: str,
     ctx: Context | None = None,
 ) -> dict | None:
-    """Return the actual link_control step for a ROLLS_UP_FROM relationship."""
+    """Return the real link_control step and resolve its source/target details from step ids."""
 
     rows = await q("""
         MATCH (u:UseCase {id:$uc, isLatest:true})-[:HAS_STEP]->(link:UseCaseStep)
@@ -552,7 +612,9 @@ async def _get_link_control_step(
             link.level AS level,
             link.name AS name,
             link.description AS description,
-            link.config AS config
+            link.config AS config,
+            ids(target) AS targetNode,
+            ids(source) AS sourceNode
         LIMIT 1
     """,
         ctx=ctx,
@@ -561,7 +623,46 @@ async def _get_link_control_step(
         source=source_step_id,
     )
 
-    return rows[0] if rows else None
+    if not rows:
+        return None
+
+    row = rows[0]
+    src = await _get_step_details_by_id(use_case_id, source_step_id, ctx=ctx)
+    tgt = await _get_step_details_by_id(use_case_id, target_step_id, ctx=ctx)
+    cfg = _json_dict(row.get("config"))
+
+    return {
+        "stepId": row["stepId"],
+        "type": row["type"],
+        "level": row["level"],
+        "name": row["name"],
+        "description": row["description"],
+        "displayable": cfg.get("displayable") or cfg.get("alias") or row["stepId"],
+        "assessment": (src or {}).get("assessment") or (tgt or {}).get("assessment"),
+        "config": cfg,
+        "sourceStepId": source_step_id,
+        "targetStepId": target_step_id,
+        "dependsOn": [source_step_id, target_step_id],
+        "source": {
+            "stepId": source_step_id,
+            "assessment": (src or {}).get("assessment"),
+            "controlName": (src or {}).get("name"),
+            "controlDescription": (src or {}).get("description"),
+            "displayable": (src or {}).get("displayable"),
+            "type": (src or {}).get("type"),
+            "level": (src or {}).get("level"),
+        },
+        "target": {
+            "stepId": target_step_id,
+            "assessment": (tgt or {}).get("assessment"),
+            "controlName": (tgt or {}).get("name"),
+            "controlDescription": (tgt or {}).get("description"),
+            "displayable": (tgt or {}).get("displayable"),
+            "type": (tgt or {}).get("type"),
+            "level": (tgt or {}).get("level"),
+        },
+        "linkType": "control",
+    }
 
 async def _get_related_support_steps(
     use_case_id: str,
