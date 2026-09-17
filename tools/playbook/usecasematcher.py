@@ -202,9 +202,10 @@ def band(score: float) -> str:
 async def _control_lineage_rows(use_case_id: str, step_id: str | None = None,
         ctx: Context | None = None) -> list[dict]:
     """
-    Walk the control lineage from source to target using the stored
-    :ROLLS_UP_FROM edges. The graph direction is target -> source, so we
-    reverse the path to return a source-first ordering.
+    Walk the control lineage using the stored :ROLLS_UP_FROM edges, but keep the
+    order declared by the catalog instead of forcing a reversed source-first
+    ordering. This preserves the actual step sequence in YAML files such as the
+    ServiceNow use case where the catalog order is L3 -> L2 -> L1.
     """
     rows = await q("""
         MATCH (:UseCase {id:$uc, isLatest:true})-[:HAS_STEP]->(target:UseCaseStep)
@@ -217,7 +218,8 @@ async def _control_lineage_rows(use_case_id: str, step_id: str | None = None,
                 id: n.id,
                 type: n.type,
                 level: n.level,
-                name: n.name
+                name: n.name,
+                seq: coalesce(n.seq, 999999)
              }] AS chain,
              [n IN nodes(p) | n.id] AS chainIds,
              length(p) AS depth
@@ -267,6 +269,7 @@ async def _step_control_details(use_case_id: str, step_ids: list[str],
     for r in rows:
         cfg = _json_dict(r.get("config"))
         detail_obj = _json_dict(r.get("detail"))
+        assessment_name_override = (cfg or {}).get("assessmentName") or (detail_obj or {}).get("assessmentName")
         assessment_names = [x for x in (r["assessmentNames"] or []) if x]
         assessment_refs = [x for x in (r["assessmentRefs"] or []) if x]
 
@@ -299,6 +302,11 @@ async def _step_control_details(use_case_id: str, step_ids: list[str],
         evidence_refs = list(dict.fromkeys([*direct_evidence_refs, *flat_evidence_refs]))
 
         displayable = (cfg or {}).get("displayable") or (cfg or {}).get("alias")
+        assessment_value = assessment_name_override or (
+            assessment_names[0] if assessment_names else (
+                assessment_refs[0] if assessment_refs else "Not configured"
+            )
+        )
         details[r["id"]] = {
             "id": r["id"],
             "type": r["type"],
@@ -306,9 +314,8 @@ async def _step_control_details(use_case_id: str, step_ids: list[str],
             "name": r["name"],
             "description": r["description"],
             "displayable": displayable,
-            "assessment": assessment_names[0] if assessment_names else (
-                assessment_refs[0] if assessment_refs else "Not configured"
-            ),
+            "assessmentName": assessment_value,
+            "assessment": assessment_value,
             "assessmentRefs": assessment_refs,
             "ruleNames": rule_names,
             "ruleRefs": rule_refs,
@@ -324,16 +331,15 @@ async def _step_control_details(use_case_id: str, step_ids: list[str],
 async def get_control_lineage(use_case_id: str, step_id: str | None = None,
         ctx: Context | None = None) -> dict:
     """
-    Return linked control lineage in a source-first ordering: lowest source step
-    first, then intermediate steps, ending with the target control.
-
-    This is intentionally additive and does not change the existing match logic.
+    Return linked control lineage in the actual catalog order rather than forcing
+    a reversed source-first sequence. The YAML declaration order in the catalog is
+    the canonical ordering for display and plan generation.
     """
     rows = await _control_lineage_rows(use_case_id, step_id, ctx=ctx)
     seen: set[str] = set()
     ordered: list[dict] = []
     for r in rows:
-        for node in r["chain"] or []:
+        for node in (r["chain"] or []):
             node_id = node["id"]
             if node_id in seen:
                 continue
@@ -345,6 +351,7 @@ async def get_control_lineage(use_case_id: str, step_id: str | None = None,
                     "target" if node_id == step_id else "intermediate"
                 ),
             })
+    ordered.sort(key=lambda n: (n.get("seq") if isinstance(n.get("seq"), (int, float)) else 10**9, n.get("id") or ""))
 
     direct = await q("""
         MATCH (:UseCase {id:$uc, isLatest:true})-[:HAS_STEP]->(target:UseCaseStep)
@@ -424,7 +431,7 @@ async def get_control_lineage(use_case_id: str, step_id: str | None = None,
         "hasLineage": bool(ordered),
         "summaryText": (
             f"Linked control chain: {chain_text}. "
-            f"Source controls appear first, and the final target control is last."
+            f"The catalog's declared step order is preserved."
             if ordered else "No linked control lineage found for the requested step."
         ),
     }
@@ -574,7 +581,8 @@ async def _get_step_details_by_id(
     cfg = _json_dict(row.get("config"))
     detail = _json_dict(row.get("detail"))
     displayable = (cfg or {}).get("displayable") or (cfg or {}).get("alias") or step_id
-    assessment = (row["assessmentNames"] or [None])[0] or (row["assessmentRefs"] or [None])[0]
+    assessment_name = (cfg or {}).get("assessmentName") or (detail or {}).get("assessmentName")
+    assessment = assessment_name or ((row["assessmentNames"] or [None])[0] or (row["assessmentRefs"] or [None])[0])
     return {
         "stepId": row["stepId"],
         "type": row["type"],
@@ -582,6 +590,7 @@ async def _get_step_details_by_id(
         "name": row["name"],
         "description": row["description"],
         "displayable": displayable,
+        "assessmentName": assessment,
         "assessment": assessment,
         "config": cfg,
         "detail": detail,
@@ -638,14 +647,16 @@ async def _get_link_control_step(
         "name": row["name"],
         "description": row["description"],
         "displayable": cfg.get("displayable") or cfg.get("alias") or row["stepId"],
-        "assessment": (src or {}).get("assessment") or (tgt or {}).get("assessment"),
+        "assessmentName": (src or {}).get("assessmentName") or (tgt or {}).get("assessmentName") or (src or {}).get("assessment") or (tgt or {}).get("assessment"),
+        "assessment": (src or {}).get("assessmentName") or (tgt or {}).get("assessmentName") or (src or {}).get("assessment") or (tgt or {}).get("assessment"),
         "config": cfg,
         "sourceStepId": source_step_id,
         "targetStepId": target_step_id,
         "dependsOn": [source_step_id, target_step_id],
         "source": {
             "stepId": source_step_id,
-            "assessment": (src or {}).get("assessment"),
+            "assessment": (src or {}).get("assessmentName") or (src or {}).get("assessment"),
+            "assessmentName": (src or {}).get("assessmentName") or (src or {}).get("assessment"),
             "controlName": (src or {}).get("name"),
             "controlDescription": (src or {}).get("description"),
             "displayable": (src or {}).get("displayable"),
@@ -654,7 +665,8 @@ async def _get_link_control_step(
         },
         "target": {
             "stepId": target_step_id,
-            "assessment": (tgt or {}).get("assessment"),
+            "assessment": (tgt or {}).get("assessmentName") or (tgt or {}).get("assessment"),
+            "assessmentName": (tgt or {}).get("assessmentName") or (tgt or {}).get("assessment"),
             "controlName": (tgt or {}).get("name"),
             "controlDescription": (tgt or {}).get("description"),
             "displayable": (tgt or {}).get("displayable"),

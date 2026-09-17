@@ -508,15 +508,17 @@ The Execution Plan represents the catalog operations required by the matched cap
 
 The operation must always be the actual `UseCaseStep.type`.
 
-The plan must be ordered by dependency and lineage:
+The plan must follow the catalog's actual declared step order, because the YAML sequence is the canonical execution order for the use case. Do not reverse a valid catalog order simply because a generic source-target rule was stated earlier.
+
+For control-linkage cases, the order is the order declared in the catalog. In the ServiceNow pattern, that means the flow is effectively:
 
 ```text
-source object(s)
-   -> relevant intermediate objects only if they actually exist
-   -> target object(s)
+L3 target control
+   -> L2 target control
+   -> L1 source control
 ```
 
-This means the source side of a lineage must appear before the target side. If a control is matched, keep the source control before the target control. If a rule, action, or workflow is involved, include only the relevant supporting objects that actually exist in the catalog, not generic placeholders.
+If a rule, action, or workflow is involved, include only the relevant supporting objects that actually exist in the catalog, not generic placeholders.
 
 For control-mapping use cases, the expected output is usually:
 
@@ -545,7 +547,8 @@ The response must look up the step with id `nist-19-3-11`, look up the step with
 
 * name
 * description
-* assessment
+* assessmentName (use `config.assessmentName` when present; otherwise fallback to the assessment node name/ref)
+* assessment (for compatibility, same value as `assessmentName` when a real name is present)
 * level
 * displayable / alias
 * config.controlSource when present
@@ -560,7 +563,8 @@ Example dynamic pattern:
 1. Type: create_control
    Name: Microsoft Defender Security Policy Configuration
    Level: L1
-   Assessment: microsoft
+   AssessmentName: Microsoft Defender
+   Assessment: Microsoft Defender
    Description: Microsoft Defender control for security policy configuration and malicious code protection enforcement.
    Alias: 2
    Displayable: 5.1.2
@@ -569,7 +573,8 @@ Example dynamic pattern:
 2. Type: create_control
    Name: NIST 19.3.11 Malicious Code Protection Mechanisms
    Level: L2
-   Assessment: nist-800-53-v5
+   AssessmentName: NIST 800-53
+   Assessment: NIST 800-53
    Description: NIST 800-53 control requiring malicious code protection mechanisms at system entry and exit points.
    Alias: 2
    Displayable: 19.3.11
@@ -578,15 +583,18 @@ Example dynamic pattern:
 3. Type: link_control
    Name: Link NIST 19.3.11 to Microsoft 5.1.2
    Level: L1 to L2
-   Assessment: Microsoft
+   AssessmentName: Microsoft Defender
+   Assessment: Microsoft Defender
    Description: Microsoft security policy configuration control feeds the NIST malicious code protection mechanism target.
    Source:
-     Assessment: microsoft
+     AssessmentName: Microsoft Defender
+     Assessment: Microsoft Defender
      ControlName: Microsoft Defender Security Policy Configuration
      ControlDescription: Microsoft Defender control for security policy configuration and malicious code protection enforcement.
      Displayable: 5.1.2
    Target:
-     Assessment: nist-800-53-v5
+     AssessmentName: NIST 800-53
+     Assessment: NIST 800-53
      ControlName: NIST 19.3.11 Malicious Code Protection Mechanisms
      ControlDescription: NIST 800-53 control requiring malicious code protection mechanisms at system entry and exit points.
      Displayable: 19.3.11
@@ -614,14 +622,14 @@ Never invent an operation.
 
 The plan must be dependency-aware.
 
-When control lineage exists, source must appear before target:
+When control lineage exists, preserve the catalog's declared order instead of inventing a source-first sequence.
 
 ```text
-Source
+Declared catalog order
     ->
 required intermediate catalog objects only when they are real
     ->
-Target
+next declared step
 ```
 
 If an explicit link operation exists:
