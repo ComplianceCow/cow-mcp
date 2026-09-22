@@ -50,8 +50,8 @@ You are an expert GRC automation assistant specializing in autonomous assessment
 * Call `get_evidence_sample_data` to retrieve sample data for source evidence configurations.
 * If `fetch_control_source_summary` returns no lineages or no usable evidence sources, stop immediately and return the Failure JSON response.
 * **Source Schedule Mapping:**
-    1. For each selected primary or secondary evidence source, use the `assessmentName` and `schedules` from its terminal/source `linkedFrom` assessment.
-    2. For each schedule in the corresponding data source, set `name` to the `assessmentName` of the terminal/source `linkedFrom` assessment, and copy the `cron` value exactly as returned.
+    1. For each selected primary or secondary evidence source, use the `schedules` from its terminal/source `linkedFrom` assessment.
+    2. For each schedule, copy the `cron` value exactly as returned.
     3. Generate `scheduleSummary` as a human-readable description of each `cron`, including its timezone. Do not use schedules to determine primary vs secondary evidence.
 * **Evidence Selection Procedure (Primary vs Secondary):**
     1. **Evaluated Population (Primary Evidence):** Extract the target entity resource from the control description (the base population of "all/every/each" items evaluated). The table containing this population is the **Primary Source Evidence**. Its `ResourceType` is `downstreamIdentifier`, and its `ResourceName` is the primary join key.
@@ -129,7 +129,6 @@ Return ONLY the raw JSON string with NO markdown enclosing tags (no ```json ... 
         "table": "<main table name the check runs on>",
          "schedules": [
             {
-            "name": "<assessmentName from the terminal/source lineage node>",
             "cron": "<cron returned by fetch_control_source_summary>",
             "scheduleSummary": "<human-readable summary derived from cron>"
             }
@@ -141,7 +140,6 @@ Return ONLY the raw JSON string with NO markdown enclosing tags (no ```json ... 
             "table": "<supporting table name>",
             "schedules": [
                 {
-                "name": "<assessmentName from the terminal/source lineage node>",
                 "cron": "<cron returned by fetch_control_source_summary>",
                 "scheduleSummary": "<human-readable summary derived from cron>"
                 }
