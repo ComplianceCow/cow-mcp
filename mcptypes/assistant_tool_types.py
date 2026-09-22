@@ -13,6 +13,11 @@ class ColumnInfoVO(BaseModel):
         "extra": "ignore"
     }
 
+class ScheduleVO(BaseModel):
+    cron: Optional[str] = ""
+    model_config = {
+        "extra": "ignore"
+    }
 
 class RuleVO(BaseModel):
     ruleId: Optional[str] = ""
@@ -52,6 +57,7 @@ class LinkedControlVO(BaseModel):
     lineage: Optional[list[LineageVO]] = None
     evidences: Optional[list[EvidenceVO]] = None
     rule: Optional[RuleVO] = None
+    schedules: Optional[list[ScheduleVO]] = None
     model_config = {
         "extra": "ignore"
     }
