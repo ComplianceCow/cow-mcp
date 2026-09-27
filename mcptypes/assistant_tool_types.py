@@ -57,7 +57,7 @@ class LinkedControlVO(BaseModel):
     lineage: Optional[list[LineageVO]] = None
     evidences: Optional[list[EvidenceVO]] = None
     rule: Optional[RuleVO] = None
-    schedules: Optional[list[ScheduleVO]] = None
+    schedules: Optional[list[dict]] = None
     model_config = {
         "extra": "ignore"
     }

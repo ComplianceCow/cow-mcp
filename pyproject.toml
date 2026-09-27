@@ -23,7 +23,9 @@ dependencies = [
     "uvicorn[standard]==0.38.0",
     "toon-format",
     "sqlparse==0.6.0",
-    "cryptography==50.0.0"
+    "cryptography==50.0.0",
+    "croniter==6.2.4",
+    "cron-descriptor==2.1.0",
 ]
 [tool.setuptools.packages.find]
 where = ["."]

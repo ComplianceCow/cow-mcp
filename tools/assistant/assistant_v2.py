@@ -21,8 +21,10 @@ import yaml
 from mcptypes import assessment_config_tool_types as assessment_vo
 from mcptypes import workflow_tools_type as workflow_vo
 from mcptypes.graph_tool_types import UniqueNodeDataVO
-from mcptypes.assistant_tool_types import ControlSourceSummaryResponseVO, ControlSourceSummaryVO, FilteredEvidenceInputVO
+from mcptypes.assistant_tool_types import ControlSourceSummaryResponseVO, ControlSourceSummaryVO, FilteredEvidenceInputVO, LineageVO
 from fastmcp import Context
+
+from utils import convertCronUTC
 
 from toon_format import encode
 
@@ -1187,6 +1189,44 @@ async def assit_update_sql_query_evidence(
         logger.error("update_sql_query_evidence error: {}\n".format(e))
         return {"success": False, "error": f"Unexpected error updating SQL query evidence: {e}"}
 
+
+def convert_lineage_schedules(lineage_list: list[LineageVO]) -> None:
+    for lineage in lineage_list or []:
+        for linked_control in lineage.linkedFrom or []:
+
+            if linked_control.schedules:
+                logger.debug(
+                    "Schedules before conversion | assessmentName=%s | controlId=%s | recursionLevel=%s\n%s",
+                    linked_control.assessmentName,
+                    linked_control.controlId,
+                    lineage.recursionLevel,
+                    json.dumps(
+                        [schedule.model_dump() if hasattr(schedule, "model_dump") else schedule for schedule in linked_control.schedules],
+                        indent=2,
+                        default=str,
+                    ),
+                )
+
+                linked_control.schedules = convertCronUTC.convert_schedules(
+                    linked_control.schedules
+                )
+
+                logger.debug(
+                    "Schedules after conversion | assessmentName=%s | controlId=%s | recursionLevel=%s\n%s",
+                    linked_control.assessmentName,
+                    linked_control.controlId,
+                    lineage.recursionLevel,
+                    json.dumps(
+                        linked_control.schedules,
+                        indent=2,
+                        default=str,
+                    ),
+                )
+            else:
+                linked_control.schedules = []
+            if linked_control.lineage:
+                convert_lineage_schedules(linked_control.lineage)
+
 @mcp.tool()
 async def assit_fetch_control_source_summary(controlId: str, ctx: Context | None = None) -> ControlSourceSummaryResponseVO:
     """
@@ -1245,10 +1285,12 @@ async def assit_fetch_control_source_summary(controlId: str, ctx: Context | None
             if "Message" in resp:
                 logger.error("fetch_control_source_summary error: {}\n".format(resp))
                 return ControlSourceSummaryResponseVO(success=False, error=str(resp))
-
             try:
                 summary_data = ControlSourceSummaryVO(**resp)
                 logger.info("fetch_control_source_summary: Successfully parsed response into VO\n")
+
+                convert_lineage_schedules(summary_data.lineage)
+                
                 response = ControlSourceSummaryResponseVO(
                     success=True, 
                     data=summary_data,
