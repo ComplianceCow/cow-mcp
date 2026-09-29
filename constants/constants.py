@@ -16,6 +16,10 @@ else:
 
 host = os.environ.get("CCOW_HOST", "http://cowapiservice:80")
 COW_BASE_URL = os.environ.get("COW_BASE_URL", "https://dev.compliancecow.live")
+try:
+    CCOW_API_TIMEOUT = float(os.getenv("CCOW_API_TIMEOUT", "120"))
+except (ValueError, TypeError):
+    CCOW_API_TIMEOUT = 120.0
 
 ENABLE_CONTEXTUAL_VECTOR_SEARCH = os.environ.get("ENABLE_CONTEXTUAL_VECTOR_SEARCH", "false").lower() == "true"
 ENABLE_CCOW_API_TOOLS = os.environ.get("ENABLE_CCOW_API_TOOLS", "true").lower() == "true"

@@ -3,7 +3,7 @@ from typing import Any
 import httpx
 import traceback
 from utils.debug import logger
-from constants.constants import headers, host
+from constants.constants import headers, host, CCOW_API_TIMEOUT
 import constants.error_constants as error_constants
 from fastmcp import Context
 from mcpconfig.config import get_cc_headers
@@ -26,7 +26,7 @@ async def make_API_call_to_CCow_and_get_response(uriSuffix: str,method: str,requ
                 requestHeader["Content-Type"] = "application/json"
 
             method = method.upper()
-            request_args = {"url": host + uriSuffix, "headers": requestHeader,"timeout": 120.0}
+            request_args = {"url": host + uriSuffix, "headers": requestHeader,"timeout": CCOW_API_TIMEOUT}
 
             if method in ["GET", "DELETE"]:
                 if isinstance(request_body, dict):
@@ -59,7 +59,7 @@ async def make_API_call_to_CCow_and_get_response(uriSuffix: str,method: str,requ
             else:
                 return {}
         except httpx.TimeoutException:
-            logger.error(f"make_API_call_to_CCow_and_get_response error: Request timed out after 60 seconds for uriSuffix: {uriSuffix}")
+            logger.error(f"make_API_call_to_CCow_and_get_response error: Request timed out after {int(CCOW_API_TIMEOUT) if CCOW_API_TIMEOUT.is_integer() else CCOW_API_TIMEOUT} seconds for uriSuffix: {uriSuffix}")
             return "Facing error : Request timed out."
         except Exception as e:
             logger.error(traceback.format_exc())
@@ -75,9 +75,9 @@ async def make_API_call_to_CCow_v2(request_body: dict | str,uriSuffix: str, type
             response = None
             if type=="yaml":
                 requestHeader["Content-Type"] = "application/x-yaml"
-                response = await client.post(host+uriSuffix,data=request_body, headers=requestHeader, timeout=60.0)
+                response = await client.post(host+uriSuffix,data=request_body, headers=requestHeader, timeout=CCOW_API_TIMEOUT)
             else:
-                response = await client.post(host+uriSuffix,json=request_body, headers=requestHeader, timeout=60.0)
+                response = await client.post(host+uriSuffix,json=request_body, headers=requestHeader, timeout=CCOW_API_TIMEOUT)
             if response.status_code == 502:
                 return error_constants.ERROR_BAD_GATEWAY
             if response.status_code < 200 or response.status_code > 299:
@@ -91,7 +91,7 @@ async def make_API_call_to_CCow_v2(request_body: dict | str,uriSuffix: str, type
                 }
             return response.json()
         except httpx.TimeoutException:
-            logger.error(f"make_API_call_to_CCow_v2 error: Request timed out after 60 seconds for uriSuffix: {uriSuffix}")
+            logger.error(f"make_API_call_to_CCow_v2 error: Request timed out after {int(CCOW_API_TIMEOUT) if CCOW_API_TIMEOUT.is_integer() else CCOW_API_TIMEOUT} seconds for uriSuffix: {uriSuffix}")
             return "Facing error : Request timed out."
         except Exception as e:
             logger.error(traceback.format_exc())
@@ -107,10 +107,10 @@ async def make_API_call_to_CCow(request_body: dict | str,uriSuffix: str, type: s
             response = None
             if type=="yaml":
                 requestHeader["Content-Type"] = "application/x-yaml"
-                response = await client.post(host+uriSuffix,data=request_body, headers=requestHeader, timeout=60.0)
+                response = await client.post(host+uriSuffix,data=request_body, headers=requestHeader, timeout=CCOW_API_TIMEOUT)
             else:
             # response = await client.post("http://localhost:14600/v1/llm/"+uriSuffix,json=request_body, headers={"Authorization": "db4f39f2-45b1-445c-9b05-5cd4d5f04990"}, timeout=300.0)
-                response = await client.post(host+uriSuffix,json=request_body, headers=requestHeader, timeout=60.0)
+                response = await client.post(host+uriSuffix,json=request_body, headers=requestHeader, timeout=CCOW_API_TIMEOUT)
             if response.status_code == 502:
                 return error_constants.ERROR_BAD_GATEWAY
             if response.status_code < 200 or response.status_code > 299:
@@ -122,7 +122,7 @@ async def make_API_call_to_CCow(request_body: dict | str,uriSuffix: str, type: s
                 return ErrorVO(error=f"Unexpected response status: {response.status_code}").model_dump()
             return response.json()
         except httpx.TimeoutException:
-            logger.error(f"make_API_call_to_CCow error: Request timed out after 60 seconds for uriSuffix: {uriSuffix}")
+            logger.error(f"make_API_call_to_CCow error: Request timed out after {int(CCOW_API_TIMEOUT) if CCOW_API_TIMEOUT.is_integer() else CCOW_API_TIMEOUT} seconds for uriSuffix: {uriSuffix}")
             return "Facing error : Request timed out."
         except Exception as e:
             logger.error(traceback.format_exc())
@@ -135,7 +135,7 @@ async def make_GET_API_call_to_CCow(uriSuffix: str,ctx: Context | None = None, q
         try:
             requestHeader = get_cc_headers(ctx)
             # response = await client.post("http://localhost:14600/v1/llm/"+uriSuffix,json=request_body, headers={"Authorization": "db4f39f2-45b1-445c-9b05-5cd4d5f04990"}, timeout=300.0)
-            response = await client.get(host+uriSuffix, headers=requestHeader, timeout=60.0, params=query_params)
+            response = await client.get(host+uriSuffix, headers=requestHeader, timeout=CCOW_API_TIMEOUT, params=query_params)
             if response.status_code == 502:
                 return error_constants.ERROR_BAD_GATEWAY
             if response.status_code < 200 or response.status_code > 299:
@@ -143,7 +143,7 @@ async def make_GET_API_call_to_CCow(uriSuffix: str,ctx: Context | None = None, q
                 return ErrorVO(error=f"Unexpected response status: {response.status_code}").model_dump()
             return response.json()
         except httpx.TimeoutException:
-            logger.error(f"make_GET_API_call_to_CCow error: Request timed out after 60 seconds for uriSuffix: {uriSuffix}")
+            logger.error(f"make_GET_API_call_to_CCow error: Request timed out after {int(CCOW_API_TIMEOUT) if CCOW_API_TIMEOUT.is_integer() else CCOW_API_TIMEOUT} seconds for uriSuffix: {uriSuffix}")
             return "Facing error : Request timed out."
         except Exception as e:
             logger.error(traceback.format_exc())
@@ -155,7 +155,7 @@ async def make_GET_API_call_to_CCow_With_Payload(uriSuffix: str, payload: dict |
     async with httpx.AsyncClient() as client:
         try:
             requestHeader = get_cc_headers(ctx)
-            response = await client.request("GET", host+uriSuffix, content=json.dumps(payload).encode("utf-8"), headers=requestHeader, timeout=60.0)
+            response = await client.request("GET", host+uriSuffix, content=json.dumps(payload).encode("utf-8"), headers=requestHeader, timeout=CCOW_API_TIMEOUT)
             if response.status_code == 502:
                 return error_constants.ERROR_BAD_GATEWAY
             if response.status_code < 200 or response.status_code > 299:
@@ -163,7 +163,7 @@ async def make_GET_API_call_to_CCow_With_Payload(uriSuffix: str, payload: dict |
                 return ErrorVO(error=f"Unexpected response status: {response.status_code}").model_dump()
             return response.json()
         except httpx.TimeoutException:
-            logger.error(f"make_GET_API_call_to_CCow error: Request timed out after 60 seconds for uriSuffix: {uriSuffix}")
+            logger.error(f"make_GET_API_call_to_CCow error: Request timed out after {int(CCOW_API_TIMEOUT) if CCOW_API_TIMEOUT.is_integer() else CCOW_API_TIMEOUT} seconds for uriSuffix: {uriSuffix}")
             return "Facing error : Request timed out."
         except Exception as e:
             logger.error(traceback.format_exc())
