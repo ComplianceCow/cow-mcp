@@ -11,6 +11,93 @@ from mcpconfig.config import mcp
 from constants import constants
 from fastmcp import Context
 from mcptypes import forms_tool_types as vo
+import os
+import re
+import datetime
+import traceback
+import io
+import zipfile
+import base64
+import time
+import shutil
+
+ALLOWED_REPORT_FILE_PATTERNS = [
+    r"^_meta\.json$",
+    r"^cow_template\.jinja$",
+    r"^template\.jinja$",
+    r"^filter\.jinja$",
+    r"^cowdashboard\.js$",
+    r"^markdown\.md$",
+    r"^data\/[a-zA-Z0-9_\-\. ]+\.csv$",  # Evidence CSV files inside data/
+    r"^[a-zA-Z0-9_]+\.py$",               # Main report Python class
+]
+
+EXCLUDED_EXACT_FILENAMES = {
+    "generate_mock_data.py",
+    ".ds_store",
+    "thumbs.db",
+}
+
+def is_whitelisted_report_file(rel_path: str) -> bool:
+    normalized = rel_path.replace("\\", "/").strip("/")
+    base_name = os.path.basename(normalized).lower()
+    
+    # Exclude exact blacklisted filenames, hidden files, and scratch/test scripts
+    if (
+        base_name in EXCLUDED_EXACT_FILENAMES
+        or base_name.startswith(".")
+        or normalized.endswith(".pyc")
+        or normalized.endswith(".zip")
+        or normalized.endswith(".bak")
+        or normalized.endswith(".tmp")
+        or normalized.endswith("~")
+        or base_name.startswith("test_")
+        or base_name.startswith("temp_")
+        or base_name.startswith("scratch_")
+    ):
+        return False
+        
+    return any(re.match(pattern, normalized, re.IGNORECASE) for pattern in ALLOWED_REPORT_FILE_PATTERNS)
+
+def sanitize_report_template_payload(files: dict[str, str]) -> dict[str, str]:
+    """
+    Sanitizes report files before zipping or staging.
+    Translates macro placeholders (__data_safe__, __js_script_safe__, __plan_id__, __id__)
+    into standard Jinja2 curly braces and normalizes variable names.
+    """
+    sanitized = dict(files)
+    macro_map = {
+        "__data_safe__": "{{ data | safe }}",
+        "__js_script_safe__": "{{ js_script | safe }}",
+        "__plan_id__": "{{ plan_id }}",
+        "__id__": "{{ id }}",
+        "__data__": "{{ data }}",
+        "__js_script__": "{{ js_script }}"
+    }
+    
+    for filename in ["cow_template.jinja", "template.jinja", "filter.jinja"]:
+        if filename in sanitized:
+            content = sanitized[filename]
+            for macro, jinja_expr in macro_map.items():
+                if macro in content:
+                    logger.info(f"sanitize_report_template_payload: Auto-translating macro '{macro}' to '{jinja_expr}' in {filename}")
+                    content = content.replace(macro, jinja_expr)
+            if "window.cbreDashboardData" in content and "window.cowDashboardData" not in content:
+                logger.info(f"sanitize_report_template_payload: Normalizing window.cbreDashboardData to window.cowDashboardData in {filename}")
+                content = content.replace("window.cbreDashboardData", "window.cowDashboardData")
+            sanitized[filename] = content
+            
+    return sanitized
+
+
+def filter_whitelisted_report_files(files: dict[str, str]) -> dict[str, str]:
+    clean_files = {}
+    for rel_path, content in files.items():
+        if is_whitelisted_report_file(rel_path):
+            clean_files[rel_path.replace("\\", "/").strip("/")] = content
+        else:
+            logger.info(f"filter_whitelisted_report_files: Skipping non-whitelisted/temporary file: {rel_path}")
+    return clean_files
 
 @mcp.tool() 
 async def execute_cypher_query_for_reports(query: str, ctx: Context | None = None) -> CypherQueryVO: 
@@ -154,41 +241,29 @@ async def upload_new_custom_report(name: str, description: str, file_bytes: str,
     
     
 def create_report_files(report_dir: str, files: dict[str, str]):
-    import os
     os.makedirs(report_dir, exist_ok=True)
     for rel_path, content in files.items():
+        if not is_whitelisted_report_file(rel_path):
+            continue
         file_path = os.path.join(report_dir, rel_path)
-        # Ensure parent directories exist (e.g. data/)
         os.makedirs(os.path.dirname(file_path), exist_ok=True)
         with open(file_path, "w", encoding="utf-8") as f:
             f.write(content)
 
 def create_report_zip_from_dict(files: dict[str, str]) -> bytes:
-    import io
-    import zipfile
     zip_buffer = io.BytesIO()
     with zipfile.ZipFile(zip_buffer, "w", zipfile.ZIP_DEFLATED) as zip_file:
         for rel_path, content in files.items():
-            filename = rel_path.split("/")[-1]
-            if filename in ('.DS_Store', 'generate_mock_data.py') or rel_path.endswith('.zip') or rel_path.endswith('.pyc'):
+            if not is_whitelisted_report_file(rel_path):
                 continue
             zip_file.writestr(rel_path, content)
     zip_buffer.seek(0)
     return zip_buffer.read()
 
 def base64_encode_zip(zip_bytes: bytes) -> str:
-    import base64
     return base64.b64encode(zip_bytes).decode('utf-8')
 
 def cleanup_expired_report_folders(report_dir: str, delay_minutes: int):
-    """
-    Scans the report directory and deletes any timestamped report subfolders 
-    whose modification time is older than the configured delay.
-    """
-    import os
-    import time
-    import shutil
-
     if not os.path.exists(report_dir):
         return
 
@@ -235,47 +310,89 @@ async def package_and_upload_custom_report(
         description (str): Description of the custom report.
         category_id (str): Category ID of the custom report categories.
         level (str): Visibility level of the report ('user' or 'system').
-        report_dir (str, optional): Target local directory path to store files. Defaults to downloads folder with report name.
+        report_dir (str, optional): Target local directory path for upload staging. Defaults to COW_CUSTOM_REPORT_UPLOAD_DIR or COW_CUSTOM_REPORT_DIR.
     """
-    import os
-    import datetime
+    # 1. Resolve Ephemeral Upload Staging Directory from ENV
+    upload_base_dir = (
+        report_dir
+        or os.environ.get("COW_CUSTOM_REPORT_UPLOAD_DIR")
+        or "/home/goose/cow-mcp/reporttempfiles"
+    )
+    
+    # 2. Resolve Persistent Working Directory from ENV
+    working_dir = (
+        os.environ.get("COW_CUSTOM_REPORT_WORKING_DIR")
+        or "/home/goose/cow-mcp/reporttempfiles/working"
+    )
 
-    if not report_dir:
-        report_dir = os.environ.get("COW_CUSTOM_REPORT_DIR", "/home/goose/cow-mcp/reporttempfiles")
+    logger.debug(f"package_and_upload_custom_report - upload_base_dir: {upload_base_dir}, working_dir: {working_dir}")
 
-    logger.debug("report_dir: {}".format(report_dir))
+    # 3. Filter out temporary, scratch, and non-whitelisted files, and sanitize template macros
+    clean_files = filter_whitelisted_report_files(files)
+    clean_files = sanitize_report_template_payload(clean_files)
 
-    if "_meta.json" not in files:
+    if "_meta.json" not in clean_files:
         logger.error("package_and_upload_custom_report: _meta.json not found in the files payload.")
         return WorkflowInanceVO(error="_meta.json not found in the files payload.")
 
-    # Get expiration cutoff in minutes (defaulting to 30 mins)
+    # 4. Cleanup expired staging folders in upload directory
     delay_minutes_str = os.environ.get("COW_REPORT_CLEANUP_DELAY_MINUTES", "30")
     try:
         delay_minutes = int(float(delay_minutes_str))
     except ValueError:
         delay_minutes = 30
+    cleanup_expired_report_folders(upload_base_dir, delay_minutes)
 
-    # Purge any expired folders before executing new tasks
-    cleanup_expired_report_folders(report_dir, delay_minutes)
+    # 5. Fetch user session info for isolated folder naming
+    user_id = ""
+    domain_id = ""
+    role_id = ""
+    try:
+        user_info = await get_user_info(ctx=ctx)
+        if isinstance(user_info, dict):
+            user_id = user_info.get("id") or user_info.get("userId") or user_info.get("userID") or user_info.get("user_id") or ""
+            domain_id = user_info.get("domainID") or user_info.get("domainId") or user_info.get("domain_id") or ""
+            roles = user_info.get("roles") or []
+            if isinstance(roles, list) and roles:
+                first_role = roles[0]
+                if isinstance(first_role, dict):
+                    role_id = first_role.get("roleId") or first_role.get("roleID") or first_role.get("id") or ""
+                elif isinstance(first_role, str):
+                    role_id = first_role
+            if not role_id:
+                role_id = user_info.get("roleID") or user_info.get("roleId") or user_info.get("role_id") or ""
+    except Exception as ex:
+        logger.debug(f"Failed to fetch user session info for folder isolation: {ex}")
 
-    # Create timestamped temporary folder to avoid user conflicts
     timestamp = datetime.datetime.now().strftime("%Y%m%d_%H%M%S")
-    temp_dir = os.path.join(report_dir, f"{name}_{timestamp}")
+    folder_components = [name]
+    if user_id:
+        folder_components.append(str(user_id))
+    if domain_id:
+        folder_components.append(str(domain_id))
+    if role_id:
+        folder_components.append(str(role_id))
+    folder_components.append(timestamp)
+
+    isolated_folder_name = "_".join(folder_components)
+    temp_upload_dir = os.path.join(upload_base_dir, isolated_folder_name)
 
     try:
-        logger.info("package_and_upload_custom_report: zipping files directly from in-memory dictionary")
-        zip_data = create_report_zip_from_dict(files)
+        # 6. Optional: Sync clean files to persistent working directory
+        if os.path.exists(working_dir) or os.environ.get("COW_CUSTOM_REPORT_WORKING_DIR"):
+            user_working_dir = os.path.join(working_dir, name)
+            create_report_files(user_working_dir, clean_files)
 
-        logger.debug("zip_data: {}".format(zip_data))
+        # 7. Zip ONLY whitelisted files directly from memory
+        logger.info("package_and_upload_custom_report: zipping whitelisted files directly from in-memory dictionary")
+        zip_data = create_report_zip_from_dict(clean_files)
 
-        logger.info(f"package_and_upload_custom_report: creating/updating files on disk in temporary directory {temp_dir}")
-        create_report_files(temp_dir, files)
+        # 8. Write ONLY whitelisted files to isolated ephemeral upload directory
+        logger.info(f"package_and_upload_custom_report: staging whitelisted files on disk in ephemeral directory {temp_upload_dir}")
+        create_report_files(temp_upload_dir, clean_files)
 
-        logger.info("package_and_upload_custom_report: base64 encoding zip archive")
+        # 9. Base64 encode and upload
         file_bytes_b64 = base64_encode_zip(zip_data)
-        
-        logger.debug("file_bytes_b64: {}".format(file_bytes_b64))
         
         logger.info(f"package_and_upload_custom_report: calling upload_new_custom_report for {name}")
         response = await upload_new_custom_report(
@@ -293,6 +410,21 @@ async def package_and_upload_custom_report(
         logger.error(f"package_and_upload_custom_report error: {e}")
         return WorkflowInanceVO(error=f"Packaging or upload failed: {str(e)}")
 
+
+@mcp.tool()
+async def get_user_info(ctx: Context):
+    """
+        It is used to fetch the information of the current user information
+
+    Returns:
+        user information 
+    """
+    logger.info("fetch get_user_info : \n")
+    output = await utils.make_API_call_to_CCow_and_get_response(
+                constants.URL_USERS_ME, "GET", ctx=ctx
+            )
+    logger.info(f"fetch get_user_info - output : {output}")
+    return output
         
 @mcp.tool()
 async def send_custom_report_approval_workflow_url(ctx: Context | None = None) -> str:
@@ -307,9 +439,7 @@ async def send_custom_report_approval_workflow_url(ctx: Context | None = None) -
     import os
     try:
         logger.info("send_workflow_url")
-        output = await utils.make_API_call_to_CCow_and_get_response(
-            constants.URL_USERS_ME, "GET", ctx=ctx
-        )
+        output = await get_user_info(ctx=ctx)
         logger.debug("users/me - output: %s", output)
 
         if not isinstance(output, dict) or "error" in output or "Message" in output:
