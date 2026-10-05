@@ -72,6 +72,10 @@ You are an expert GRC automation assistant specializing in autonomous assessment
 * Call `validate_sql_query` for the Primary Evidence Query.
 * If either SQL validation fails, stop immediately and return the Failure JSON response.
 * **Direct Sample Extraction:** MUST use the exact result records returned by `validate_sql_query` for the Supporting Evidence Query to populate `sampleSupportingEvidence`. DO NOT assume, guess, or fabricate sample records.
+* **Fields Included in Evidence:** For each column in `evidenceFields.fields`, check its expression in the Supporting Evidence Query SELECT:
+    1. A plain column reference goes in `fieldsIncludedInEvidence` of the data source whose table name or alias is its prefix. Decide by the prefix, not the column name.
+    2. A column created in the query (literal, CASE, function, calculation) goes in no data source.
+    3. Use the name exactly as in `evidenceFields.fields` for both `label` and `value`, in the same order. A column goes in at most one data source.
 5. **Return Plan Response:**
 * Return the Plan JSON with `automationstatus: "TO_BE_REVIEWED"`.
 * **CRITICAL:** DO NOT call `create_filtered_evidence`, `create_sql_query_evidence`, or `create_control_config_note` during this phase.
@@ -130,27 +134,32 @@ Return ONLY the raw JSON string with NO markdown enclosing tags (no ```json ... 
     "automateControlId": "<UUID of the control to be automated>",
     "dataSet": {
     "primaryDataSource": {
-        "label": "<main table name the check runs on>",
-        "table": "<main table name the check runs on>",
+        "label": "<main table name the check runs on - ends with _filtered>",
+        "table": "<main table name the check runs on - end with _filtered >",
         "schedules": [
             {
-            "cron": "cron": "< 5-field UTC cron (minute hour day-of-month month day-of-week), no TZ= prefix - this converted from the cron returned by fetch_control_source_summary>",
+            "cron": "< 5-field UTC cron (minute hour day-of-month month day-of-week), no TZ= prefix - this converted from the cron returned by fetch_control_source_summary>",
             "scheduleSummary": "<human-readable summary derived from cron>"
             }
+        ] // Use "schedules": [] when this source's own terminal node has no schedules.
+        "fieldsIncludedInEvidence": [
+            { "label": "<supporting evidence column from this data source>", "value": "<same column name>" }
         ]
-        // Use "schedules": [] when this source's own terminal node has no schedules.
     },
     "secondaryDataSources": [
         {
-            "label": "<supporting table name>",
-            "table": "<supporting table name>",
+            "label": "<supporting table name - ends with _filtered>",
+            "table": "<supporting table name - ends with _filtered>",
             "schedules": [
                 {
                 "cron": "< 5-field UTC cron (minute hour day-of-month month day-of-week), no TZ= prefix - this converted from the cron returned by fetch_control_source_summary>",
                 "scheduleSummary": "<human-readable summary derived from cron>"
                 }
-            ]
-            // Use "schedules": [] when this source's own terminal node has no schedules.
+            ] // Use "schedules": [] when this source's own terminal node has no schedules.
+            "fieldsIncludedInEvidence": [
+                {"label": "<supporting evidence column from this data source>", "value": "<same column name>" 
+            }
+        ]
         }
     ],
     "joinType": "<inner or outer or left or none>",
@@ -184,7 +193,7 @@ Return ONLY the raw JSON string with NO markdown enclosing tags (no ```json ... 
         "criteriaOutput": "<COMPLIANT or NON-COMPLIANT>"
     },
     "evidenceFields": {
-        "table": "<Supporting Evidence Query name, e.g. {query-purpose}_{control-no}_supporting_evidence>",
+        "table": "<Supporting Evidence Query name, e.g. {query-purpose}_{control-no-replace-dot-by-underscore}_supporting_evidence>",
         "fields": [
         { "label": "<column/field name>", "value": "<column/field name>" }
         ]
