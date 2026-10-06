@@ -1,4 +1,5 @@
 import json
+import os
 from typing import Any
 import httpx
 import traceback
@@ -325,3 +326,12 @@ def require_fields(data: dict, fields: list[str]) -> dict | None:
             }
 
     return None
+    
+
+def get_bool_env(name: str, default: bool = False) -> bool:
+    value = os.getenv(name)
+
+    if value is None:
+        return default
+
+    return value.strip().lower() in ("true", "1", "yes", "y", "on")
