@@ -243,6 +243,8 @@ source = { virtual = "." }
 dependencies = [
     { name = "aiohttp" },
     { name = "cachetools" },
+    { name = "cron-descriptor" },
+    { name = "croniter" },
     { name = "cryptography" },
     { name = "django" },
     { name = "fastmcp" },
@@ -266,6 +268,8 @@ dependencies = [
 requires-dist = [
     { name = "aiohttp", specifier = "==3.14.3" },
     { name = "cachetools", specifier = "==6.2.1" },
+    { name = "cron-descriptor", specifier = "==2.1.0" },
+    { name = "croniter", specifier = "==6.2.4" },
     { name = "cryptography", specifier = "==50.0.0" },
     { name = "django", specifier = "==6.0.4" },
     { name = "fastmcp", specifier = "==3.2.0" },
@@ -280,9 +284,33 @@ requires-dist = [
     { name = "sqlparse", specifier = "==0.6.0" },
     { name = "starlette", specifier = ">=0.49.1" },
     { name = "toml", specifier = ">=0.10.2" },
-    { name = "toon-format", git = "https://github.com/toon-format/toon-python.git" },
+    { name = "toon-format", specifier = "==1.0.0" },
     { name = "urllib3", specifier = ">=2.6.0" },
     { name = "uvicorn", extras = ["standard"], specifier = "==0.38.0" },
+]
+
+[[package]]
+name = "cron-descriptor"
+version = "2.1.0"
+source = { registry = "https://pypi.org/simple" }
+dependencies = [
+    { name = "typing-extensions" },
+]
+sdist = { url = "https://files.pythonhosted.org/packages/91/75/b44b05ae7d1e49b59a27a917c44e04ce9aa4cebdd05dac42ba7df06a91b4/cron_descriptor-2.1.0.tar.gz", hash = "sha256:ecddb8b2f6c5286398949aaefe185364666af74f33b01877c61378e1fd4e38e6", size = 50221, upload-time = "2026-06-02T16:26:28.223Z" }
+wheels = [
+    { url = "https://files.pythonhosted.org/packages/0d/41/c476c41cb88dbbba83e0685dd331b9d32599f1e4a94ca223b02437a3d83b/cron_descriptor-2.1.0-py3-none-any.whl", hash = "sha256:e280efae0e375e2cbc62846f833888f12c7921d2d11ab0dca598f94c51af8639", size = 74734, upload-time = "2026-06-02T16:26:26.919Z" },
+]
+
+[[package]]
+name = "croniter"
+version = "6.2.4"
+source = { registry = "https://pypi.org/simple" }
+dependencies = [
+    { name = "python-dateutil" },
+]
+sdist = { url = "https://files.pythonhosted.org/packages/37/57/2e2a65aee2a70483cb28e2b7e15a072d00a523207593b44400d4717bb100/croniter-6.2.4.tar.gz", hash = "sha256:fc124f751b1b04805c2a04b061898b436b45ab2320b045e1e052ea895de65189", size = 166267, upload-time = "2026-07-10T09:52:59.955Z" }
+wheels = [
+    { url = "https://files.pythonhosted.org/packages/cd/ba/d678e5bd329646ca51d3c92addbc77804e86d21f4b6b6a027218e6abb010/croniter-6.2.4-py3-none-any.whl", hash = "sha256:8ef3d544107a5c05a150a2d78f8bf5a8eb9c5c4d93405a736b824109574e3f4d", size = 46677, upload-time = "2026-07-10T09:52:58.425Z" },
 ]
 
 [[package]]
@@ -1295,8 +1323,12 @@ wheels = [
 
 [[package]]
 name = "toon-format"
-version = "0.9.0b1"
-source = { git = "https://github.com/toon-format/toon-python.git#e475c82e9da03dfaf88c0b277dee6b5d17100b13" }
+version = "1.0.0"
+source = { registry = "https://pypi.org/simple" }
+sdist = { url = "https://files.pythonhosted.org/packages/79/6a/897e8591e772e65f723015ed725b0428e02bedf07063e5b65c067747fcb2/toon_format-1.0.0.tar.gz", hash = "sha256:fb0e7340ae5b35c8fa8d03c620f183f5335e896a2e2cfcc226797aa702d62525", size = 19661, upload-time = "2026-10-03T05:36:28.991Z" }
+wheels = [
+    { url = "https://files.pythonhosted.org/packages/8d/dd/72b86bc427ec0725c469d71d7be3b2dc73619bd7ffce607de62476a66a4d/toon_format-1.0.0-py3-none-any.whl", hash = "sha256:4bdbf903284ccc57ef0f99ab603e0efa39d848cbdd54bc1bf5d1959adcd73d0b", size = 22457, upload-time = "2026-10-03T05:36:27.924Z" },
+]
 
 [[package]]
 name = "typing-extensions"
