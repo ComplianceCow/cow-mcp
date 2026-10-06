@@ -10,9 +10,10 @@ from mcpconfig.config import mcp
 from tools.general import command, general
 from utils.auth import CCowOAuthProvider
 from utils.debug import logger
+from utils.utils import get_bool_env
 
 mcp_tools_to_be_included = os.getenv("MCP_TOOLS_TO_BE_INCLUDED", "rules,insights,workflow").lower().strip()
-use_neo4j_graph_data = bool(os.getenv("USE_NEO4J_GRAPH_DATA", "true").lower().strip())
+use_neo4j_graph_data = get_bool_env("USE_NEO4J_GRAPH_DATA", True)
 
 MCP_TOOLS = [t.strip() for t in mcp_tools_to_be_included.split(",") if t.strip()]
 
