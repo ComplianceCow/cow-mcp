@@ -21,6 +21,8 @@ try:
 except (ValueError, TypeError):
     CCOW_API_TIMEOUT = 120.0
 
+CCOW_ASSISTANT_VALIDATE_SQL_QUERY_RECORDS_LIMIT = int(os.getenv("CCOW_ASSISTANT_VALIDATE_SQL_QUERY_RECORDS_LIMIT", "3"))
+
 ENABLE_CONTEXTUAL_VECTOR_SEARCH = os.environ.get("ENABLE_CONTEXTUAL_VECTOR_SEARCH", "false").lower() == "true"
 ENABLE_CCOW_API_TOOLS = os.environ.get("ENABLE_CCOW_API_TOOLS", "true").lower() == "true"
 ENABLE_RULE_CREATION_TASK_CHAIN_PROCESS = os.environ.get("ENABLE_RULE_CREATION_TASK_CHAIN_PROCESS", "false").lower() == "true"

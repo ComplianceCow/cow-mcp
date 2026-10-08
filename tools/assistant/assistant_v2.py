@@ -2035,7 +2035,8 @@ async def assit_validate_sql_query(
             "sqlQuery": str(sqlQuery).strip(),
             "referenceEvidences": validated_evidences,
             "assessmentID": assessmentId,
-            "assessmentControlID": controlId
+            "assessmentControlID": controlId,
+            "returnRowCount" : constants.CCOW_ASSISTANT_VALIDATE_SQL_QUERY_RECORDS_LIMIT
         }
         
         logger.debug("validate_sql_query payload: {}\n".format(json.dumps(payload)))
