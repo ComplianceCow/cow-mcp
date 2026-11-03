@@ -215,3 +215,5 @@ URL_CREATE_APPLICATION_SCOPE = "/v1/configuration"
 URL_APPLICATION_SCOPE = "/v1/configuration"
 
 URL_PLAYBOOK_FETCH_DATA = "/v1/graphloader/playbook/fetch-data"
+URL_PLAYBOOK_LOAD = "/v1/graphloader/playbook/load"
+URL_PLAYBOOK_VALIDATE = "/v1/graphloader/playbook/validate"
