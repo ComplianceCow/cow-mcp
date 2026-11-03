@@ -332,3 +332,158 @@ async def get_evidence_data(
     except Exception as e:
         logger.error("get_evidence_data exception: {}\n".format(e))
         return {"error": "Facing internal error"}
+
+
+async def get_control_details_with_displayable_api(displayable: str, plan_id: Optional[str],plan_name:Optional[str], ctx: Optional[Context] = None) -> Union[Dict[str, Any], str]:
+    if not plan_id and not plan_name:
+        return {"error":"Either plan_id or plan_name must be provided."}
+
+    if not plan_id and plan_name:
+        plan_resp = get_assessment_details_api_with_name(plan_name,ctx=ctx)
+        plan_id = (plan_resp.get("items") or [{}])[0].get("id")
+
+    if not plan_id:
+        return resp
+    
+    url = f"{constants.URL_PLAN_CONTROLS}?fields=basic&plan_id={plan_id}&displayable={displayable}"
+    logger.info(f"get_control_details_with_displayable_api: GET {url}")
+    resp = await utils.make_GET_API_call_to_CCow(url, ctx=ctx)
+    logger.info(f"get_control_details_with_displayable_api response:\n{json.dumps(resp, indent=2) if isinstance(resp, (dict, list)) else resp}")
+    return resp
+
+
+async def get_assessment_details_api_with_name(assessmentName: str, ctx: Optional[Context] = None) -> Union[Dict[str, Any], str]:
+    """Fetch assessment details by assessment ID."""
+    url = f"{constants.URL_PLANS}?fields=basic&name={assessmentName}"
+    logger.info(f"get_assessment_details_api: GET {url}")
+    resp = await utils.make_GET_API_call_to_CCow(url, ctx=ctx)
+    logger.info(f"get_assessment_details_api response:\n{json.dumps(resp, indent=2) if isinstance(resp, (dict, list)) else resp}")
+    return resp
+
+
+async def fetch_all_assets_api(ctx: Optional[Context] = None) -> Union[Dict[str, Any], str]:
+    """Fetch all assets"""
+    url = constants.URL_ASSETS
+    logger.info(f"fetch_all_assets_api: GET {url}")
+    resp = await utils.make_GET_API_call_to_CCow(url, ctx=ctx)
+    return resp
+
+
+async def create_asset_api(asset_name: str, appScopeId: str | None = "", ctx: Optional[Context] = None) -> Union[Dict[str, Any], str]:
+    """Create a new asset asset"""
+    payload = {
+        "name": str(asset_name).strip(),
+        "categoryName": "Integrations",
+        "type": "integration",
+        "configId": appScopeId,
+        "status": "active",
+        "linkToDefaultCCFPlan": {},
+    }
+    url = constants.URL_PLANS
+    logger.info(f"create_asset_api: POST {url}\nPayload:\n{json.dumps(payload, indent=2)}")
+    resp = await utils.make_API_call_to_CCow_and_get_response(url, "POST", payload, ctx=ctx)
+    logger.info(f"create_asset_api response:\n{json.dumps(resp, indent=2) if isinstance(resp, (dict, list)) else resp}")
+    return resp
+
+
+async def get_plan_controls_api(
+    plan_id: str,
+    displayable: Optional[str] = None,
+    page_size: int = 1000,
+    ctx: Optional[Context] = None
+) -> Union[Dict[str, Any], str]:
+    """Fetch controls for a assessment, optionally filtered by displayable"""
+    query = f"?fields=basic&plan_id={plan_id}&page=1&page_size={page_size}"
+    if displayable:
+        query += f"&displayable={displayable}"
+    url = f"{constants.URL_PLAN_CONTROLS}{query}"
+    logger.info(f"get_plan_controls_api: GET {url}")
+    resp = await utils.make_GET_API_call_to_CCow(url, ctx=ctx)
+    logger.info(f"get_plan_controls_api response:\n{json.dumps(resp, indent=2) if isinstance(resp, (dict, list)) else resp}")
+    return resp
+
+
+async def create_plan_control_api(payload: Dict[str, Any], ctx: Optional[Context] = None) -> Union[Dict[str, Any], str]:
+    """Create a plan control"""
+    url = constants.URL_PLAN_CONTROLS
+    logger.info(f"create_plan_control_api: POST {url}\nPayload:\n{json.dumps(payload, indent=2)}")
+    resp = await utils.make_API_call_to_CCow_and_get_response(url, "POST", payload, ctx=ctx)
+    logger.info(f"create_plan_control_api response:\n{json.dumps(resp, indent=2) if isinstance(resp, (dict, list)) else resp}")
+    return resp
+
+async def create_evidence_template_api(control_id: str,payload: Dict[str, Any], ctx: Optional[Context] = None) -> Union[Dict[str, Any], str]:
+    """Create an evidence template"""
+    url = constants.URL_PLAN_CONTROLS + f"/{control_id}/evidences"
+    logger.info(f"create_evidence_template_api: POST {url}\nPayload:\n{json.dumps(payload, indent=2)}")
+    resp = await utils.make_API_call_to_CCow_and_get_response(url, "POST", payload, ctx=ctx)
+    logger.info(f"create_evidence_template_api response:\n{json.dumps(resp, indent=2) if isinstance(resp, (dict, list)) else resp}")
+    return resp
+
+
+
+async def link_control_api(
+    asset_leaf_control_id: str,
+    target_control_id: str,
+    ctx: Optional[Context] = None
+) -> Union[Dict[str, Any], str]:
+    """Link an L1 leaf control to an L2 target control"""
+    url = constants.URL_LINK_CONTROL
+    payload = [
+        {
+            "sourcePlan": {"controlId": str(asset_leaf_control_id).strip()},
+            "targetPlan": {"controlId": str(target_control_id).strip()},
+            "userGenerated": True,
+            "propagate": "evidence",
+            "propagateToSource": "none",
+            "nonReportable": True,
+        }
+    ]
+    logger.info(f"link_control_api: POST {url}\nPayload:\n{json.dumps(payload, indent=2)}")
+    resp = await utils.make_API_call_to_CCow_and_get_response(url, "POST", payload, ctx=ctx)
+    logger.info(f"link_control_api response:\n{json.dumps(resp, indent=2) if isinstance(resp, (dict, list)) else resp}")
+    return resp
+
+
+async def fetch_all_assessments_api(
+    name_contains: Optional[str] = None,
+    category_id: Optional[str] = None,
+    category_name_contains: Optional[str] = None,
+    page_size: int = 1000,
+    ctx: Optional[Context] = None
+) -> Union[Dict[str, Any], str]:
+    """Fetch assessments"""
+    query = f"?fields=basic&page=1&page_size={page_size}"
+    if name_contains:
+        query += f"&name_contains={name_contains}"
+    if category_id:
+        query += f"&category_id={category_id}"
+    if category_name_contains:
+        query += f"&category_name_contains={category_name_contains}"
+    url = f"{constants.URL_PLANS}{query}"
+    logger.info(f"fetch_all_assessments_api: GET {url}")
+    resp = await utils.make_GET_API_call_to_CCow(url, ctx=ctx)
+    return resp
+
+
+async def fetch_control_links_api(
+    source_plan_id: Optional[str] = None,
+    source_plan_control_id: Optional[str] = None,
+    target_plan_id: Optional[str] = None,
+    target_plan_control_id: Optional[str] = None,
+    ctx: Optional[Context] = None
+) -> Union[Dict[str, Any], str]:
+    """Fetch control links"""
+    params = []
+    if source_plan_id:
+        params.append(f"source_plan_id={str(source_plan_id).strip()}")
+    if source_plan_control_id:
+        params.append(f"source_plan_control_id={str(source_plan_control_id).strip()}")
+    if target_plan_id:
+        params.append(f"target_plan_id={str(target_plan_id).strip()}")
+    if target_plan_control_id:
+        params.append(f"target_plan_control_id={str(target_plan_control_id).strip()}")
+    query_str = f"?{'&'.join(params)}" if params else ""
+    url = f"{constants.URL_LINK_PLAN_CONTROLS}{query_str}"
+    logger.info(f"fetch_control_links_api: GET {url}")
+    resp = await utils.make_GET_API_call_to_CCow(url, ctx=ctx)
+    return resp

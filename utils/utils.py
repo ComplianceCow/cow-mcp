@@ -1,4 +1,5 @@
 import json
+import os
 from typing import Any
 import httpx
 import traceback
@@ -325,3 +326,23 @@ def require_fields(data: dict, fields: list[str]) -> dict | None:
             }
 
     return None
+
+def get_ui_url(ui_path: str) -> str:
+    base_host = host
+
+    base_host = base_host.rstrip("/").removesuffix("/api")
+    ui_path = ui_path.lstrip("/")
+
+    return f"{base_host}/{ui_path}" if base_host else f"/{ui_path}"
+
+
+def get_assessment_details_ui_url(assessment_id: str) -> str:
+    return get_ui_url(f"ui/assessment-controls/{assessment_id}")
+
+
+def get_workflow_config_ui_url(workflow_id: str) -> str:
+    return get_ui_url(f"ui/workflow-config/{workflow_id}")
+
+
+def get_action_spec_ui_url(spec_id: str) -> str:
+    return get_ui_url(f"ui/actions-workflow?type=spec&id={spec_id}")

@@ -17,6 +17,7 @@ class ActionSpecVO(BaseModel):
     metadata: Optional[ActionMetadataVO] = None
     filePathHash: Optional[str] = ""
     state: Optional[str] = ""
+    uiUrl: Optional[str] = ""
     model_config = {
         "extra": "ignore"
     }
@@ -93,6 +94,7 @@ class ActionCreateResponseVO(BaseModel):
     spec: Optional[Dict[str, Any]] = None
     message: Optional[str] = ""
     error: Optional[str] = ""
+    uiUrl: Optional[str] = ""
     model_config = {
         "extra": "ignore"
     }

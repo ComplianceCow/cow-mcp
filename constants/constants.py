@@ -57,6 +57,7 @@ URL_VALIDATE_AUTOMATE_CONTROL = "/v1/llm/automated-control-validation"
 URL_MARK_CONTROL_READY = "/v1/plans/mark-control-ready"
 URL_ADD_CONTROL_OBJECTIVE = "/v5/partner/servicenow/configure-assessment"
 
+URL_LINK_PLAN_CONTROLS = "/v1/link-plan-controls"
 URL_LINK_CONTROL = "/v1/link-plan-controls/bulk-upsert"
 URL_FETCH_MATCHING_ASSET_CONTROLS = "/v2/aggregator/fetch-matching-asset-controls"
 
@@ -211,3 +212,6 @@ URL_APPLICATION_CONFIGS = "/v1/app-configs"
 URL_CREDENTIAL_CONFIGS = "/v1/cred-configs"
 URL_CREATE_APPLICATION = "/v1/credential"
 URL_CREATE_APPLICATION_SCOPE = "/v1/configuration"
+URL_APPLICATION_SCOPE = "/v1/configuration"
+
+URL_PLAYBOOK_FETCH_DATA = "/v1/graphloader/playbook/fetch-data"

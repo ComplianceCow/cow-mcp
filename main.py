@@ -32,6 +32,12 @@ if "insights" in MCP_TOOLS:
 
 if "rules" in MCP_TOOLS:
     from prompts.rule import rule
+
+if "action" in MCP_TOOLS:
+    from prompts.rule import action_rule
+    from tools.rules import action_rules
+
+if "rules" in MCP_TOOLS or "action" in MCP_TOOLS:
     from tools.rules import rules
 
 if "workflow" in MCP_TOOLS:
@@ -66,6 +72,10 @@ if "reports" in MCP_TOOLS:
 
 if "applications" in MCP_TOOLS:
     from tools.applications import applications
+    
+if "playbook" in MCP_TOOLS:
+    from tools.playbook import usecasematcher
+    from prompts.playbook import use_case_matcher_prompt
     
 def signal_handler(sig, frame):
     print("Shutting down...")

@@ -18,6 +18,8 @@ from mcptypes import workflow_tools_type as workflow_vo
 from mcptypes.graph_tool_types import UniqueNodeDataVO
 from mcptypes.assistant_tool_types import ControlSourceSummaryResponseVO, ControlSourceSummaryVO
 from fastmcp import Context
+from utils import assistant as assistant_utils
+
 
 from toon_format import encode
 
@@ -275,7 +277,7 @@ async def create_assessment(
                 name=assessment_name,
                 categoryName=category_name
             )
-            return {"success": True, "data": assessment}
+            return {"success": True, "data": assessment, "ui-url": f"{utils.get_assessment_details_ui_url(create_output.get('id'))}"}
 
         return {"success": False, "error": f"Failed to create assessment: {create_output}"}
     except Exception as e:
@@ -1006,6 +1008,55 @@ async def suggest_asset_controls(
         logger.error(traceback.format_exc())
         logger.error("suggest_asset_controls error: {}\n".format(e))
         return {"success": False, "error": f"Unexpected error suggesting asset controls: {e}"}
+
+@mcp.tool()
+async def l2_link_control_to_l3_control(
+    l2LeafControlId: str,
+    l3targetControlId: str,
+    ctx: Context | None = None
+) -> dict[str, Any]:
+    """
+    Link an L1 asset leaf control to an L2 target assessment control.
+
+    Args:
+        l2LeafControlId (str): Control ID of the L1 asset leaf control.
+        l3targetControlId (str): Control ID of the target L2 assessment control.
+
+    Returns:
+        dict:
+            - success (bool): Indicates if the linking operation was successful.
+            - l2LeafControlId (str): L2 leaf control ID.
+            - L3l3targetControlId (str): L3 target control ID.
+            - message (str): Informative status message.
+    """
+    try:
+        logger.info(f"l1_link_control_to_l2_control: l2LeafControlId={l2LeafControlId}, l3targetControlId={l3targetControlId}\n")
+        if not l2LeafControlId or not str(l2LeafControlId).strip():
+            return {"success": False, "error": "l2LeafControlId is required and cannot be empty."}
+        if not l3targetControlId or not str(l3targetControlId).strip():
+            return {"success": False, "error": "l3targetControlId is required and cannot be empty."}
+
+        source_id = str(l2LeafControlId).strip()
+        target_id = str(l3targetControlId).strip()
+
+        output = await assistant_utils.link_control_api(source_id, target_id, ctx=ctx)
+        err = utils.handle_error_response(output, "link_control_api")
+        if err:
+            return err
+
+
+        return {
+            "success": True,
+            "sourceControlId": source_id,
+            "l3targetControlId": target_id,
+            "message": f"Successfully linked L2 control '{source_id}' to L3 control '{target_id}'."
+        }
+    
+    except Exception as e:
+        logger.error(traceback.format_exc())
+        logger.error(f"l1_link_control_to_l2_control error: {e}\n")
+        return {"success": False, "error": f"Unexpected error linking control: {e}"}
+
 
 
 @mcp.tool() 
@@ -2802,6 +2853,7 @@ async def create_control_config(
     controlName: str,
     controlDescription: str,
     controlCategory: str,
+    displayable: str| None = None,
     entityClass: str | None = None,
     entities: list[str] | None = None,
     controlContext: str | None = None,
@@ -2822,6 +2874,7 @@ async def create_control_config(
         controlName (str): Control name (required).
         controlDescription (str): Control description (required).
         controlCategory (str): Parent control category name (required).
+        displayable (str): str| None = None,
         entityClass (str, optional): Entity class name.
         entities (list[str], optional): List of entity names.
         controlContext (str, optional): Additional control context.
@@ -2948,72 +3001,77 @@ async def create_control_config(
             logger.error(f"create_control_config: Error fetching plan controls: {ce}\n")
 
         # Step 3: Find or Create Parent Control
-        parent_id = None
-        parent_alias = None
 
-        for ctrl in existing_controls:
-            if isinstance(ctrl, dict):
-                c_name = (ctrl.get("name") or "").strip().lower()
-                if c_name == category_name.lower():
-                    parent_id = ctrl.get("id")
-                    parent_alias = str(ctrl.get("alias") or ctrl.get("displayable") or "1")
-                    break
+        child_alias = displayable if displayable else None
 
-        if not parent_id:
-            # Determine incremented parent alias (1, 2, 3, ...)
-            parent_nums = []
+        if not child_alias:
+
+            parent_id = None
+            parent_alias = None
+
             for ctrl in existing_controls:
                 if isinstance(ctrl, dict):
-                    # Top-level control if parentId is empty/null or alias is simple integer
-                    p_id = ctrl.get("parentId")
-                    alias_val = str(ctrl.get("alias") or ctrl.get("displayable") or "")
-                    if not p_id and alias_val.isdigit():
-                        parent_nums.append(int(alias_val))
+                    c_name = (ctrl.get("name") or "").strip().lower()
+                    if c_name == category_name.lower():
+                        parent_id = ctrl.get("id")
+                        parent_alias = str(ctrl.get("alias") or ctrl.get("displayable") or "1")
+                        break
 
-            next_parent_num = (max(parent_nums) + 1) if parent_nums else 1
-            parent_alias = str(next_parent_num)
+            if not parent_id:
+                # Determine incremented parent alias (1, 2, 3, ...)
+                parent_nums = []
+                for ctrl in existing_controls:
+                    if isinstance(ctrl, dict):
+                        # Top-level control if parentId is empty/null or alias is simple integer
+                        p_id = ctrl.get("parentId")
+                        alias_val = str(ctrl.get("alias") or ctrl.get("displayable") or "")
+                        if not p_id and alias_val.isdigit():
+                            parent_nums.append(int(alias_val))
 
-            parent_payload = {
-                "name": category_name,
-                "description": category_name,
-                "displayable": parent_alias,
-                "alias": parent_alias,
-                "planId": str(assessment_id),
-                "isPreRequisite": False
-            }
+                next_parent_num = (max(parent_nums) + 1) if parent_nums else 1
+                parent_alias = str(next_parent_num)
 
-            logger.debug(f"create_control_config parent payload: {json.dumps(parent_payload)}\n")
-            parent_resp = await utils.make_API_call_to_CCow_and_get_response(
-                constants.URL_PLAN_CONTROLS,
-                "POST",
-                parent_payload,
-                ctx=ctx
-            )
+                parent_payload = {
+                    "name": category_name,
+                    "description": category_name,
+                    "displayable": parent_alias,
+                    "alias": parent_alias,
+                    "planId": str(assessment_id),
+                    "isPreRequisite": False
+                }
 
-            if isinstance(parent_resp, str):
-                return {"success": False, "error": parent_resp}
-            if isinstance(parent_resp, dict) and "Message" in parent_resp:
-                return {"success": False, "error": parent_resp}
+                logger.debug(f"create_control_config parent payload: {json.dumps(parent_payload)}\n")
+                parent_resp = await utils.make_API_call_to_CCow_and_get_response(
+                    constants.URL_PLAN_CONTROLS,
+                    "POST",
+                    parent_payload,
+                    ctx=ctx
+                )
 
-            if isinstance(parent_resp, dict) and parent_resp.get("id"):
-                parent_id = parent_resp.get("id")
-            else:
-                return {"success": False, "error": f"Failed to create parent control: {parent_resp}"}
+                if isinstance(parent_resp, str):
+                    return {"success": False, "error": parent_resp}
+                if isinstance(parent_resp, dict) and "Message" in parent_resp:
+                    return {"success": False, "error": parent_resp}
 
-        # Step 4: Create Child Control under parent (alias: 1.1, 1.2, 2.1, etc.)
-        child_suffixes = []
-        if parent_id and parent_alias:
-            for ctrl in existing_controls:
-                if isinstance(ctrl, dict):
-                    c_parent = ctrl.get("parentId")
-                    c_alias = str(ctrl.get("alias") or ctrl.get("displayable") or "")
-                    if (c_parent and c_parent == parent_id) or c_alias.startswith(f"{parent_alias}."):
-                        parts = c_alias.split(".")
-                        if len(parts) == 2 and parts[0] == parent_alias and parts[1].isdigit():
-                            child_suffixes.append(int(parts[1]))
+                if isinstance(parent_resp, dict) and parent_resp.get("id"):
+                    parent_id = parent_resp.get("id")
+                else:
+                    return {"success": False, "error": f"Failed to create parent control: {parent_resp}"}
 
-        next_child_suffix = (max(child_suffixes) + 1) if child_suffixes else 1
-        child_alias = f"{parent_alias}.{next_child_suffix}"
+            # Step 4: Create Child Control under parent (alias: 1.1, 1.2, 2.1, etc.)
+            child_suffixes = []
+            if parent_id and parent_alias:
+                for ctrl in existing_controls:
+                    if isinstance(ctrl, dict):
+                        c_parent = ctrl.get("parentId")
+                        c_alias = str(ctrl.get("alias") or ctrl.get("displayable") or "")
+                        if (c_parent and c_parent == parent_id) or c_alias.startswith(f"{parent_alias}."):
+                            parts = c_alias.split(".")
+                            if len(parts) == 2 and parts[0] == parent_alias and parts[1].isdigit():
+                                child_suffixes.append(int(parts[1]))
+
+            next_child_suffix = (max(child_suffixes) + 1) if child_suffixes else 1
+            child_alias = f"{parent_alias}.{next_child_suffix}"
 
         child_payload = {
             "name": str(controlName).strip(),
@@ -3021,7 +3079,7 @@ async def create_control_config(
             "displayable": child_alias,
             "alias": child_alias,
             "planId": str(assessment_id),
-            "parentId": str(parent_id),
+            # "parentId": str(parent_id),
             "isPreRequisite": False
         }
 
@@ -3044,7 +3102,7 @@ async def create_control_config(
                 "displayable": child_resp.get("displayable", child_alias),
                 "alias": child_resp.get("alias", child_alias),
                 "name": child_resp.get("name", controlName.strip()),
-                "parentId": parent_id,
+                # "parentId": parent_id,
                 "assessment_id": assessment_id
             }
             logger.info(f"create_control_config: Successfully created child control with ID: {control_data['id']}\n")
@@ -3060,6 +3118,104 @@ async def create_control_config(
             "error": f"Unexpected error while adding control config: {e}"
         }
     
+
+@mcp.tool()
+async def create_l3_control_config(
+    assessmentId: str,
+    controlName: str,
+    controlDescription: str,
+    displayable: str,
+    entityClass: str | None = None,
+    entities: list[str] | None = None,
+    ctx: Context | None = None
+) -> dict:
+    """
+    Create an L3 control config in an assessment.
+
+    Important:
+    - Use only user-provided inputs and do not assume any values.
+
+    Args:
+        assessmentId (str): Assessment (plan) ID (required).
+        controlName (str): Control name (required).
+        controlDescription (str): Control description (required).
+        displayable (str): Control displayable, e.g. "1.1.1" (required).
+        entityClass (str, optional): Entity class name.
+        entities (list[str], optional): List of entity names.
+
+    Returns:
+        Dict with success status and created control details or error message.
+    """
+    try:
+        logger.info("create_l3_control_config invoked\n")
+
+        required = {
+            "assessmentId": assessmentId,
+            "controlName": controlName,
+            "controlDescription": controlDescription,
+            "displayable": displayable,
+        }
+        for field, value in required.items():
+            if not value or not str(value).strip():
+                return {"success": False, "error": f"{field} is mandatory"}
+
+        alias = str(displayable).strip()
+        payload = {
+            "name": controlName.strip(),
+            "description": controlDescription.strip(),
+            "displayable": alias,
+            "alias": alias,
+            "planId": str(assessmentId).strip(),
+            "isPreRequisite": False
+        }
+
+        valid_entities = [e.strip() for e in (entities or []) if isinstance(e, str) and e.strip()]
+        if entityClass and str(entityClass).strip() and valid_entities:
+            payload["additionalContext"] = {
+                "entities": [
+                    {"name": entity, "class": entityClass.strip()}
+                    for entity in valid_entities
+                ]
+            }
+
+        logger.debug(f"create_l3_control_config payload: {json.dumps(payload, indent=2)}\n")
+
+        resp = await utils.make_API_call_to_CCow_and_get_response(
+            constants.URL_PLAN_CONTROLS,
+            "POST",
+            payload,
+            ctx=ctx
+        )
+
+        if isinstance(resp, str):
+            logger.error(f"create_l3_control_config error: {resp}\n")
+            return {"success": False, "error": resp}
+        if isinstance(resp, dict) and "Message" in resp:
+            logger.error(f"create_l3_control_config error: {resp}\n")
+            return {"success": False, "error": resp}
+        if isinstance(resp, dict) and resp.get("id"):
+            logger.info(f"create_l3_control_config: Successfully created control with ID: {resp.get('id')}\n")
+            return {
+                "success": True,
+                "data": {
+                    "id": resp.get("id"),
+                    "name": resp.get("name", controlName.strip()),
+                    "displayable": resp.get("displayable", alias),
+                    "alias": resp.get("alias", alias),
+                    "assessment_id": assessmentId
+                }
+            }
+
+        return {"success": False, "error": f"Failed to create control: {resp}"}
+
+    except Exception as e:
+        logger.error(traceback.format_exc())
+        logger.error(f"create_l3_control_config error: {e}\n")
+        return {
+            "success": False,
+            "error": f"Unexpected error while creating L3 control config: {e}"
+        }
+
 
 @mcp.tool()
 async def update_control_config_contexts(
@@ -3223,3 +3379,218 @@ async def assitant_list_all_assessment_categories(ctx: Context | None = None) ->
     except Exception as e:
         logger.error("list_all_assessment_categories error: {}\n".format(e))
         return assessment_vo.CategoryListV2VO(error=utils.build_structured_error(f"Unexpected error: {e}", "assessments:list_all_assessment_categories"))
+
+
+
+
+@mcp.tool()
+async def assistant_check_control_link_exist(
+    assessmentId: str,
+    sourceControlId: str,
+    targetControlId: str,
+    ctx: Context | None = None
+) -> dict[str, Any]:
+    """
+    Check if a link exists between an L2 assessment control and an L2 assessment control.
+
+    Args:
+        assessmentId (str): ID of the L2 assessment (source plan ID).
+        sourceControlId (str): ID of the L2 assessment leaf control (source control ID).
+        targetControlId (str): ID of the target L2 assessment control.
+
+    Returns:
+        dict:
+            - success (bool): Indicates if the check completed successfully.
+            - exists (bool): Whether the link exists.
+            - sourceControlId (str): Source control ID.
+            - targetControlId (str): Target control ID.
+            - message (str): Informative status message.
+    """
+    try:
+        logger.info(
+            f"check_control_link_exist: assetId={assessmentId}, sourceControlId={sourceControlId}, "
+            f"targetControlId={targetControlId}\n"
+        )
+        if not assessmentId or not str(assessmentId).strip():
+            return {"success": False, "exists": False, "error": "assessmentId is required and cannot be empty."}
+        if not sourceControlId or not str(sourceControlId).strip():
+            return {"success": False, "exists": False, "error": "sourceControlId is required and cannot be empty."}
+        if not targetControlId or not str(targetControlId).strip():
+            return {"success": False, "exists": False, "error": "targetControlId is required and cannot be empty."}
+
+        assessment_id = str(assessmentId).strip()
+        source_ctrl_id = str(sourceControlId).strip()
+        target_ctrl_id = str(targetControlId).strip()
+
+        output = await assistant_utils.fetch_control_links_api(
+            source_plan_id=assessment_id,
+            source_plan_control_id=source_ctrl_id,
+            ctx=ctx
+        )
+
+        if isinstance(output, str):
+            logger.error(f"check_control_link_exist error: {output}\n")
+            return {"success": False, "exists": False, "error": output}
+
+        if isinstance(output, dict) and "error" in output:
+            logger.error(f"check_control_link_exist error: {output.get('error')}\n")
+            return {"success": False, "exists": False, "error": output.get("error")}
+
+        items = output.get("items", []) if isinstance(output, dict) else (output if isinstance(output, list) else [])
+
+        for item in items:
+            if isinstance(item, dict):
+                target_plan = item.get("targetPlan") or {}
+                item_target_ctrl_id = str(target_plan.get("controlId", "")).strip()
+                item_target_plan_id = str(target_plan.get("id", "")).strip()
+
+                if item_target_ctrl_id == target_ctrl_id:
+                    return {
+                        "success": True,
+                        "exists": True,
+                        "sourceControlId": source_ctrl_id,
+                        "targetControlId": target_ctrl_id,
+                        "targetAssessmentId": item_target_plan_id or None,
+                        "message": f"Link exists between source control '{source_ctrl_id}' and target control '{target_ctrl_id}')."
+                    }
+
+        return {
+            "success": True,
+            "exists": False,
+            "sourceControlId": source_ctrl_id,
+            "targetControlId": target_ctrl_id,
+            "message": f"No link exists between source control '{source_ctrl_id}' and target control '{target_ctrl_id}'."
+        }
+    except Exception as e:
+        logger.error(traceback.format_exc())
+        logger.error(f"check_control_link_exist error: {e}\n")
+        return {"success": False, "exists": False, "error": f"Unexpected error checking control link existence: {e}"}
+
+
+@mcp.tool()
+async def assistant_check_control_exist(assessmentId: str, displayable: str, ctx: Context | None = None) -> dict[str, Any]:
+    """
+    Check if a control exists in an assessment by its displayable/control number and return its control ID if found.
+
+    Args:
+        assessmentId (str): ID of the assessment.
+        displayable (str): Displayable control number (e.g., '1', '1.1', '1.1.1').
+
+    Returns:
+        dict:
+            - success (bool): Indicates if the check completed successfully.
+            - exists (bool): Whether the control exists.
+            - id (str | None): Control ID if found, None otherwise.
+            - controlId (str | None): Same as id.
+            - displayable (str | None): Matched displayable number.
+            - name (str | None): Control name if found.
+            - message (str): Informative status message.
+    """
+    try:
+        logger.info(f"assistant_check_control_exist: assessmentId={assessmentId}, displayable={displayable}\n")
+        if not assessmentId or not str(assessmentId).strip():
+            return {"success": False, "exists": False, "error": "assessmentId is required and cannot be empty."}
+        if not displayable or not str(displayable).strip():
+            return {"success": False, "exists": False, "error": "displayable is required and cannot be empty."}
+
+        assessment_id = str(assessmentId).strip()
+        disp_target = str(displayable).strip()
+
+        output = await assistant_utils.get_plan_controls_api(assessment_id, displayable=disp_target, ctx=ctx)
+
+        items = []
+        if isinstance(output, dict) and "items" in output and isinstance(output["items"], list):
+            items = output["items"]
+        elif isinstance(output, list):
+            items = output
+
+        item = next(iter(items), None)
+
+        if isinstance(item, dict):
+            cid = item.get("id")
+            cname = item.get("name")
+            return {
+                "success": True,
+                "exists": True,
+                "id": cid,
+                "controlId": cid,
+                "displayable": disp_target,
+                "name": cname,
+                "message": f"Control '{disp_target}' exists in assessment '{assessment_id}' with ID '{cid}'."
+            }
+
+        return {
+            "success": True,
+            "exists": False,
+            "id": None,
+            "controlId": None,
+            "message": f"Control '{disp_target}' does not exist in assessment '{assessment_id}'."
+        }
+    except Exception as e:
+        logger.error(traceback.format_exc())
+        logger.error(f"assistant_check_control_exist error: {e}\n")
+        return {"success": False, "exists": False, "error": f"Unexpected error checking control existence: {e}"}
+
+
+@mcp.tool()
+async def check_assessment_exist(assessmentName: str, ctx: Context | None = None) -> dict[str, Any]:
+    """
+    Check if an assessment exists in ComplianceCow by assessment name.
+
+    Args:
+        assessmentName (str): Name of the assessment to check.
+
+    Returns:
+        dict:
+            - success (bool): Indicates if the operation completed successfully.
+            - exists (bool): Whether the assessment exists.
+            - id (str | None): Assessment ID if exists, None otherwise.
+            - name (str | None): Matched assessment name if exists, None otherwise.
+            - categoryName (str | None): Category name if exists, None otherwise.
+            - message (str): Informative status message.
+            - ui-url (str | None): UI URL for the assessment if exists.
+    """
+    try:
+        logger.info(f"check_assessment_exist: assessmentName={assessmentName}\n")
+        if not assessmentName or not str(assessmentName).strip():
+            return {"success": False, "exists": False, "error": "assessmentName is required and cannot be empty."}
+
+        assessment_name_clean = str(assessmentName).strip().lower()
+        output = await assistant_utils.get_assessment_details_api_with_name(str(assessmentName).strip(), ctx=ctx)
+
+        if isinstance(output, str):
+            logger.error(f"check_assessment_exist error: {output}\n")
+            return {"success": False, "exists": False, "error": output}
+
+        if isinstance(output, dict) and "error" in output:
+            logger.error(f"check_assessment_exist error: {output.get('error')}\n")
+            return {"success": False, "exists": False, "error": output.get("error")}
+
+        items = output.get("items", []) if isinstance(output, dict) else (output if isinstance(output, list) else [])
+        for item in items:
+            if isinstance(item, dict):
+                curr_name = str(item.get("name", "")).strip()
+                if curr_name.lower() == assessment_name_clean:
+                    assessment_id = item.get("id", "")
+                    return {
+                        "success": True,
+                        "exists": True,
+                        "id": assessment_id,
+                        "name": curr_name,
+                        "categoryName": item.get("categoryName"),
+                        "message": f"Assessment '{curr_name}' exists with ID '{assessment_id}'.",
+                        "ui-url": f"{utils.get_assessment_details_ui_url(assessment_id)}"
+                    }
+
+        return {
+            "success": True,
+            "exists": False,
+            "id": None,
+            "name": None,
+            "categoryName": None,
+            "message": f"Assessment '{assessmentName}' does not exist."
+        }
+    except Exception as e:
+        logger.error(traceback.format_exc())
+        logger.error(f"check_assessment_exist error: {e}\n")
+        return {"success": False, "exists": False, "error": f"Unexpected error checking assessment existence: {e}"}
