@@ -654,7 +654,7 @@ async def fetch_credential_config(name: str,version: str,ctx: Context | None = N
 
 @mcp.tool()
 async def create_application(application_name: str, application_version: str, credential_type: str, credential_version: str, 
-                            credential_name: str, application_url: str, ctx: Context | None = None):
+                            credential_name: str, application_url: str , additional_tags: dict[str, list[str]] = None, ctx: Context | None = None):
     """
     Create a new ComplianceCow application.
     -------------------------------------------------------------------------
@@ -1056,6 +1056,9 @@ async def create_application(application_name: str, application_version: str, cr
                     "value": "",
                 }
             )
+        if additional_tags:
+            for key, values in additional_tags.items():
+                labels.setdefault(key, []).extend(values)
 
         payload = {
             "credentials": [
@@ -1324,9 +1327,73 @@ async def create_application_scope(scope_name: str,description: str, credential_
 
 
 @mcp.tool()
-async def list_applications(application_name: str,application_version: str,validated_only: bool | None = None,ctx: Context | None = None) -> dict:
+async def list_application_scopes(name: str | None = None,id: str | None = None,ctx: Context | None = None) -> dict:
+    """
+    Retrieve existing ComplianceCow application scopes.
+
+    Required fields (at least one):
+    • name: Application scope name
+    • id: Application scope ID
+    """
+    try:
+        logger.info("list_application_scope")
+        if not name and not id:
+            return {
+                "error": "Either 'name' or 'id' must be provided."
+            }
+
+        query_params = {}
+        if name:
+            query_params["name"] = name
+        if id:
+            query_params["id"] = id
+
+        logger.debug("query params : %s", json.dumps(query_params))
+        output = await utils.make_GET_API_call_to_CCow(
+            constants.URL_APPLICATION_SCOPE,
+            ctx=ctx,
+            query_params=query_params,
+        )
+
+        logger.debug("output : %s", json.dumps(output))
+        if isinstance(output, str) or "error" in output:
+            logger.error("list_application_scope error : %s", output)
+            return {
+                "error": "Facing internal error"
+            }
+
+        items = output.get("items", [])
+        filtered_items = []
+        for item in items:
+            filtered_items.append({
+                "id": item.get("id"),
+                "name": item.get("name"),
+                "description": item.get("description"),
+                "type": item.get("type"),
+                "cloudType": item.get("cloudType"),
+                "applications": item.get("credentialRef") or item.get("applications", []),
+            })
+
+        return {
+            "items": filtered_items
+        }
+
+    except Exception as e:
+        logger.error(traceback.format_exc())
+        logger.error("list_application_scope error : %s", e)
+        return {
+            "error": "Facing internal error"
+        }
+
+
+@mcp.tool()
+async def list_applications(application_name: str | None = None,application_version: str | None = None,id: str | None = None,validated_only: bool | None = None,ctx: Context | None = None) -> dict:
     """
     Retrieve existing ComplianceCow applications.
+
+    Required fields (at least one):
+    • id: Application ID (to fetch a specific application)
+    • application_name: Application type name (with optional application_version)
 
     -------------------------------------------------------------------------
     PURPOSE
@@ -1533,40 +1600,49 @@ async def list_applications(application_name: str,application_version: str,valid
 
     try:
         logger.info("list_applications")
-        application_output = await utils.make_GET_API_call_to_CCow(
-            constants.URL_APPLICATION_CONFIGS,
-            ctx=ctx,
-            query_params={
-                "validApplication": "true",
-                "name": application_name,
-                "version": application_version,
-                "isStatusToBeIncluded": "true",
-            },
-        )
-
-        if (
-            isinstance(application_output, str) or "error" in application_output or not application_output.get("items")):
-            logger.error("Unable to retrieve application configuration: %s",application_output)
+        if not id and not application_name:
             return {
-                "error": "Unable to retrieve application configuration."
+                "error": "Either 'application_name' or 'id' must be provided."
             }
-        application_config = application_output["items"][0]
-        labels = (
-            application_config
-            .get("meta", {})
-            .get("labels", {})
-        )
-
-        app_type_tags = labels.get("appType", [])
-        if not app_type_tags:
-            return {
-                "error": "Application type tag not found."
+        if id:
+            query_params = {
+                "id": id,
             }
+        else:
+            application_output = await utils.make_GET_API_call_to_CCow(
+                constants.URL_APPLICATION_CONFIGS,
+                ctx=ctx,
+                query_params={
+                    "validApplication": "true",
+                    "name": application_name,
+                    "version": application_version,
+                    "isStatusToBeIncluded": "true",
+                },
+            )
 
-        app_type_tag = app_type_tags[0]
-        query_params = {
-            "app_type_tag": app_type_tag,
-        }
+            if (
+                isinstance(application_output, str) or "error" in application_output or not application_output.get("items")):
+                logger.error("Unable to retrieve application configuration: %s",application_output)
+                return {
+                    "error": "Unable to retrieve application configuration."
+                }
+            application_config = application_output["items"][0]
+            labels = (
+                application_config
+                .get("meta", {})
+                .get("labels", {})
+            )
+
+            app_type_tags = labels.get("appType", [])
+            if not app_type_tags:
+                return {
+                    "error": "Application type tag not found."
+                }
+
+            app_type_tag = app_type_tags[0]
+            query_params = {
+                "app_type_tag": app_type_tag,
+            }
 
         output = await utils.make_GET_API_call_to_CCow(
             constants.URL_CREATE_APPLICATION,

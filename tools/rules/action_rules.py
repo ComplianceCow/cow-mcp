@@ -52,7 +52,7 @@ def fetch_action_rule_summary( ctx: Context | None = None) -> list[vo.Simplified
         }
 
 @mcp.tool(annotations=utils.tool_annotations("List Action Specs", read_only=True))
-async def list_action_specs(ctx: Context | None = None) -> actionvo.ActionSpecListVO:
+async def list_action_specs(name: str = None, ctx: Context | None = None) -> actionvo.ActionSpecListVO:
     """
     List action specifications
 
@@ -67,6 +67,8 @@ async def list_action_specs(ctx: Context | None = None) -> actionvo.ActionSpecLi
             "isStatusToBeIncluded": True,
             "state": "inactive,active",
         }
+        if name:
+            params["name"] = name 
         output = await utils.make_API_call_to_CCow_and_get_response(
             constants.URL_ACTION_SPECS, "GET", request_body=params, ctx=ctx
         )
@@ -80,7 +82,10 @@ async def list_action_specs(ctx: Context | None = None) -> actionvo.ActionSpecLi
         items: list[actionvo.ActionSpecVO] = []
         if isinstance(output, dict) and "items" in output:
             for item in output["items"]:
-                items.append(actionvo.ActionSpecVO.model_validate(item))
+                spec_vo = actionvo.ActionSpecVO.model_validate(item)
+                if spec_vo.id:
+                    spec_vo.uiUrl = utils.get_action_spec_ui_url(spec_vo.id)
+                items.append(spec_vo)
 
         return actionvo.ActionSpecListVO(items=items)
     except Exception as e:
@@ -92,6 +97,7 @@ async def list_action_specs(ctx: Context | None = None) -> actionvo.ActionSpecLi
 
 @mcp.tool(annotations=utils.tool_annotations("List Action Deployments", read_only=True))
 async def list_action_deployment(
+    name: str = None,
     ctx: Context | None = None,
 ) -> actionvo.ActionDeploymentListVO:
     """
@@ -108,6 +114,8 @@ async def list_action_deployment(
             "isStatusToBeIncluded": True,
             "state": "inactive,active",
         }
+        if name:
+            params["name"] = name 
         output = await utils.make_API_call_to_CCow_and_get_response(
             constants.URL_ACTION_DEPLOYMENTS, "GET", request_body=params, ctx=ctx
         )
@@ -133,6 +141,7 @@ async def list_action_deployment(
 
 @mcp.tool(annotations=utils.tool_annotations("List Action Bindings", read_only=True))
 async def list_action_bindings(
+    name: str = None,
     ctx: Context | None = None,
 ) -> actionvo.ActionBindingListVO:
     """
@@ -149,6 +158,9 @@ async def list_action_bindings(
             "isStatusToBeIncluded": True,
             "state": "inactive,active",
         }
+
+        if name:
+            params["name"] = name 
         output = await utils.make_API_call_to_CCow_and_get_response(
             constants.URL_ACTION_BINDINGS, "GET", request_body=params, ctx=ctx
         )
@@ -174,6 +186,7 @@ async def list_action_bindings(
 
 @mcp.tool(annotations=utils.tool_annotations("List Action Loopbacks", read_only=True))
 async def list_action_loopbacks(
+    name: str = None,
     ctx: Context | None = None,
 ) -> actionvo.ActionLoopbackListVO:
     """
@@ -190,6 +203,8 @@ async def list_action_loopbacks(
             "isStatusToBeIncluded": True,
             "state": "inactive,active",
         }
+        if name:
+            params["name"] = name 
         output = await utils.make_API_call_to_CCow_and_get_response(
             constants.URL_ACTION_LOOPBACKS, "GET", request_body=params, ctx=ctx
         )
@@ -283,6 +298,7 @@ async def create_action_spec(
             id=spec_id,
             spec=spec_info,
             message="Action spec created successfully",
+            uiUrl=utils.get_action_spec_ui_url(spec_id) if spec_id else "",
         )
     except Exception as e:
         logger.error(traceback.format_exc())
@@ -565,6 +581,7 @@ async def update_action_spec(
             id=spec_id,
             spec=spec_info,
             message="Action spec updated successfully",
+            uiUrl=utils.get_action_spec_ui_url(target_id) if target_id else "",
         )
     except Exception as e:
         logger.error(traceback.format_exc())
@@ -1054,6 +1071,7 @@ async def run_assessment(
             "description": description,
             "inputs": {},
             "profileId": "",
+            "useDefaultConfig": True,
             "otherInfos": {"disableAutomatedAction": True}
         }
         logger.debug("run_assessment payload: {}\n".format(json.dumps(payload)))
@@ -1634,3 +1652,30 @@ async def get_assessment_run_controls(ctx: Context, assessment_run_id: str,size:
 
 
 
+@mcp.tool(annotations=utils.tool_annotations("List Action Blueprints", read_only = True))
+async def list_action_blueprints(name : str = None, ctx: Context | None = None) -> list | str:
+    """
+    Lists the available action blueprints that can be used to create action in the system. Returns predefined action specification, deployment, bindings that are not yet instantiated as actions.
+   
+    Returns:
+        - List of action configuration items : Each item contains a action
+        - Error message (str): If retrieval fails or an error occurs
+    
+    """
+    try:
+        logger.info("list_action_blueprints: \n")
+        params = {}
+        if name:
+            params["name"] = name 
+        output=await utils.make_API_call_to_CCow_and_get_response("/pc-api/v1/actions",method="GET", request_body=params, ctx=ctx)
+        error = utils.build_structured_error(output, "list_action_blueprints")
+        if error:
+            logger.error(f"list_action_blueprints error: {output}\n")
+            return {"success": False, "error": error}
+        
+        return output
+
+    except Exception as e:
+        logger.error(traceback.format_exc())
+        logger.error("list_action_blueprints error: {}\n".format(e))
+        return {"success": False, "error": f"Unexpected error list action blueprints: {e}"}
