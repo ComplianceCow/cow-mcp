@@ -1,4 +1,5 @@
 import json
+import re
 import traceback
 import base64
 import asyncio
@@ -13,6 +14,9 @@ from mcpconfig.config import mcp
 
 from constants import constants
 from mcptypes import workflow_tools_type as vo
+from tools.workflow import blueprint_apply
+from tools.workflow import blueprint_inspect
+from tools.workflow import blueprint_prerequisites
 import yaml
 from fastmcp import Context
 
@@ -1230,29 +1234,248 @@ async def trigger_workflow(
 
 
 @mcp.tool(annotations=utils.tool_annotations("List Workflow Blueprints", read_only = True))
-async def list_workflow_blueprints(name: str = None, ctx: Context | None = None) -> list | str:
+async def list_workflow_blueprints(name: str = None, search: str = None, ctx: Context | None = None) -> dict | list | str:
     """
-    Lists the available workflow blueprints that can be used to create workflows in the system. Returns predefined workflow configurations that are not yet instantiated as workflows.
-   
+    Lists the workflow blueprints that can be used to create workflows. A blueprint is a folder of one workflow and the workflows it starts, not yet created in the tenant.
+
+    Without `name` it returns a SHORT list, one row per blueprint folder: folder, workflow (its name), description, and hasDefinition (false for folders that cannot be deployed
+    with create_workflow_from_blueprint). Use it to find a blueprint by purpose, and `search` to narrow it by words (every word must appear, any case) in the folder name,
+    workflow name or description, for example search="jira ticket". Then call inspect_workflow_blueprint(<folder>) to see the workflows it starts and what it needs.
+
+    With `name` it returns the FULL definition of that one folder (the workflow in config and the workflows it starts in config.subworkflow). That is very long (about 180,000
+    characters for the Jira chain): do not call it to look at a blueprint, use inspect_workflow_blueprint, and create_workflow_from_blueprint reads the definition itself. `name` is the
+    exact, case-sensitive folder name from the short list: it is not a search, so a keyword or a partial name returns nothing. An empty result for `name` does not mean no blueprint exists.
+
+    Args:
+        name: Exact folder name, to get that blueprint's full definition.
+        search: Words to narrow the short list.
+
     Returns:
-        - List of workflow configuration items : Each item contains workflow
-        - Error message (str): If retrieval fails or an error occurs
-    
+        - A list of rows (no name), or the folder's definition (name), or an error message.
     """
     try:
         logger.info("list_workflow_blueprints: \n")
-        params = {}
-        if name:
-            params["name"] = name 
+        params = {"name": name} if name else {"fields": "basic"}
         output=await utils.make_API_call_to_CCow_and_get_response("/pc-api/v1/workflows",method="GET",request_body=params,ctx=ctx)
         error = utils.build_structured_error(output, "list_workflow_blueprints")
         if error:
             logger.error(f"list_workflow_blueprints error: {output}\n")
             return {"success": False, "error": error}
-        
-        return output
+        if name:
+            return output
+        if not isinstance(output, dict) or "items" not in output:
+            return {"success": False, "error": output}
+        return blueprint_inspect.summarize_listing(output, search)
 
     except Exception as e:
         logger.error(traceback.format_exc())
         logger.error("list_workflow_blueprints error: {}\n".format(e))
         return {"success": False, "error": f"Unexpected error list workflow blueprints: {e}"}
+
+
+def _plain(value):
+    return value.model_dump() if hasattr(value, "model_dump") else value
+
+
+async def _rule_place(name: str, ctx: Context | None) -> str:
+    """Where a rule is: "tenant", "catalog" (the platform publishes it when a workflow using it is created), "missing", or "unchecked" when a lookup failed."""
+    found = _plain(await fetch_workflow_rule(name, ctx))
+    if not isinstance(found, dict):
+        return "unchecked"
+    if any(r.get("name") == name for r in found.get("rules") or []):
+        return "tenant"
+    if found.get("error") and not str(found["error"]).startswith("No workflow rule returned"):
+        return "unchecked"
+    catalog = await utils.make_API_call_to_CCow_and_get_response(constants.URL_FETCH_RULES, method="GET", request_body={"name": name}, ctx=ctx)
+    if not isinstance(catalog, dict) or not isinstance(catalog.get("items"), list):
+        return "unchecked"
+    return "catalog" if any((i.get("meta") or {}).get("name") == name for i in catalog["items"] if isinstance(i, dict)) else "missing"
+
+
+async def _tenant_events(ctx: Context | None) -> list[dict] | None:
+    try:
+        return blueprint_prerequisites.tenant_events(_plain(await list_workflow_events(ctx))) or None
+    except Exception:
+        return None
+
+
+async def _prerequisites_for(specs: dict[str, dict], ctx: Context | None) -> dict[str, dict]:
+    """What each workflow needs (events, rules, functions) against what the tenant has, with every lookup made once."""
+    needed = {name: blueprint_inspect.needs(spec) for name, spec in specs.items()}
+    events = await _tenant_events(ctx)
+    try:
+        functions = blueprint_prerequisites.tenant_functions(_plain(await list_workflow_functions(ctx))) or None if any(n["functions"] for n in needed.values()) else []
+    except Exception:
+        functions = None
+    names = sorted({r["name"] for n in needed.values() for r in n["rules"]})
+    gate = asyncio.Semaphore(5)
+
+    async def place(name: str):
+        async with gate:
+            try:
+                return name, await _rule_place(name, ctx)
+            except Exception:
+                return name, "unchecked"
+
+    places = dict(await asyncio.gather(*(place(n) for n in names)))
+    return {name: blueprint_prerequisites.check(spec, events, functions, places) for name, spec in specs.items()}
+
+
+async def _blueprint_call(params: dict, ctx: Context | None):
+    return await utils.make_API_call_to_CCow_and_get_response("/pc-api/v1/workflows", method="GET", request_body=params, ctx=ctx)
+
+
+@mcp.tool(annotations=utils.tool_annotations("Inspect Workflow Blueprint", read_only = True))
+async def inspect_workflow_blueprint(name: str, find: list[str] | None = None, include_literals: bool = False, activities: list[str] | None = None, check_tenant: bool = False, ctx: Context | None = None) -> dict:
+    """
+    Reads a workflow blueprint, and every workflow it starts, and reports what must be rebound before the workflow is created for a new use case. Changes nothing.
+
+    Args:
+        name: Name of the blueprint folder, which is the key of the item in list_workflow_blueprints (not the name of a workflow inside it).
+        find: Optional strings (for example an assessment or evidence name from the blueprint) to locate in every value of every workflow in the blueprint.
+        include_literals: Also list every input that has a fixed value instead of being mapped from an earlier node.
+        check_tenant: Also look up, on the platform, every event, rule and function each workflow needs (prerequisites per workflow, and prerequisitesMissing for the whole blueprint).
+            Do this before asking anyone about anything missing. A rule that is not in the tenant but is in the catalog is published by the platform when the workflow is created.
+        activities: Activity or condition labels whose inputs to list in full (inputDetails): each input's description, type, options, current value, whether it is optional,
+            where it is mapped from, and whether it can be set. Use it on the activities whose description says they take a value that depends on the use case.
+
+    Returns:
+        - chain.order: workflow names in the order they must be created; a workflow that starts others comes after them.
+        - chain.missing / chain.cycle: workflows the blueprint starts that are not in it, or the loop of workflows that start each other.
+        - workflows[name]: triggers (start events with the quoted values in their filter), workflows (the `Workflow` activities: child name, id, start event, async),
+          fixedFiles (files uploaded with the blueprint), templates (descriptions carrying a structure the user's file must follow),
+          appScopes, conditionLiterals, and occurrences for `find`.
+        The id of a workflow started by another is the id create_workflow returned for it in the tenant, and is set only after it exists: the ids in a
+        blueprint belong to the tenant that made it, and a wrong id is accepted when the parent is created and fails when it runs.
+    """
+    try:
+        output = await _blueprint_call({"name": name}, ctx)
+        if not isinstance(output, dict) or "items" not in output:
+            return {"success": False, "error": output}
+        entry = blueprint_inspect.blueprint_named(output, name)
+        if entry is None:
+            known = blueprint_inspect.names_in(await _blueprint_call({"fields": "basic"}, ctx))
+            return {"success": False, "error": f"No workflow blueprint named '{name}'.", "available": known}
+        root, library = blueprint_inspect.library_of(entry)
+        if root is None:
+            return {"success": False, "error": f"The blueprint '{name}' has no workflow definition (config)."}
+        chain = blueprint_inspect.chain_of(root, library)
+        report = {
+            "success": True,
+            "chain": chain,
+            "workflows": {n: blueprint_inspect.inspect(d, find, include_literals, activities) for n, d in library.items()},
+        }
+        if check_tenant:
+            checked = await _prerequisites_for({n: d.get("spec") or {} for n, d in library.items()}, ctx)
+            for n, result in checked.items():
+                report["workflows"][n]["prerequisites"] = blueprint_prerequisites.summarize(result)
+            report["prerequisitesMissing"] = [f"{n}: {m}" for n, r in checked.items() for m in r["missing"]]
+            report["prerequisitesUnchecked"] = sorted({u for r in checked.values() for u in r["unchecked"]})
+        return report
+    except Exception as e:
+        logger.error(traceback.format_exc())
+        return {"success": False, "error": f"Unexpected error inspecting workflow blueprint: {e}"}
+
+
+async def _workflow_name_taken(name: str, ctx: Context | None) -> bool | None:
+    found = await get_workflow_by_name(name, ctx)
+    if isinstance(found, dict):
+        return True
+    return False if found == "No workflow found with the given name" else None
+
+
+async def _unknown_children(started: list[dict], ctx: Context | None) -> list[str]:
+    """The workflows it starts whose id is not the id of a workflow with that name in this tenant."""
+    problems = []
+    for child in {(c["id"], c["name"]): c for c in started}.values():
+        found = await fetch_workflow_details(child["id"], ctx)
+        actual = (found.get("metadata") or {}).get("name") if isinstance(found, dict) else None
+        if actual != child["name"]:
+            what = "no workflow has that id" if actual is None else f"that id is the workflow '{actual}'"
+            problems.append(f"'{child['name']}' was given the id {child['id']}, but {what}")
+    return problems
+
+
+@mcp.tool(annotations=utils.tool_annotations("Create Workflow From Blueprint", read_only = False))
+async def create_workflow_from_blueprint(
+    name: str,
+    workflow: str | None = None,
+    new_name: str | None = None,
+    replacements: list[dict] | None = None,
+    children: dict[str, dict] | None = None,
+    files: list[dict] | None = None,
+    keep_files: list[str] | None = None,
+    set_inputs: list[dict] | None = None,
+    check_prerequisites: bool = True,
+    dry_run: bool = True,
+    ctx: Context | None = None,
+) -> dict:
+    """
+    Creates one workflow of a blueprint for a new use case, changing only what is listed here and nothing else, so the definition is never retyped.
+    Call it first with dry_run=True (the default): it creates nothing and reports what would change and what is still missing. Create with dry_run=False only
+    after the user has confirmed, and only when `ready` is true. Create the workflows of inspect_workflow_blueprint's chain.order one by one, children first.
+
+    Args:
+        name: Name of the blueprint folder (the key in list_workflow_blueprints).
+        workflow: Name of the workflow inside the blueprint to create; omit for the blueprint's own (top-level) workflow.
+        new_name: Name to create it under; omit to keep the blueprint's name. A workflow with that name must not exist.
+        replacements: [{"from": "<text in the blueprint>", "to": "<new text>", "optional": false}]. Replaces the text inside every value (never ids or types).
+            A "from" that is not found is an error unless optional. Use the quoted values inspect_workflow_blueprint reports (for example the whole start-event filter).
+        children: {"<name of a workflow it starts, as in the blueprint>": {"id": "<id of that workflow in this tenant>", "name": "<its new name>", "displayable": "<optional>"}}.
+            Every workflow it starts must be listed; the id is the one create_workflow_from_blueprint or create_workflow returned for it, or the id of the existing workflow adopted.
+            Each id is checked against the tenant: it must be the id of a workflow with that name, so an id made up for a rehearsal makes `ready` false.
+        files: [{"activity": "<activity label>", "input": "<input name>", "value": "<hash of the uploaded file>", "fileName": "<optional>"}] for files the blueprint uploaded.
+        keep_files: activity labels whose uploaded file is deliberately kept as the blueprint has it.
+        set_inputs: [{"activity": "<activity label>", "input": "<input name>", "value": <value>}] sets an input that is not taken from another step, including one that has no value yet.
+            The value must fit the input's type: Boolean true or false, Number a number, DropDown one of its options, TextArray a list or comma-separated text. Files go in `files`.
+        check_prerequisites: look up on the platform the events, rules and functions the workflow needs (prerequisites). A missing custom event, function, or a rule that is in neither
+            the tenant nor the catalog is a problem; a rule only in the catalog is published by the platform when the workflow is created. Leave it on.
+        dry_run: true to only report.
+
+    Returns:
+        ready (nothing missing), problems, eventsRebound (custom events pointed at this tenant's own event of the same name, with the id each had), inputsSet (what each input was and now is), pendingChildren (started workflows without an id yet), unresolvedFiles (uploaded files neither replaced nor kept),
+        leftovers (replaced text still present), replacements (with how many places and where), workflowsStarted, files, nameTaken, and when created: created.id.
+    """
+    try:
+        output = await _blueprint_call({"name": name}, ctx)
+        if not isinstance(output, dict) or "items" not in output:
+            return {"success": False, "error": output}
+        entry = blueprint_inspect.blueprint_named(output, name)
+        if entry is None:
+            return {"success": False, "error": f"No workflow blueprint named '{name}'.", "available": blueprint_inspect.names_in(output)}
+        root, library = blueprint_inspect.library_of(entry)
+        if root is None:
+            return {"success": False, "error": f"The blueprint '{name}' has no workflow definition (config)."}
+        target = workflow or (root.get("metadata") or {}).get("name")
+        if target not in library:
+            return {"success": False, "error": f"The blueprint '{name}' has no workflow named '{target}'.", "available": sorted(library)}
+
+        result = blueprint_apply.apply(library[target], new_name, replacements, children, files, keep_files, set_inputs)
+        result["problems"].extend(await _unknown_children(result["workflowsStarted"], ctx))
+        result["eventsRebound"] = blueprint_apply.bind_events(result["doc"], await _tenant_events(ctx) or [])
+        if check_prerequisites:
+            prerequisites = (await _prerequisites_for({result["name"]: library[target].get("spec") or {}}, ctx))[result["name"]]
+            result["prerequisites"] = blueprint_prerequisites.summarize(prerequisites)
+            result["problems"].extend(prerequisites["missing"])
+        taken = await _workflow_name_taken(result["name"], ctx)
+        if taken:
+            result["problems"].append(f"a workflow named '{result['name']}' already exists")
+        elif taken is None:
+            result["problems"].append(f"could not check whether a workflow named '{result['name']}' already exists")
+        result["ready"] = result["ready"] and taken is False and not result["problems"]
+        report = {k: v for k, v in result.items() if k != "doc"}
+        report["nameTaken"] = taken
+
+        if dry_run:
+            return {"success": True, "dryRun": True, **report}
+        if not result["ready"]:
+            return {"success": False, "dryRun": False, "error": "Nothing was created: the workflow is not ready.", **report}
+
+        message = await create_workflow(blueprint_apply.to_yaml(result["doc"]), ctx)
+        created = re.search(r"\(ID: ([0-9a-fA-F-]{36})\)", message) if isinstance(message, str) else None
+        if not created:
+            return {"success": False, "dryRun": False, "error": message, **report}
+        return {"success": True, "dryRun": False, "created": {"id": created.group(1), "name": result["name"], "message": message}, **report}
+    except Exception as e:
+        logger.error(traceback.format_exc())
+        return {"success": False, "error": f"Unexpected error creating the workflow from the blueprint: {e}"}
