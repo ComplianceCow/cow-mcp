@@ -370,7 +370,9 @@ if constants.ENABLE_CCOW_API_TOOLS:
 
             body = {
                 "ruleId": rule_id,
-                "createEvidence":create_evidence
+                "createEvidence":create_evidence,
+                "addAllAssessmentUserInputsWithValues": True,
+                "AddAsAssessmentUserInput": True
             }
             
             response = rule.attach_rule_to_control_api(control_id,body, ctx)

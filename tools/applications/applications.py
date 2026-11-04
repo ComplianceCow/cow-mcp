@@ -393,6 +393,83 @@ async def list_application_types(name: str | None = None, version: str | None = 
 
 
 @mcp.tool()
+async def create_application_types(application_type_name: str, ctx: Context | None = None) -> dict:
+    """
+    Create an application type from its blueprint, or reuse it if available.
+
+    Args:
+        application_type_name (str): Exact, case-sensitive blueprint name, e.g. 'HttpRequest'.
+
+    Returns:
+        dict: Success status, whether the type was created, and its configuration,
+              or an error if the blueprint is missing or publication fails.
+    """
+    try:
+        if not application_type_name or not application_type_name.strip():
+            return {"error": "application_type_name is required and cannot be empty."}
+
+        params = {"name": application_type_name, "validApplication": "true", "isStatusToBeIncluded": "true"}
+
+        output = await utils.make_API_call_to_CCow_and_get_response(
+            constants.URL_APPLICATION_CONFIGS, "GET", params, ctx=ctx
+        )
+        error = utils.handle_error_response(output, "create_application_types")
+        if error:
+            return error
+
+        for item in output.get("items", []):
+            meta = item.get("meta", {})
+            if meta.get("name") == application_type_name:
+                return {"success": True, "created": False, "applicationType": item}
+
+        output = await utils.make_API_call_to_CCow_and_get_response(
+            constants.URL_FETCH_APPLICATIONS, "GET", {"name": application_type_name}, ctx=ctx
+        )
+        error = utils.handle_error_response(output, "create_application_types")
+        if error:
+            return error
+
+        blueprint = next((item for item in output.get("items", [])
+                          if item.get("meta", {}).get("name") == application_type_name), None)
+        if blueprint is None:
+            return {"error": f"Application type blueprint '{application_type_name}' not found. The name is case-sensitive."}
+
+        payload = {
+            "language": "python",
+            "appDetails": [{"name": application_type_name, "appTags": blueprint["meta"].get("labels", {})}],
+        }
+        output = await utils.make_API_call_to_CCow_and_get_response(
+            constants.URL_PUBLISH_APPLICATIONS, "POST", payload, ctx=ctx
+        )
+        error = utils.handle_error_response(output, "create_application_types")
+        if error:   
+            return error
+        if not isinstance(output, list) or not output:
+            return {"error": "Unexpected response from Publish Application API."}
+        for result in output:
+            if result.get("Error") or result.get("error"):
+                return {"error": result.get("Error") or result.get("error")}
+        if not any(result.get("appName") == application_type_name for result in output):
+            return {"error": f"Application type '{application_type_name}' was not published."}
+
+        output = await utils.make_API_call_to_CCow_and_get_response(
+            constants.URL_APPLICATION_CONFIGS, "GET", params, ctx=ctx
+        )
+        error = utils.handle_error_response(output, "create_application_types")
+        if error:
+            return error
+        for item in output.get("items", []):
+            meta = item.get("meta", {})
+            if meta.get("name") == application_type_name:
+                return {"success": True, "created": True, "applicationType": item}
+        return {"error": f"Application type '{application_type_name}' was published but the requested configuration is unavailable."}
+    except Exception as e:
+        logger.error(traceback.format_exc())
+        logger.error("create_application_types error : %s", e)
+        return {"error": "Facing internal error"}
+
+
+@mcp.tool()
 async def fetch_credential_config(name: str,version: str,ctx: Context | None = None) -> dict:
     
     """
