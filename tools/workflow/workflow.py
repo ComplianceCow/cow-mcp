@@ -17,6 +17,7 @@ from mcptypes import workflow_tools_type as vo
 from tools.workflow import blueprint_apply
 from tools.workflow import blueprint_inspect
 from tools.workflow import blueprint_prerequisites
+from tools.workflow import blueprint_scopes
 import yaml
 from fastmcp import Context
 
@@ -1321,6 +1322,54 @@ async def _prerequisites_for(specs: dict[str, dict], ctx: Context | None) -> dic
     return {name: blueprint_prerequisites.check(spec, events, functions, places) for name, spec in specs.items()}
 
 
+async def _rule_app_types(name: str, ctx: Context | None) -> set[str] | None:
+    catalog = await utils.make_API_call_to_CCow_and_get_response(constants.URL_FETCH_RULES, method="GET", request_body={"name": name}, ctx=ctx)
+    if not isinstance(catalog, dict) or not isinstance(catalog.get("items"), list):
+        return None
+    rule = next((i for i in catalog["items"] if isinstance(i, dict) and (i.get("meta") or {}).get("name") == name), None)
+    return blueprint_scopes.rule_app_types(rule) if rule else None
+
+
+async def _scope_found(name: str, ctx: Context | None) -> dict | None:
+    """{"types": the application types of the scope} when it exists, {"types": None} when it does not, None when a lookup failed."""
+    try:
+        from tools.applications import applications
+        listed = await applications.list_application_scopes(name=name, ctx=ctx)
+        if not isinstance(listed, dict) or not isinstance(listed.get("items"), list):
+            return None
+        scope = next((s for s in listed["items"] if s.get("name") == name), None)
+        if scope is None:
+            return {"types": None}
+        types: set[str] = set()
+        for application_id in scope.get("applications") or []:
+            found = await applications.list_applications(id=application_id, ctx=ctx)
+            rows = found.get("applications") if isinstance(found, dict) else None
+            if rows is None:
+                return None
+            types.update(blueprint_scopes.normalize(a.get("applicationType")) for a in rows)
+        return {"types": types}
+    except Exception:
+        return None
+
+
+async def _scope_checks_for(specs: dict[str, dict], ctx: Context | None) -> dict[str, dict]:
+    """For each workflow: the application types its rules need against the applications of the scope they run under, with every lookup made once."""
+    gate = asyncio.Semaphore(5)
+
+    async def guarded(lookup, name):
+        async with gate:
+            try:
+                return name, await lookup(name, ctx)
+            except Exception:
+                return name, None
+
+    rule_names = sorted({r["name"] for spec in specs.values() for r in blueprint_inspect.needs(spec)["rules"]})
+    scope_names = sorted({scope for spec in specs.values() for scope in blueprint_inspect.app_scopes(spec)})
+    rule_types = dict(await asyncio.gather(*(guarded(_rule_app_types, n) for n in rule_names)))
+    scopes = dict(await asyncio.gather(*(guarded(_scope_found, n) for n in scope_names)))
+    return {name: blueprint_scopes.check(spec, rule_types, scopes) for name, spec in specs.items()}
+
+
 async def _blueprint_call(params: dict, ctx: Context | None):
     return await utils.make_API_call_to_CCow_and_get_response("/pc-api/v1/workflows", method="GET", request_body=params, ctx=ctx)
 
@@ -1336,6 +1385,8 @@ async def inspect_workflow_blueprint(name: str, find: list[str] | None = None, i
         include_literals: Also list every input that has a fixed value instead of being mapped from an earlier node.
         check_tenant: Also look up, on the platform, every event, rule and function each workflow needs (prerequisites per workflow, and prerequisitesMissing for the whole blueprint).
             Do this before asking anyone about anything missing. A rule that is not in the tenant but is in the catalog is published by the platform when the workflow is created.
+            It also compares the application types the rules need with the applications of the application scope they run under (applicationScope per workflow): the blueprint's own
+            scope belongs to another use case, and a scope that is missing or lacks an application for a rule's type is reported in prerequisitesMissing.
         activities: Activity or condition labels whose inputs to list in full (inputDetails): each input's description, type, options, current value, whether it is optional,
             where it is mapped from, and whether it can be set. Use it on the activities whose description says they take a value that depends on the use case.
 
@@ -1369,8 +1420,11 @@ async def inspect_workflow_blueprint(name: str, find: list[str] | None = None, i
             checked = await _prerequisites_for({n: d.get("spec") or {} for n, d in library.items()}, ctx)
             for n, result in checked.items():
                 report["workflows"][n]["prerequisites"] = blueprint_prerequisites.summarize(result)
-            report["prerequisitesMissing"] = [f"{n}: {m}" for n, r in checked.items() for m in r["missing"]]
-            report["prerequisitesUnchecked"] = sorted({u for r in checked.values() for u in r["unchecked"]})
+            scoped = await _scope_checks_for({n: d.get("spec") or {} for n, d in library.items()}, ctx)
+            for n, result in scoped.items():
+                report["workflows"][n]["applicationScope"] = result["scopes"]
+            report["prerequisitesMissing"] = [f"{n}: {m}" for n, r in checked.items() for m in r["missing"]] + [f"{n}: {m}" for n, r in scoped.items() for m in r["missing"]]
+            report["prerequisitesUnchecked"] = sorted({u for r in checked.values() for u in r["unchecked"]} | {u for r in scoped.values() for u in r["unchecked"]})
         return report
     except Exception as e:
         logger.error(traceback.format_exc())
@@ -1407,6 +1461,7 @@ async def create_workflow_from_blueprint(
     keep_files: list[str] | None = None,
     set_inputs: list[dict] | None = None,
     check_prerequisites: bool = True,
+    check_application_scope: bool = True,
     dry_run: bool = True,
     ctx: Context | None = None,
 ) -> dict:
@@ -1430,6 +1485,8 @@ async def create_workflow_from_blueprint(
             The value must fit the input's type: Boolean true or false, Number a number, DropDown one of its options, TextArray a list or comma-separated text. Files go in `files`.
         check_prerequisites: look up on the platform the events, rules and functions the workflow needs (prerequisites). A missing custom event, function, or a rule that is in neither
             the tenant nor the catalog is a problem; a rule only in the catalog is published by the platform when the workflow is created. Leave it on.
+        check_application_scope: check that the application scope the workflow's rules run under (after your replacements) exists and holds an application of every type the rules and their tasks
+            need. A workflow is created without this being checked and fails when it runs, so a missing or too small scope is a problem. Turn it off only when the user says the scope is right.
         dry_run: true to only report.
 
     Returns:
@@ -1457,6 +1514,12 @@ async def create_workflow_from_blueprint(
             prerequisites = (await _prerequisites_for({result["name"]: library[target].get("spec") or {}}, ctx))[result["name"]]
             result["prerequisites"] = blueprint_prerequisites.summarize(prerequisites)
             result["problems"].extend(prerequisites["missing"])
+        if check_application_scope:
+            scoped = (await _scope_checks_for({result["name"]: result["doc"].get("spec") or {}}, ctx))[result["name"]]
+            result["applicationScope"] = scoped["scopes"]
+            result["problems"].extend(scoped["missing"])
+            if scoped["unchecked"]:
+                result["applicationScopeUnchecked"] = scoped["unchecked"]
         taken = await _workflow_name_taken(result["name"], ctx)
         if taken:
             result["problems"].append(f"a workflow named '{result['name']}' already exists")
