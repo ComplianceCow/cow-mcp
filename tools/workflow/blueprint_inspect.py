@@ -239,6 +239,7 @@ def inspect(doc: dict, find: list[str] | None = None, include_literals: bool = F
         "fixedFiles": fixed_files(spec),
         "templates": templates(spec),
         "appScopes": app_scopes(spec),
+        "rules": sorted(r["name"] for r in needs(spec)["rules"]),
         "conditionLiterals": condition_literals(spec),
         "literalInputCount": len(literal),
     }

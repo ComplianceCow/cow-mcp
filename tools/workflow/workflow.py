@@ -1292,13 +1292,17 @@ async def _rule_place(name: str, ctx: Context | None) -> str:
     return "catalog" if any((i.get("meta") or {}).get("name") == name for i in catalog["items"] if isinstance(i, dict)) else "missing"
 
 
+async def _tenant_events(ctx: Context | None) -> list[dict] | None:
+    try:
+        return blueprint_prerequisites.tenant_events(_plain(await list_workflow_events(ctx))) or None
+    except Exception:
+        return None
+
+
 async def _prerequisites_for(specs: dict[str, dict], ctx: Context | None) -> dict[str, dict]:
     """What each workflow needs (events, rules, functions) against what the tenant has, with every lookup made once."""
     needed = {name: blueprint_inspect.needs(spec) for name, spec in specs.items()}
-    try:
-        events = blueprint_prerequisites.tenant_events(_plain(await list_workflow_events(ctx))) or None
-    except Exception:
-        events = None
+    events = await _tenant_events(ctx)
     try:
         functions = blueprint_prerequisites.tenant_functions(_plain(await list_workflow_functions(ctx))) or None if any(n["functions"] for n in needed.values()) else []
     except Exception:
@@ -1429,7 +1433,7 @@ async def create_workflow_from_blueprint(
         dry_run: true to only report.
 
     Returns:
-        ready (nothing missing), problems, inputsSet (what each input was and now is), pendingChildren (started workflows without an id yet), unresolvedFiles (uploaded files neither replaced nor kept),
+        ready (nothing missing), problems, eventsRebound (custom events pointed at this tenant's own event of the same name, with the id each had), inputsSet (what each input was and now is), pendingChildren (started workflows without an id yet), unresolvedFiles (uploaded files neither replaced nor kept),
         leftovers (replaced text still present), replacements (with how many places and where), workflowsStarted, files, nameTaken, and when created: created.id.
     """
     try:
@@ -1448,6 +1452,7 @@ async def create_workflow_from_blueprint(
 
         result = blueprint_apply.apply(library[target], new_name, replacements, children, files, keep_files, set_inputs)
         result["problems"].extend(await _unknown_children(result["workflowsStarted"], ctx))
+        result["eventsRebound"] = blueprint_apply.bind_events(result["doc"], await _tenant_events(ctx) or [])
         if check_prerequisites:
             prerequisites = (await _prerequisites_for({result["name"]: library[target].get("spec") or {}}, ctx))[result["name"]]
             result["prerequisites"] = blueprint_prerequisites.summarize(prerequisites)

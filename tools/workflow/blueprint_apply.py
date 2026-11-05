@@ -146,6 +146,32 @@ def _set_inputs(doc: dict, items: list[dict], problems: list[str]) -> list[dict]
     return done
 
 
+def bind_events(doc: dict, tenant_events: list[dict]) -> list[dict]:
+    """Points every custom event the workflow uses at the tenant's own event of that name. A custom event is data of one tenant: its id is not the id the
+    blueprint carries, and a workflow holding the wrong id shows the event as a pre-built one instead of the custom event."""
+    mine = {e["displayable"]: e for e in tenant_events if e.get("type") == "CUSTOM_EVENT" and e.get("id")}
+    rebound: dict[tuple[str, str, str], int] = {}
+
+    def walk(node: Any) -> None:
+        if isinstance(node, dict):
+            event = mine.get(node.get("displayable")) if node.get("type") == "CUSTOM_EVENT" else None
+            if event:
+                if node.get("id") != event["id"]:
+                    key = (event["displayable"], str(node.get("id")), event["id"])
+                    rebound[key] = rebound.get(key, 0) + 1
+                    node["id"] = event["id"]
+                if event.get("categoryId"):
+                    node["categoryId"] = event["categoryId"]
+            for value in node.values():
+                walk(value)
+        elif isinstance(node, list):
+            for value in node:
+                walk(value)
+
+    walk(doc)
+    return [{"event": name, "was": was, "now": now, "places": count} for (name, was, now), count in sorted(rebound.items())]
+
+
 def apply(doc: dict, new_name: str | None = None, replacements: list[dict] | None = None, children: dict[str, dict] | None = None,
           files: list[dict] | None = None, keep_files: list[str] | None = None, set_inputs: list[dict] | None = None) -> dict:
     out = copy.deepcopy(doc)

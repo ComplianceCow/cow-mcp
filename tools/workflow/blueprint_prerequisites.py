@@ -19,7 +19,7 @@ def _walk(node: Any, key: str):
 
 
 def tenant_events(listing: Any) -> list[dict]:
-    return [{"displayable": e["displayable"], "id": e.get("id"), "type": e.get("type")} for e in _walk(listing, "displayable")]
+    return [{"displayable": e["displayable"], "id": e.get("id"), "type": e.get("type"), "categoryId": e.get("categoryId")} for e in _walk(listing, "displayable")]
 
 
 def tenant_functions(listing: Any) -> list[dict]:

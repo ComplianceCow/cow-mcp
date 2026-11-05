@@ -120,6 +120,22 @@ class Templates(unittest.TestCase):
         self.assertEqual(found, [("Sampled", "activity", None), ("Inputs", "input", "Upload"), ("Inputs", "input", "Hint"), ("Inputs", "input", "Json")])
 
 
+class Rules(unittest.TestCase):
+    def rule(self, name, scope="ScopeA"):
+        return {"action": {"type": "Rule", "reference": {"id": f"id-{name}", "name": name, "appScopeName": scope, "inputs": []}}}
+
+    def test_the_rules_the_workflow_runs_are_listed_once_each_by_name(self):
+        doc = workflow("W", activities={"One": self.rule("Zeta"), "Two": self.rule("Alpha"), "Three": self.rule("Zeta"), "Four": self.rule("Mid")})
+        self.assertEqual(b.inspect(doc)["rules"], ["Alpha", "Mid", "Zeta"])
+
+    def test_activities_that_are_not_rules_are_not_listed(self):
+        doc = workflow("W", activities={"One": self.rule("Alpha"), "Call": call("Child", "Evt"), "Fn": {"action": {"type": "Function", "reference": {"name": "Fn1", "id": "f"}}}})
+        self.assertEqual(b.inspect(doc)["rules"], ["Alpha"])
+
+    def test_a_workflow_without_rules_lists_none(self):
+        self.assertEqual(b.inspect(workflow("W"))["rules"], [])
+
+
 class Conditions(unittest.TestCase):
     def test_a_condition_comparing_with_a_fixed_value_is_reported(self):
         spec = workflow("W", conditions={
