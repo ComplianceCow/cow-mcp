@@ -19,6 +19,7 @@ from tools.workflow import blueprint_inspect
 from tools.workflow import blueprint_prerequisites
 from tools.workflow import blueprint_readmes
 from tools.workflow import blueprint_scopes
+from tools.workflow import plan_inputs
 from tools.workflow import rule_lookup
 import yaml
 from fastmcp import Context
@@ -1236,6 +1237,27 @@ async def trigger_workflow(
         return "Facing internal error"
 
 
+@mcp.tool(annotations=utils.tool_annotations("List Assessment Inputs", read_only = True))
+async def list_assessment_inputs(id: str, ctx: Context | None = None) -> dict:
+    """
+    Lists the inputs an assessment holds, as the platform stores them. Use it after add_assessment_input to confirm each input is there (add_assessment_input's own success message
+    is not proof) and before adding one, to see whether the key already exists.
+
+    Args:
+        id: The assessment's plan id (the `id` check_assessment_exist returns), copied exactly.
+
+    Returns:
+        success, plan_id, name and inputs: key, type, required, description, fileName (for a file) or value (any other type), and hasValue. A file's content is not returned.
+        success is false, with the error, when no assessment has that id.
+    """
+    try:
+        plan = await utils.make_API_call_to_CCow_and_get_response(f"{constants.URL_PLANS}/{id}", "GET", ctx=ctx)
+        return plan_inputs.describe(id, plan)
+    except Exception as e:
+        logger.error(traceback.format_exc())
+        return {"success": False, "error": f"Unexpected error listing the assessment inputs: {e}"}
+
+
 @mcp.tool(annotations=utils.tool_annotations("List Workflow Blueprints", read_only = True))
 async def list_workflow_blueprints(name: str = None, search: str = None, ctx: Context | None = None) -> dict | list | str:
     """
@@ -1436,6 +1458,11 @@ async def inspect_workflow_blueprint(name: str, find: list[str] | None = None, i
         - workflows[name]: triggers (start events with the quoted values in their filter), workflows (the `Workflow` activities: child name, id, start event, async),
           fixedFiles (files uploaded with the blueprint), templates (descriptions carrying a structure the user's file must follow),
           appScopes, conditionLiterals, and occurrences for `find`.
+        - workflows[name].requiredInputsUnset: every required input that holds no value, no uploaded file and no mapping from an earlier step (activity, rule, input, type, description,
+          settable). Go through each one before creating the workflow. A rule may default some of them (its log and config files), which is not known from here.
+        - assessmentInputs: every assessment input the chain reads (the rule FetchAssessmentInput), one entry per name: inputName, readBy (workflow and activity) and sample (the activity's description
+          when it carries a sample of the content). Each one must be added to the assessment the start event filters on before the workflow can run; workflows[name].assessmentInputsRead is the same per workflow.
+        - workflows[name].mappingIssues: inputs taken from an earlier step that the step cannot supply (activity not in the workflow, field it does not declare, event field not named).
         The id of a workflow started by another is the id create_workflow returned for it in the tenant, and is set only after it exists: the ids in a
         blueprint belong to the tenant that made it, and a wrong id is accepted when the parent is created and fails when it runs.
     """
@@ -1456,6 +1483,7 @@ async def inspect_workflow_blueprint(name: str, find: list[str] | None = None, i
             "chain": chain,
             "workflows": {n: blueprint_inspect.inspect(d, find, include_literals, activities) for n, d in library.items()},
         }
+        report["assessmentInputs"] = blueprint_inspect.chain_assessment_inputs(report["workflows"])
         if check_tenant:
             checked = await _prerequisites_for({n: d.get("spec") or {} for n, d in library.items()}, ctx)
             for n, result in checked.items():
@@ -1503,6 +1531,7 @@ async def create_workflow_from_blueprint(
     files: list[dict] | None = None,
     keep_files: list[str] | None = None,
     set_inputs: list[dict] | None = None,
+    kept_inputs: list[dict] | None = None,
     check_prerequisites: bool = True,
     check_application_scope: bool = True,
     dry_run: bool = True,
@@ -1522,10 +1551,14 @@ async def create_workflow_from_blueprint(
         children: {"<name of a workflow it starts, as in the blueprint>": {"id": "<id of that workflow in this tenant>", "name": "<its new name>", "displayable": "<optional>"}}.
             Every workflow it starts must be listed; the id is the one create_workflow_from_blueprint or create_workflow returned for it, or the id of the existing workflow adopted.
             Each id is checked against the tenant: it must be the id of a workflow with that name, so an id made up for a rehearsal makes `ready` false.
-        files: [{"activity": "<activity label>", "input": "<input name>", "value": "<hash of the uploaded file>", "fileName": "<optional>"}] for files the blueprint uploaded.
+        files: [{"activity": "<activity label>", "input": "<input name>", "value": "<hash of the uploaded file>", "fileName": "<optional>"}] for a file the blueprint uploaded, and for a required file
+            input that has no file yet (requiredInputsUnset lists it with settable false). Not for a file taken from an earlier step.
         keep_files: activity labels whose uploaded file is deliberately kept as the blueprint has it.
         set_inputs: [{"activity": "<activity label>", "input": "<input name>", "value": <value>}] sets an input that is not taken from another step, including one that has no value yet.
             The value must fit the input's type: Boolean true or false, Number a number, DropDown one of its options, TextArray a list or comma-separated text. Files go in `files`.
+        kept_inputs: [{"rule": "<rule name>", "input": "<input name>", "reason": "<why it stays empty>", "activity": "<optional: only that activity>"}]. Every required input that is still
+            empty (requiredInputsUnset) must be set with set_inputs, given its file with files, or listed here with the reason it is left empty on purpose (for example a log file the rule
+            supplies, or a file an earlier rule in the same run generates). Until each one is decided, `ready` is false and `problems` names it.
         check_prerequisites: look up on the platform the events, rules and functions the workflow needs (prerequisites). A missing custom event, function, or a rule that is in neither
             the tenant nor the catalog is a problem; a rule only in the catalog is published by the platform when the workflow is created. Leave it on.
         check_application_scope: check that the application scope the workflow's rules run under (after your replacements) exists and holds an application of every type the rules and their tasks
@@ -1535,6 +1568,8 @@ async def create_workflow_from_blueprint(
     Returns:
         ready (nothing missing), problems, eventsRebound (custom events pointed at this tenant's own event of the same name, with the id each had), inputsSet (what each input was and now is), pendingChildren (started workflows without an id yet), unresolvedFiles (uploaded files neither replaced nor kept),
         leftovers (replaced text still present), replacements (with how many places and where), workflowsStarted, files, nameTaken, and when created: created.id.
+        requiredInputsUnset: inputs that are required and have no value, no uploaded file and no mapping, after everything above was applied (a rule may default some of them: decide each one,
+        set it with set_inputs or files, or say why it stays). mappingIssues: inputs taken from an earlier step that its source cannot supply. Neither changes `ready`.
     """
     try:
         output = await _blueprint_call({"name": name}, ctx)
@@ -1550,7 +1585,7 @@ async def create_workflow_from_blueprint(
         if target not in library:
             return {"success": False, "error": f"The blueprint '{name}' has no workflow named '{target}'.", "available": sorted(library)}
 
-        result = blueprint_apply.apply(library[target], new_name, replacements, children, files, keep_files, set_inputs)
+        result = blueprint_apply.apply(library[target], new_name, replacements, children, files, keep_files, set_inputs, kept_inputs or [])
         result["problems"].extend(await _unknown_children(result["workflowsStarted"], ctx))
         result["eventsRebound"] = blueprint_apply.bind_events(result["doc"], await _tenant_events(ctx) or [])
         if check_prerequisites:

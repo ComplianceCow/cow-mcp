@@ -85,8 +85,8 @@ def _files(doc: dict, files: list[dict], problems: list[str]) -> list[dict]:
         target = next((i for i in blueprint_inspect.inputs_of(node) if i.get("name") == input_name), None) if node else None
         if target is None:
             problems.append(f"there is no input '{input_name}' on '{label}'")
-        elif str(target.get("type", "")).lower() != "file" or not blueprint_inspect.is_literal(target):
-            problems.append(f"'{input_name}' on '{label}' is not a file the blueprint uploaded")
+        elif str(target.get("type", "")).lower() != "file" or "mapValueFrom" in target:
+            problems.append(f"'{input_name}' on '{label}' is not a file input that takes an uploaded file (it is not a file, or it is taken from an earlier step)")
         elif not isinstance(value, str) or not value.strip():
             problems.append(f"the hash for '{input_name}' on '{label}' is empty")
         else:
@@ -172,8 +172,29 @@ def bind_events(doc: dict, tenant_events: list[dict]) -> list[dict]:
     return [{"event": name, "was": was, "now": now, "places": count} for (name, was, now), count in sorted(rebound.items())]
 
 
+def undecided_inputs(unset: list[dict], kept: list[dict] | None, problems: list[str]) -> list[dict]:
+    """The required inputs that are still empty and that nobody decided to keep empty: `kept` is [{"rule", "input", "reason"}] (optionally with "activity" to cover only that
+    one). The ones with the same rule and input are one entry."""
+    covering = []
+    for item in kept or []:
+        if not isinstance(item, dict) or not item.get("rule") or not item.get("input"):
+            problems.append("kept_inputs: each entry needs a rule and an input")
+        elif not str(item.get("reason") or "").strip():
+            problems.append(f"kept_inputs: say why '{item['input']}' of '{item['rule']}' stays empty")
+        else:
+            covering.append(item)
+    grouped: dict[tuple, dict] = {}
+    for entry in unset:
+        if any(k["rule"] == entry["rule"] and k["input"] == entry["input"] and k.get("activity") in (None, entry["activity"]) for k in covering):
+            continue
+        group = grouped.setdefault((entry["rule"], entry["input"]), {"rule": entry["rule"], "input": entry["input"], "type": entry["type"], "settable": entry["settable"],
+                                                                      "desc": entry["desc"], "activities": []})
+        group["activities"].append(entry["activity"])
+    return list(grouped.values())
+
+
 def apply(doc: dict, new_name: str | None = None, replacements: list[dict] | None = None, children: dict[str, dict] | None = None,
-          files: list[dict] | None = None, keep_files: list[str] | None = None, set_inputs: list[dict] | None = None) -> dict:
+          files: list[dict] | None = None, keep_files: list[str] | None = None, set_inputs: list[dict] | None = None, kept_inputs: list[dict] | None = None) -> dict:
     out = copy.deepcopy(doc)
     problems: list[str] = []
     replaced = _replacements(out, replacements or [], problems)
@@ -192,6 +213,15 @@ def apply(doc: dict, new_name: str | None = None, replacements: list[dict] | Non
         if (f["activity"], f["input"]) not in handled
     ]
 
+    unset = blueprint_inspect.required_inputs_unset(out.get("spec") or {})
+    undecided = undecided_inputs(unset, kept_inputs, problems) if kept_inputs is not None else []
+    problems.extend(
+        f"required input '{u['input']}' of the rule '{u['rule']}' is empty on {len(u['activities'])} activit{'y' if len(u['activities']) == 1 else 'ies'} and nobody decided it: "
+        + ("set it with set_inputs, " if u["settable"] else "upload its file with files, ")
+        + "or keep it empty on purpose with kept_inputs [{\"rule\": ..., \"input\": ..., \"reason\": ...}]"
+        for u in undecided
+    )
+
     text = json.dumps(out, ensure_ascii=False)
     stale = sorted({s["was"] for s in started if s["was"] and s["was"] != s["id"] and s["was"] in text})
     problems.extend(f"the blueprint's own id {i} is still in the workflow" for i in stale)
@@ -206,6 +236,10 @@ def apply(doc: dict, new_name: str | None = None, replacements: list[dict] | Non
         "problems": problems,
         "pendingChildren": pending,
         "unresolvedFiles": unresolved,
+        "requiredInputsUnset": unset,
+        "requiredInputsUndecided": undecided,
+        "mappingIssues": blueprint_inspect.mapping_issues(out.get("spec") or {}),
+        "assessmentInputsRead": blueprint_inspect.assessment_inputs_read(out.get("spec") or {}),
         "leftovers": leftovers,
         "ready": not (problems or pending or unresolved or leftovers),
     }
