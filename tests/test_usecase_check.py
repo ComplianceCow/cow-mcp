@@ -73,6 +73,37 @@ class SelectList(unittest.TestCase):
         self.assertEqual([i["name"] for i in got["items"]], ["Day", "E"])
 
 
+class SelectListEdgeCases(unittest.TestCase):
+    def names(self, sql):
+        return [i["name"] for i in u.select_list(sql)["items"]]
+
+    def test_an_alias_without_as_gives_the_name(self):
+        self.assertEqual(self.names("SELECT w.ResourceName ResourceName, 'x' Source, 1 \"Total\" FROM T w"), ["ResourceName", "Source", "Total"])
+
+    def test_an_expression_that_only_looks_like_an_alias_has_no_name(self):
+        for sql in ("SELECT a + b FROM T", "SELECT a AND b FROM T", "SELECT x IS NULL FROM T", "SELECT CASE WHEN a THEN b END FROM T",
+                    "SELECT NOT a FROM T", "SELECT a, b DESC FROM T"):
+            self.assertIn(None, self.names(sql), sql)
+
+    def test_a_union_takes_its_names_from_the_first_select(self):
+        got = u.select_list("SELECT a AS One, b AS Two FROM X UNION ALL SELECT c AS Three, d AS Four FROM Y")
+        self.assertEqual(([i["name"] for i in got["items"]], got["from"], got["setOperation"]), (["One", "Two"], "X", True))
+
+    def test_a_union_of_selects_without_from_stops_at_the_operator(self):
+        got = u.select_list("SELECT 1 AS One UNION SELECT 2 AS Two")
+        self.assertEqual(([i["name"] for i in got["items"]], got["from"]), (["One"], None))
+
+    def test_a_with_query_with_a_union_in_its_final_select(self):
+        got = u.select_list("WITH x AS (SELECT a FROM T) SELECT a AS One FROM x UNION ALL SELECT a AS Two FROM x")
+        self.assertEqual([i["name"] for i in got["items"]], ["One"])
+
+    def test_quoted_and_backtick_aliases_are_read_without_their_quotes(self):
+        self.assertEqual(self.names('SELECT a AS "Resource Name", b AS `Col` FROM T'), ["Resource Name", "Col"])
+
+    def test_a_plain_query_has_no_set_operation(self):
+        self.assertFalse(u.select_list("SELECT a AS A FROM T")["setOperation"])
+
+
 class EvidenceStructure(unittest.TestCase):
     def test_a_correct_list_passes(self):
         self.assertEqual(errors(doc(rule("r", "OkReport", columns(EXTRAS)))), [])
@@ -92,8 +123,15 @@ class EvidenceStructure(unittest.TestCase):
     def test_a_filter_that_selects_everything_is_left_alone(self):
         self.assertEqual(errors(doc(rule("r", "Filtered", "*"))), [])
 
-    def test_an_unnamed_expression_is_an_error(self):
-        self.assertTrue(any("no AS name" in m for m in messages(doc(rule("r", "E", columns(EXTRAS) + ", a + b")))))
+    def test_an_expression_that_cannot_be_named_is_a_warning_and_the_evidence_is_not_judged(self):
+        result = u.check(doc(rule("r", "E", columns(EXTRAS) + ", a + b")), None, True)
+        self.assertEqual(result["errors"], [])
+        self.assertTrue(any("no column name could be told" in w["message"] for w in result["warnings"]))
+
+    def test_columns_that_cannot_be_read_are_not_reported_as_missing(self):
+        document = doc(rule("r", "E", columns(EXTRAS) + ", a + b"), workflow("w", "E", ["r"]))
+        result = u.check(document, {"E": ["TicketID"]}, True)
+        self.assertEqual(result["errors"], [])
 
 
 class Remediation(unittest.TestCase):

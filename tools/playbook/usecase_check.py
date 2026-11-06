@@ -92,17 +92,47 @@ def _depths(mask: str) -> list[int]:
     return found
 
 
+_SET_OPERATOR = re.compile(r"\b(UNION|INTERSECT|EXCEPT|MINUS)\b", re.I)
+_NOT_AN_ALIAS = {"END", "NULL", "TRUE", "FALSE", "ASC", "DESC", "DAY", "MONTH", "YEAR", "HOUR", "MINUTE", "SECOND"}
+_BEFORE_AN_OPERAND = {"AND", "OR", "NOT", "IS", "IN", "LIKE", "ILIKE", "THEN", "ELSE", "WHEN", "BETWEEN", "ON", "CASE", "DISTINCT", "INTERVAL"}
+_IDENTIFIER = r"\"[^\"]+\"|`[^`]+`|[A-Za-z_]\w*"
+
+
+def _unquote(name: str) -> str:
+    return name[1:-1] if len(name) > 1 and name[0] in "\"`" and name[-1] == name[0] else name
+
+
+def _alias_without_as(piece: str) -> str | None:
+    """`w.ResourceName ResourceName` or `'x' Source`: an expression followed by a name, with no AS. Not taken for one when the last word is a keyword (END, NULL) or the
+    expression ends with an operator or a keyword that expects an operand (`a AND b`, `a + b`)."""
+    found = re.fullmatch(rf"(?s)(.*\S)\s+({_IDENTIFIER})", piece)
+    if not found:
+        return None
+    expression, name = found.groups()
+    if name.upper() in _NOT_AN_ALIAS or expression[-1] in "+-*/%|&<>=!,(.:":
+        return None
+    last_word = re.search(r"([A-Za-z_]\w*)$", expression)
+    if last_word and last_word.group(1).upper() in _BEFORE_AN_OPERAND:
+        return None
+    return _unquote(name)
+
+
 def select_list(sql: str) -> dict:
-    """The output columns of the outermost SELECT: {"items": [{name, bare, text}], "star": bool, "from": upstream table or None}, or {"error": why} when it cannot be read."""
+    """The output columns of the first SELECT of the statement (a UNION takes its column names from its first SELECT; a WITH query's final SELECT is the first one outside the
+    parentheses): {"items": [{name, bare, text}], "star": bool, "from": upstream table or None, "setOperation": bool}, or {"error": why} when it cannot be read.
+    An item's name is None when no name can be told (an expression with no alias)."""
     sql = _blank_comments(sql)
     mask = _mask(sql)
     depths = _depths(mask)
     selects = [m.start() for m in re.finditer(r"\bSELECT\b", mask, re.I) if depths[m.start()] == 0]
     if not selects:
         return {"error": "no SELECT at the top level"}
-    start = selects[-1] + len("SELECT")
+    start = selects[0] + len("SELECT")
     from_at = next((m.start() for m in re.finditer(r"\bFROM\b", mask[start:], re.I) if depths[start + m.start()] == 0), None)
-    end = start + from_at if from_at is not None else len(sql)
+    set_at = next((m.start() for m in _SET_OPERATOR.finditer(mask[start:]) if depths[start + m.start()] == 0), None)
+    if set_at is not None and (from_at is None or set_at < from_at):
+        from_at = None
+    end = start + (from_at if from_at is not None else set_at if set_at is not None else len(sql) - start)
     body, body_mask, body_depths = sql[start:end], mask[start:end], depths[start:end]
     body = re.sub(r"^\s*DISTINCT\b", "", body, flags=re.I)
     body_mask = re.sub(r"^\s*DISTINCT\b", lambda m: " " * len(m.group(0)), body_mask, flags=re.I)
@@ -120,19 +150,19 @@ def select_list(sql: str) -> dict:
         if re.fullmatch(r"(\w+\.)?\*", piece):
             star = True
             continue
-        alias = re.search(r"\bAS\s+\"?([A-Za-z_]\w*)\"?\s*$", piece, re.I)
+        alias = re.search(rf"\bAS\s+({_IDENTIFIER})\s*$", piece, re.I)
         bare = re.fullmatch(r"(?:\w+\.)?\"?([A-Za-z_]\w*)\"?", piece)
         if alias:
-            items.append({"name": alias.group(1), "bare": False, "text": piece})
+            items.append({"name": _unquote(alias.group(1)), "bare": False, "text": piece})
         elif bare:
             items.append({"name": bare.group(1), "bare": True, "text": piece})
         else:
-            items.append({"name": None, "bare": False, "text": piece})
+            items.append({"name": _alias_without_as(piece), "bare": False, "text": piece})
     table = None
     if from_at is not None:
         m = re.match(r"\s*FROM\s+\"?([A-Za-z_]\w*)\"?", sql[end:], re.I)
         table = m.group(1) if m else None
-    return {"items": items, "star": star, "from": table}
+    return {"items": items, "star": star, "from": table, "setOperation": set_at is not None}
 
 
 def structure_problems(names: list[str]) -> list[str]:
@@ -206,7 +236,8 @@ def check(doc: Any, remediation_columns: dict[str, list[str]] | None, remediatio
             continue
         unnamed = [i["text"] for i in result["items"] if i["name"] is None]
         if unnamed:
-            issues.append(_issue("error", "evidence", f"'{evidence}' selects an expression with no AS name: {unnamed[0][:80]}", sid))
+            result["unreadable"] = True
+            issues.append(_issue("warning", "evidence", f"'{evidence}': no column name could be told for `{unnamed[0][:80]}`, so its columns were not checked; write `AS <ColumnName>` after it", sid))
             continue
         for problem in structure_problems([i["name"] for i in result["items"]]):
             issues.append(_issue("error", "evidence", f"'{evidence}': {problem}", sid))
@@ -235,7 +266,7 @@ def check(doc: Any, remediation_columns: dict[str, list[str]] | None, remediatio
             continue
         wanted = [str(c) for c in columns[evidence]]
         result = parsed.get(producer["id"]) if producer else None
-        if not wanted or result is None or "error" in result or (result["star"] and not result["items"]):
+        if not wanted or result is None or "error" in result or result.get("unreadable") or (result["star"] and not result["items"]):
             continue
         names = [i["name"] for i in result["items"]]
         extras = names[len(FIRST_KEYS): len(names) - len(LAST_KEYS)] if len(names) >= len(FIRST_KEYS) + len(LAST_KEYS) else []
