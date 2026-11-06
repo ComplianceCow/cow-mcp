@@ -18,6 +18,7 @@ from tools.workflow import blueprint_apply
 from tools.workflow import blueprint_inspect
 from tools.workflow import blueprint_prerequisites
 from tools.workflow import blueprint_scopes
+from tools.workflow import rule_lookup
 import yaml
 from fastmcp import Context
 
@@ -1368,6 +1369,25 @@ async def _scope_checks_for(specs: dict[str, dict], ctx: Context | None) -> dict
     rule_types = dict(await asyncio.gather(*(guarded(_rule_app_types, n) for n in rule_names)))
     scopes = dict(await asyncio.gather(*(guarded(_scope_found, n) for n in scope_names)))
     return {name: blueprint_scopes.check(spec, rule_types, scopes) for name, spec in specs.items()}
+
+
+@mcp.tool(annotations=utils.tool_annotations("Find Rule By Name", read_only = True))
+async def find_rule_by_name(name: str, ctx: Context | None = None) -> dict:
+    """
+    Looks up ONE rule by its exact name in everything the platform holds: the rules published in the tenant and the rule catalog, whether or not the rule is tagged for
+    discovery. Use it when a rule is named explicitly (by the requirement, a blueprint or a person) and get_rules_summary does not list it. To find rules by what they do, use
+    get_rules_summary: it lists only the rules tagged for discovery.
+
+    Returns success (false when the rule is in neither place), name and where: "tenant" (published), "catalog" (published by the platform when a workflow that uses it is
+    created), "missing", or "unchecked" when a lookup failed. When found it also returns what the two services hold about the rule: purpose, description, appTypes (the
+    application types the rule and its tasks need, lower case, `nocredapp` needs no credential), discoverable (whether get_rules_summary lists it; null for a rule found only in
+    the tenant), inputs ({name, type, required}), outputs ({name, type, description}) and readme (the README text, or null when the rule has none: many rules do not).
+    lookupFailed names a service ("tenant" or "catalog") that could not be read: what only it holds, for example the README, is then unknown, not absent. Call the tool again.
+    """
+    tenant = await utils.make_GET_API_call_to_CCow(constants.URL_WORKFLOW_PREBUILD_RULES, ctx, query_params={"name": name})
+    catalog = await utils.make_API_call_to_CCow_and_get_response(constants.URL_FETCH_RULES, method="GET", request_body={"name": name, "include_read_me": "true"}, ctx=ctx)
+    rows = lambda response: response.get("items") if isinstance(response, dict) else None
+    return rule_lookup.describe(name, rows(tenant), rows(catalog))
 
 
 async def _blueprint_call(params: dict, ctx: Context | None):
