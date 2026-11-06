@@ -17,6 +17,7 @@ from mcptypes import workflow_tools_type as vo
 from tools.workflow import blueprint_apply
 from tools.workflow import blueprint_inspect
 from tools.workflow import blueprint_prerequisites
+from tools.workflow import blueprint_readmes
 from tools.workflow import blueprint_scopes
 from tools.workflow import rule_lookup
 import yaml
@@ -1394,8 +1395,24 @@ async def _blueprint_call(params: dict, ctx: Context | None):
     return await utils.make_API_call_to_CCow_and_get_response("/pc-api/v1/workflows", method="GET", request_body=params, ctx=ctx)
 
 
+async def _rule_readmes(names: list[str], ctx: Context | None) -> dict[str, str | None]:
+    """Per rule: its README, "" when it has none, None when the lookup failed."""
+    gate = asyncio.Semaphore(5)
+
+    async def one(name):
+        async with gate:
+            try:
+                found = await utils.make_API_call_to_CCow_and_get_response(constants.URL_FETCH_RULES, method="GET", request_body={"name": name, "include_read_me": "true"}, ctx=ctx)
+            except Exception:
+                return name, None
+        rows = found.get("items") if isinstance(found, dict) else None
+        return name, None if rows is None else rule_lookup.readme_of(name, rows) or ""
+
+    return dict(await asyncio.gather(*(one(n) for n in names)))
+
+
 @mcp.tool(annotations=utils.tool_annotations("Inspect Workflow Blueprint", read_only = True))
-async def inspect_workflow_blueprint(name: str, find: list[str] | None = None, include_literals: bool = False, activities: list[str] | None = None, check_tenant: bool = False, ctx: Context | None = None) -> dict:
+async def inspect_workflow_blueprint(name: str, find: list[str] | None = None, include_literals: bool = False, activities: list[str] | None = None, check_tenant: bool = False, include_rule_readmes: bool = False, ctx: Context | None = None) -> dict:
     """
     Reads a workflow blueprint, and every workflow it starts, and reports what must be rebound before the workflow is created for a new use case. Changes nothing.
 
@@ -1407,6 +1424,9 @@ async def inspect_workflow_blueprint(name: str, find: list[str] | None = None, i
             Do this before asking anyone about anything missing. A rule that is not in the tenant but is in the catalog is published by the platform when the workflow is created.
             It also compares the application types the rules need with the applications of the application scope they run under (applicationScope per workflow): the blueprint's own
             scope belongs to another use case, and a scope that is missing or lacks an application for a rule's type is reported in prerequisitesMissing.
+        include_rule_readmes: Also return the README of every rule the workflows run (ruleReadmes: per rule, the workflows that use it and its README text; rulesWithoutReadme: rules that
+            have none; ruleReadmesUnchecked: rules whose README could not be read, so it is unknown, not absent). A README can say which columns its input evidence must contain.
+            Use it when the evidence that triggers the workflow is being designed. The result is large: leave it off otherwise.
         activities: Activity or condition labels whose inputs to list in full (inputDetails): each input's description, type, options, current value, whether it is optional,
             where it is mapped from, and whether it can be set. Use it on the activities whose description says they take a value that depends on the use case.
 
@@ -1445,6 +1465,9 @@ async def inspect_workflow_blueprint(name: str, find: list[str] | None = None, i
                 report["workflows"][n]["applicationScope"] = result["scopes"]
             report["prerequisitesMissing"] = [f"{n}: {m}" for n, r in checked.items() for m in r["missing"]] + [f"{n}: {m}" for n, r in scoped.items() for m in r["missing"]]
             report["prerequisitesUnchecked"] = sorted({u for r in checked.values() for u in r["unchecked"]} | {u for r in scoped.values() for u in r["unchecked"]})
+        if include_rule_readmes:
+            specs = {n: d.get("spec") or {} for n, d in library.items()}
+            report.update(blueprint_readmes.collect(specs, await _rule_readmes(blueprint_readmes.rule_names(specs), ctx)))
         return report
     except Exception as e:
         logger.error(traceback.format_exc())

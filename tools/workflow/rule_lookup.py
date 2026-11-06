@@ -34,6 +34,12 @@ def _readme(copies: list[dict], preferred: dict | None) -> str | None:
     return None
 
 
+def readme_of(name: str, catalog_items: Any) -> str | None:
+    """The README of the rule with this exact name among the catalog rows, preferring the copy that discovery lists."""
+    copies = [i for i in catalog_items or [] if isinstance(i, dict) and _catalog_name(i) == name]
+    return _readme(copies, _exact(catalog_items, name, _catalog_name, prefer=_discoverable))
+
+
 def _inputs(tenant: dict | None, catalog: dict | None) -> list[dict]:
     """Each input of the rule as {name, type, required}: from the catalog's definition, overridden by the tenant's published one."""
     found: dict[str, dict] = {}
