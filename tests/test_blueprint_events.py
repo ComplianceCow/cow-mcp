@@ -124,8 +124,12 @@ class TheTool(unittest.TestCase):
         async def tenant_events(ctx):
             return events
 
+        async def no_scope_problems(specs, ctx):
+            return {name: {"scopes": [], "missing": [], "unchecked": []} for name in specs}
+
         with mock.patch.object(tool.utils, "make_API_call_to_CCow_and_get_response", api), mock.patch.object(tool.utils, "make_GET_API_call_to_CCow", get), \
-                mock.patch.object(tool, "_prerequisites_for", nothing_missing), mock.patch.object(tool, "_tenant_events", tenant_events):
+                mock.patch.object(tool, "_prerequisites_for", nothing_missing), mock.patch.object(tool, "_tenant_events", tenant_events), \
+                mock.patch.object(tool, "_scope_checks_for", no_scope_problems):
             result = asyncio.run(tool.create_workflow_from_blueprint(name="Folder", new_name="Okta child", dry_run=dry_run))
         return result, posts
 
