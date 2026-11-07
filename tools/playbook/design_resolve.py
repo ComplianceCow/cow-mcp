@@ -81,7 +81,13 @@ def resolve(doc: dict, tenant: dict) -> dict:
                     credentials.append({"application": name, "state": "will be created: its credentials must be entered in the platform"})
         elif kind == "create_application_scope":
             existing = (tenant.get("scopes") or {}).get(name)
-            results[s["id"]] = _step(s, ADOPT, "", existing) if existing else _step(s, CREATE)
+            held = (tenant.get("scopeApplications") or {}).get(name)
+            wanted = [x["name"] for x in steps if x.get("id") in (s.get("prerequisiteSteps") or []) and x.get("type") == "create_application"]
+            unbound = [n for n in wanted if held is not None and (apps.get(n) or {}).get("id") not in held]
+            if existing and unbound:
+                results[s["id"]] = _step(s, CONFLICT, f"the scope '{name}' exists but is not bound to the design's application(s) {', '.join(unbound)}; its rules would run under other applications", existing)
+            else:
+                results[s["id"]] = _step(s, ADOPT, "", existing) if existing else _step(s, CREATE)
         elif kind == "create_control":
             assessment = c.get("assessmentName")
             number = str(c.get("displayable") or c.get("alias") or "")
@@ -206,6 +212,7 @@ async def snapshot(doc: dict, ctx: Context | None) -> dict:
         "applications": apps,
         "availableTypes": [t["name"] for t in types] if types is not None else None,
         "scopes": {preflight._name(s): preflight._id(s) for s in raw["scopes"] or []},
+        "scopeApplications": {preflight._name(s): set(s.get("credentialRef") or []) for s in raw["scopes"] or []},
         "categories": sorted(preflight._name(c) for c in raw["categories"]) if raw["categories"] is not None else None,
         "assessments": assessments,
         "rules": rules,

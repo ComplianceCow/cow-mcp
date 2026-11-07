@@ -188,3 +188,20 @@ class ValuesNeeded(unittest.TestCase):
 
     def test_nothing_is_asked_without_a_workflow_step(self):
         self.assertEqual(r.resolve(doc(app("x", "Okta app", "OktaConnector")), {**TENANT, "blueprintInputs": {"Jira": [{"inputName": "A", "sample": None}]}})["valuesNeeded"], [])
+
+
+class Scopes(unittest.TestCase):
+    def scope_doc(self):
+        scope = {"id": "sc", "type": "create_application_scope", "name": "Okta scope", "prerequisiteSteps": ["ok"], "config": {}}
+        return doc(app("ok", "Okta app", "OktaConnector"), scope)
+
+    def resolve(self, bound):
+        return r.resolve(self.scope_doc(), {**TENANT, "scopeApplications": {"Okta scope": bound}})["steps"][1]
+
+    def test_a_scope_bound_to_the_designs_applications_is_adopted(self):
+        self.assertEqual(self.resolve({"a1", "other"})["action"], r.ADOPT)
+
+    def test_a_scope_bound_to_other_applications_is_a_conflict(self):
+        got = self.resolve({"zz"})
+        self.assertEqual(got["action"], r.CONFLICT)
+        self.assertIn("Okta app", got["reason"])
