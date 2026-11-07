@@ -12,6 +12,25 @@ from tools.playbook import design_store, preflight
 from utils import utils
 
 ADOPT, CREATE, CONFLICT, BLOCKED = "ADOPT", "CREATE", "CONFLICT", "BLOCKED"
+EMAIL = re.compile(r"[\w.+-]+@[\w-]+\.[\w.-]+")
+
+
+def values_needed(folder: str, inputs: list[dict]) -> list[dict]:
+    """What a person must give for the assessment inputs a blueprint reads. A sample that carries addresses belongs to whoever wrote the blueprint: the addresses are shown so they are confirmed or replaced, never used silently."""
+    out = []
+    for item in inputs:
+        sample = item.get("sample") or ""
+        emails = list(dict.fromkeys(EMAIL.findall(sample)))
+        entry = {"workflow": folder, "input": item.get("inputName"), "kind": "file" if sample else "value"}
+        if emails:
+            entry["addressesInSample"] = emails
+            entry["ask"] = "the sample config names these addresses (assignee, support): confirm them or give your own"
+        elif not sample:
+            entry["ask"] = "no sample: ask what this input must hold"
+        else:
+            continue
+        out.append(entry)
+    return out
 
 
 def _norm(value: Any) -> str:
@@ -38,6 +57,7 @@ def resolve(doc: dict, tenant: dict) -> dict:
     results: dict[str, dict] = {}
     risks: list[str] = []
     credentials: list[dict] = []
+    values: list[dict] = []
 
     for s in steps:
         c = s.get("config") if isinstance(s.get("config"), dict) else {}
@@ -104,6 +124,7 @@ def resolve(doc: dict, tenant: dict) -> dict:
             results[s["id"]] = _step(s, CREATE, "whether this link or dependency exists is not looked up")
         elif kind == "create_workflow":
             folder = refs.get("workflow")
+            values += values_needed(folder, (tenant.get("blueprintInputs") or {}).get(folder) or [])
             chain = (tenant.get("chains") or {}).get(folder)
             existing = tenant.get("workflows") or {}
             if chain is None:
@@ -136,6 +157,7 @@ def resolve(doc: dict, tenant: dict) -> dict:
         "blockers": [r for r in ordered if r["action"] == BLOCKED],
         "risks": risks,
         "credentialsNeeded": credentials,
+        "valuesNeeded": values,
         "assessments": assessments,
         "steps": ordered,
     }
@@ -164,15 +186,17 @@ async def snapshot(doc: dict, ctx: Context | None) -> dict:
     rules: dict[str, dict] = {}
     names = sorted({(s.get("refs") or {}).get("rule") or s.get("name") for s in steps if s.get("type") == "create_rule" and not (s.get("config") or {}).get("sql")})
     chains: dict[str, list[str] | None] = {}
+    blueprint_inputs: dict[str, list[dict]] = {}
     try:
         from tools.workflow import workflow
         if names:
             found = await workflow.find_rules_by_name(list(names), ctx)
             rules = {n: {"where": (r or {}).get("where")} for n, r in ((found or {}).get("rules") or {}).items()}
         for folder in sorted({(s.get("refs") or {}).get("workflow") for s in steps if s.get("type") == "create_workflow" and (s.get("refs") or {}).get("workflow")}):
-            report = await workflow.inspect_workflow_blueprint(folder, brief=True, ctx=ctx)
+            report = await workflow.inspect_workflow_blueprint(folder, ctx=ctx)
             order = ((report or {}).get("chain") or {}).get("order")
             chains[folder] = list(order) if isinstance(order, list) else None
+            blueprint_inputs[folder] = [{"inputName": i.get("inputName"), "sample": i.get("sample")} for i in (report or {}).get("assessmentInputs") or []]
     except ImportError:
         pass
 
@@ -187,6 +211,7 @@ async def snapshot(doc: dict, ctx: Context | None) -> dict:
         "rules": rules,
         "workflows": {preflight._name(w): preflight._id(w) for w in raw["configs"] or []},
         "chains": chains,
+        "blueprintInputs": blueprint_inputs,
     }
 
 
@@ -200,7 +225,7 @@ async def resolve_design(design_id: str, ctx: Context | None = None) -> dict:
 
     Returns:
         ready (no conflict and nothing blocked), counts, conflicts, blockers, risks (new rules are unproven until run), credentialsNeeded (applications that exist unvalidated or will be created, whose
-        credentials a person must enter in the platform), assessments (the ids of the design's assessments that exist, to verify them after the build) and steps (every step with its action, reason and existingId). A design may be approved for an unattended build only when ready is true.
+        credentials a person must enter in the platform), valuesNeeded (what a person must give for the workflow blueprints: the assessment inputs they read, with the addresses their samples name), assessments (the ids of the design's assessments that exist, to verify them after the build) and steps (every step with its action, reason and existingId). A design may be approved for an unattended build only when ready is true.
     """
     domain = preflight.identity_of(ctx).get("domainName")
     stored = design_store.load(design_id, domain)

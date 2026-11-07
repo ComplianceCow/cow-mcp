@@ -166,3 +166,25 @@ class Overall(unittest.TestCase):
 
 if __name__ == "__main__":
     unittest.main()
+
+
+class ValuesNeeded(unittest.TestCase):
+    STEP = {"id": "w", "type": "create_workflow", "name": "Jira flow", "refs": {"workflow": "Jira"}, "config": {}}
+
+    def resolve(self, inputs):
+        return r.resolve(doc(self.STEP), {**TENANT, "blueprintInputs": {"Jira": inputs}})["valuesNeeded"]
+
+    def test_the_addresses_a_sample_names_are_shown_for_confirmation(self):
+        got = self.resolve([{"inputName": "Config", "sample": "Assignee: a@x.com, support: s@x.com, again s@x.com"}])
+        self.assertEqual(got[0]["addressesInSample"], ["a@x.com", "s@x.com"])
+        self.assertEqual((got[0]["workflow"], got[0]["input"], got[0]["kind"]), ("Jira", "Config", "file"))
+
+    def test_an_input_without_a_sample_asks_what_it_must_hold(self):
+        got = self.resolve([{"inputName": "AdminEmail", "sample": None}])
+        self.assertEqual((got[0]["input"], got[0]["kind"]), ("AdminEmail", "value"))
+
+    def test_a_sample_without_addresses_needs_nothing_from_a_person(self):
+        self.assertEqual(self.resolve([{"inputName": "Config", "sample": "a file with no contact data"}]), [])
+
+    def test_nothing_is_asked_without_a_workflow_step(self):
+        self.assertEqual(r.resolve(doc(app("x", "Okta app", "OktaConnector")), {**TENANT, "blueprintInputs": {"Jira": [{"inputName": "A", "sample": None}]}})["valuesNeeded"], [])
