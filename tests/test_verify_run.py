@@ -121,6 +121,14 @@ class VerifyEndToEnd(unittest.TestCase):
         self.assertFalse(got["finished"])
         self.assertNotIn("controls", got)
 
+    def test_samples_are_returned_only_when_asked_for(self):
+        controls = [{"id": "r1", "controlNo": "1", "name": "n", "evidence": [{"id": "e1", "name": "R"}]}]
+        data = {"e1": rows({"a": 1}, {"a": 2}, {"a": 3}, {"a": 4})}
+        without = asyncio.run(v.verify("p", "run1", "x", 60, None, adapters(controls, data, {}, {"1": []})))
+        with_two = asyncio.run(v.verify("p", "run1", "x", 60, None, adapters(controls, data, {}, {"1": []}), samples=2))
+        self.assertNotIn("sample", without["controls"][0]["evidence"][0])
+        self.assertEqual(with_two["controls"][0]["evidence"][0]["sample"], [{"a": 1}, {"a": 2}])
+
     def test_an_all_healthy_run_is_ok(self):
         controls = [{"id": "r1", "controlNo": "1", "name": "n", "evidence": [{"id": "e1", "name": "R"}]}]
         got = asyncio.run(v.verify("p", "run1", "x", 60, None, adapters(controls, {"e1": rows({"a": 1})}, {}, {"1": []})))

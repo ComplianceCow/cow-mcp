@@ -123,7 +123,7 @@ async def _dependencies(plan_id: str, get: Callable[[str, dict], Awaitable[Any]]
     return out
 
 
-async def verify(assessment_id: str, run_id: str | None, name: str, wait_seconds: int, ctx: Context | None, adapters: dict | None = None) -> dict:
+async def verify(assessment_id: str, run_id: str | None, name: str, wait_seconds: int, ctx: Context | None, adapters: dict | None = None, samples: int = 0) -> dict:
     """The tool's logic. `adapters` replaces the platform calls in tests."""
     from tools.rules import action_rules
 
@@ -176,7 +176,10 @@ async def verify(assessment_id: str, run_id: str | None, name: str, wait_seconds
                 if items and isinstance(items[0], dict) and items[0].get("Error"):
                     log_error = str(items[0]["Error"])
                 continue
-            evidences.append({"name": e.get("name"), "status": status_by_name.get(e.get("name"), "Completed" if items is not None else "Yet to start"), "rows": None if items is None else len(items)})
+            entry = {"name": e.get("name"), "status": status_by_name.get(e.get("name"), "Completed" if items is not None else "Yet to start"), "rows": None if items is None else len(items)}
+            if samples and items:
+                entry["sample"] = items[:samples]
+            evidences.append(entry)
         raw[number] = {"control": c, "evidences": evidences, "log_error": log_error}
     verdicts: dict[str, str] = {}
     results: dict[str, dict] = {}
@@ -190,7 +193,7 @@ async def verify(assessment_id: str, run_id: str | None, name: str, wait_seconds
 
 
 @mcp.tool()
-async def verify_assessment(assessment_id: str, run_id: str | None = None, name: str = "Verification run", wait_seconds: int = 600, ctx: Context | None = None) -> dict:
+async def verify_assessment(assessment_id: str, run_id: str | None = None, name: str = "Verification run", wait_seconds: int = 540, samples: int = 0, ctx: Context | None = None) -> dict:
     """
     Purpose:
         Say, for every control of an assessment run, whether its evidence was produced and, when it was not, why. With no run_id it STARTS a real run of the assessment (automated actions such as
@@ -200,11 +203,12 @@ async def verify_assessment(assessment_id: str, run_id: str | None = None, name:
         assessment_id: the assessment (plan) id.
         run_id: an existing run to judge; leave out to start a new one.
         name: the name of the run when one is started.
-        wait_seconds: how long to wait for the run to finish (default 600).
+        wait_seconds: how long to wait for the run to finish (default 540, which stays inside the 660 seconds a caller is given).
+        samples: how many rows (at most 3) of each evidence to return in `sample`, to show a person what was produced; 0 returns none.
 
     Returns:
         success, runId, started, status, finished, controls (per control: controlNo, name, verdict, cause, fix, evidence: [{name, status, rows}]), counts per verdict and ok (true when every
         control produced evidence). Verdicts: OK; EMPTY (completed, no rows); NOT_STARTED; UPSTREAM_FAILED (an input it needs was not produced); CROSS_ASSESSMENT_DEPENDENCY (takes an input from
         another assessment, so it never starts); RULE_INPUT_MISSING, CREDENTIALS, CONNECTION, SQL_ERROR, RULE_ERROR (the rule's own error, classified); UNREADABLE.
     """
-    return await verify(assessment_id, run_id, name, max(0, min(int(wait_seconds), 1800)), ctx)
+    return await verify(assessment_id, run_id, name, max(0, min(int(wait_seconds), 1800)), ctx, samples=max(0, min(int(samples), 3)))

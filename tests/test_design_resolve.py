@@ -95,10 +95,11 @@ class Controls(unittest.TestCase):
     def test_a_control_in_a_new_assessment_is_created(self):
         self.assertEqual(one(control("c", "Root", "1", assessment="Brand New", categoryName="Integrations"))["action"], r.CREATE)
 
-    def test_a_category_that_does_not_exist_blocks_a_new_assessment(self):
-        got = one(control("c", "Root", "1", assessment="Brand New", categoryName="Identity"))
-        self.assertEqual(got["action"], r.BLOCKED)
-        self.assertIn("category", got["reason"])
+    def test_a_category_that_does_not_exist_is_created_with_the_new_assessment(self):
+        got = r.resolve(doc(control("c", "Root", "1", assessment="Brand New", categoryName="Identity")), TENANT)
+        self.assertEqual(got["steps"][0]["action"], r.CREATE)
+        self.assertIn("category 'Identity' does not exist and is created", got["steps"][0]["reason"])
+        self.assertTrue(got["ready"])
 
 
 class Rules(unittest.TestCase):
@@ -116,6 +117,10 @@ class Rules(unittest.TestCase):
 
     def test_a_sql_rule_is_created(self):
         self.assertEqual(one(rule("r", "Join", sql="SELECT 1"))["action"], r.CREATE)
+
+    def test_links_and_sql_evidence_say_that_their_existence_is_not_looked_up(self):
+        self.assertIn("not looked up", one(rule("r", "Join", sql="SELECT 1"))["reason"])
+        self.assertIn("not looked up", one({"id": "l", "type": "link_control", "config": {}})["reason"])
 
 
 class Workflows(unittest.TestCase):
@@ -145,6 +150,14 @@ class Overall(unittest.TestCase):
     def test_ready_only_when_nothing_conflicts_or_is_blocked(self):
         self.assertTrue(r.resolve(doc(app("x", "Okta app", "OktaConnector"), control("c", "New", "3.3")), TENANT)["ready"])
         self.assertFalse(r.resolve(doc(control("c", "Suspended", "3.2")), TENANT)["ready"])
+
+    def test_the_ids_of_the_existing_assessments_of_the_design_are_returned(self):
+        got = r.resolve(doc(control("c", "New", "3.3")), TENANT)
+        self.assertEqual(got["assessments"], [{"name": "Okta Inventory", "id": "p1"}])
+
+    def test_an_assessment_the_design_does_not_mention_is_left_out(self):
+        got = r.resolve(doc(app("x", "Okta app", "OktaConnector")), TENANT)
+        self.assertEqual(got["assessments"], [])
 
     def test_unknown_type_lists_do_not_block(self):
         tenant = {**TENANT, "availableTypes": None}

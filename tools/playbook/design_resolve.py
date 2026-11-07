@@ -68,10 +68,10 @@ def resolve(doc: dict, tenant: dict) -> dict:
             held = (tenant.get("assessments") or {}).get(assessment)
             category = c.get("categoryName")
             if held is None:
+                note = f"new assessment '{assessment}'" if number and "." not in number else ""
                 if category and tenant.get("categories") is not None and category not in tenant["categories"]:
-                    results[s["id"]] = _step(s, BLOCKED, f"the category '{category}' does not exist in the tenant, and creating a category needs a decision")
-                else:
-                    results[s["id"]] = _step(s, CREATE, f"new assessment '{assessment}'" if number and "." not in number else "")
+                    note = (note + "; " if note else "") + f"the category '{category}' does not exist and is created with the assessment"
+                results[s["id"]] = _step(s, CREATE, note)
                 continue
             by_number = {c2["number"]: c2 for c2 in held.get("controls") or []}
             there = by_number.get(number)
@@ -88,7 +88,7 @@ def resolve(doc: dict, tenant: dict) -> dict:
                 results[s["id"]] = _step(s, CONFLICT, f"number {number} in '{assessment}' is held by '{there['name']}'" + (f"; next free number: {free}" if free else ""), there.get("id"))
         elif kind == "create_rule":
             if c.get("sql"):
-                results[s["id"]] = _step(s, CREATE, "SQL evidence")
+                results[s["id"]] = _step(s, CREATE, "SQL evidence: whether it exists is not looked up")
                 continue
             rule = (refs.get("rule") or name)
             found = (tenant.get("rules") or {}).get(rule) or {}
@@ -101,7 +101,7 @@ def resolve(doc: dict, tenant: dict) -> dict:
             else:
                 results[s["id"]] = _step(s, BLOCKED, f"the rule '{rule}' could not be looked up")
         elif kind in ("create_control_dependency", "link_control"):
-            results[s["id"]] = _step(s, CREATE)
+            results[s["id"]] = _step(s, CREATE, "whether this link or dependency exists is not looked up")
         elif kind == "create_workflow":
             folder = refs.get("workflow")
             chain = (tenant.get("chains") or {}).get(folder)
@@ -125,6 +125,8 @@ def resolve(doc: dict, tenant: dict) -> dict:
             if bad:
                 results[s["id"]]["note"] = "depends on a step that is not resolved: " + ", ".join(bad)
 
+    mentioned = {(s.get("config") or {}).get("assessmentName") for s in steps if (s.get("config") or {}).get("assessmentName")}
+    assessments = [{"name": n, "id": a["id"]} for n, a in (tenant.get("assessments") or {}).items() if n in mentioned]
     ordered = [results[s["id"]] for s in steps if s.get("id") in results]
     counts = {a: sum(1 for r in ordered if r["action"] == a) for a in (ADOPT, CREATE, CONFLICT, BLOCKED)}
     return {
@@ -134,6 +136,7 @@ def resolve(doc: dict, tenant: dict) -> dict:
         "blockers": [r for r in ordered if r["action"] == BLOCKED],
         "risks": risks,
         "credentialsNeeded": credentials,
+        "assessments": assessments,
         "steps": ordered,
     }
 
@@ -193,11 +196,11 @@ async def resolve_design(design_id: str, ctx: Context | None = None) -> dict:
     Purpose:
         Reconcile a design stored by check_use_case_design (by its designId) with the tenant, step by step, so that nothing is left for the build to discover. Read-only.
         Each step is ADOPT (it already exists as designed: its id is returned), CREATE, CONFLICT (something exists that clashes: a number held by another control, an application name with another
-        type, workflow names already taken) or BLOCKED (it cannot be done: an application type not installed, a category that does not exist, a rule that could not be looked up).
+        type, workflow names already taken) or BLOCKED (it cannot be done: an application type not installed, a rule that could not be looked up). A category that does not exist is created with the assessment that names it.
 
     Returns:
         ready (no conflict and nothing blocked), counts, conflicts, blockers, risks (new rules are unproven until run), credentialsNeeded (applications that exist unvalidated or will be created, whose
-        credentials a person must enter in the platform) and steps (every step with its action, reason and existingId). A design may be approved for an unattended build only when ready is true.
+        credentials a person must enter in the platform), assessments (the ids of the design's assessments that exist, to verify them after the build) and steps (every step with its action, reason and existingId). A design may be approved for an unattended build only when ready is true.
     """
     domain = preflight.identity_of(ctx).get("domainName")
     stored = design_store.load(design_id, domain)
