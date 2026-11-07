@@ -28,12 +28,57 @@ def doc(*steps):
     return {"spec": {"steps": list(steps)}}
 
 
-def errors(document, rc=None, confirmed=True):
-    return u.check(document, rc, confirmed)["errors"]
+def errors(document, rc=None, confirmed=True, user_configurable=None, rule_systems=None):
+    return u.check(document, rc, confirmed, user_configurable, rule_systems)["errors"]
 
 
-def messages(document, rc=None, confirmed=True):
-    return [e["message"] for e in errors(document, rc, confirmed)]
+def messages(document, rc=None, confirmed=True, user_configurable=None, rule_systems=None):
+    return [e["message"] for e in errors(document, rc, confirmed, user_configurable, rule_systems)]
+
+
+def l1_rule(step_id, name, description, assessment="A"):
+    return {"id": step_id, "type": "create_rule", "level": "L1", "name": name, "description": description, "prerequisiteSteps": [], "refs": {"rule": name}, "config": {"assessmentName": assessment}}
+
+
+def action(step_id, evidence, prerequisites, assessment="A"):
+    return {"id": step_id, "type": "create_action", "level": "L1", "prerequisiteSteps": list(prerequisites), "config": {"evidenceName": evidence, "assessmentName": assessment}}
+
+
+class L1Producer(unittest.TestCase):
+    def check(self, document, rc, new_rules=None):
+        return u.check(document, rc, True, None, None, new_rules)
+
+    def test_an_l1_rule_before_the_action_is_the_producer(self):
+        document = doc(l1_rule("r", "CheckX", "Produces XReport with one verdict per bucket"), action("a", "XReport", ["r"]))
+        self.assertEqual(self.check(document, {"XReport": []})["errors"], [])
+
+    def test_the_rule_is_found_through_a_control_step(self):
+        control = {"id": "c", "type": "create_control", "level": "L1", "prerequisiteSteps": ["r"]}
+        document = doc(l1_rule("r", "CheckX", "Produces XReport"), control, action("a", "XReport", ["c"]))
+        self.assertEqual(self.check(document, {"XReport": []})["errors"], [])
+
+    def test_no_rule_before_the_action_is_an_error(self):
+        got = self.check(doc(action("a", "XReport", [])), {"XReport": []})["errors"]
+        self.assertTrue(any("no rule step before this one" in e["message"] for e in got))
+
+    def test_a_new_rule_must_state_the_required_columns(self):
+        document = doc(l1_rule("r", "CheckX", "Produces XReport with one verdict per bucket"), action("a", "XReport", ["r"]))
+        got = self.check(document, {"XReport": ["AssignedToUserID", "CallerID"]}, ["CheckX"])["errors"]
+        self.assertTrue(any("new rule" in e["message"] and "AssignedToUserID, CallerID" in e["message"] for e in got))
+
+    def test_a_new_rule_that_states_them_passes(self):
+        document = doc(l1_rule("r", "CheckX", "Produces XReport; AssignedToUserID and CallerID at position 8"), action("a", "XReport", ["r"]))
+        self.assertEqual(self.check(document, {"XReport": ["AssignedToUserID", "CallerID"]}, ["CheckX"])["errors"], [])
+
+    def test_an_existing_rule_only_gets_a_warning(self):
+        document = doc(l1_rule("r", "CheckX", "Produces XReport"), action("a", "XReport", ["r"]))
+        got = self.check(document, {"XReport": ["CallerID"]})
+        self.assertEqual(got["errors"], [])
+        self.assertTrue(any("existing rule" in w["message"] for w in got["warnings"]))
+
+    def test_columns_must_still_be_declared(self):
+        document = doc(l1_rule("r", "CheckX", "Produces XReport"), action("a", "XReport", ["r"]))
+        self.assertTrue(any("says nothing about" in e["message"] for e in self.check(document, {})["errors"]))
 
 
 class Parse(unittest.TestCase):
@@ -172,7 +217,7 @@ class Remediation(unittest.TestCase):
         self.assertEqual(errors(doc(up, down, workflow("w", "OkReport", ["r"])), {"OkReport": ["TicketID"]}), [])
 
     def test_an_evidence_nothing_writes_is_an_error(self):
-        self.assertTrue(any("no create_rule step writes" in m for m in messages(doc(workflow("w", "Nothing", [])), {"Nothing": []})))
+        self.assertTrue(any("no rule step before this one writes" in m for m in messages(doc(workflow("w", "Nothing", [])), {"Nothing": []})))
 
     def test_the_rule_must_be_a_prerequisite(self):
         self.assertTrue(any("not in this step's prerequisiteSteps" in m for m in messages(doc(rule("r", "OkReport", columns()), workflow("w", "OkReport", [])), {"OkReport": []})))
@@ -187,6 +232,21 @@ class Remediation(unittest.TestCase):
     def test_a_workflow_reference_with_spaces_is_an_error(self):
         document = doc(rule("r", "OkReport", columns()), workflow("w", "OkReport", ["r"], folder="Jira Generic Workflow"))
         self.assertTrue(any("no spaces" in m for m in messages(document, {"OkReport": []})))
+
+    def test_a_workflow_that_starts_on_another_assessment_than_its_evidence_is_an_error(self):
+        producer = rule("r", "OkReport", columns())
+        producer["config"]["assessmentName"] = "ZZ L2"
+        step = workflow("w", "OkReport", ["r"])
+        step["config"]["assessmentName"] = "NIST 800-53 v5"
+        got = messages(doc(producer, step), {"OkReport": []})
+        self.assertTrue(any("never see its evidence" in m and "'ZZ L2'" in m for m in got))
+
+    def test_the_same_assessment_passes(self):
+        producer = rule("r", "OkReport", columns())
+        producer["config"]["assessmentName"] = "ZZ L2"
+        step = workflow("w", "OkReport", ["r"])
+        step["config"]["assessmentName"] = "ZZ L2"
+        self.assertEqual(errors(doc(producer, step), {"OkReport": []}), [])
 
     def test_a_remediation_at_another_layer_than_its_evidence_is_a_warning(self):
         document = doc(rule("r", "OkReport", columns(), level="L2"), workflow("w", "OkReport", ["r"], "L3"))
@@ -215,6 +275,81 @@ class Structure(unittest.TestCase):
         self.assertTrue(any("used twice" in m for m in got) and any("'ghost'" in m for m in got))
 
 
+class UserInputs(unittest.TestCase):
+    def doc_with(self, inputs, sql_extra="", config=None):
+        step = rule("r", "OkReport", columns(EXTRAS))
+        step["config"]["sql"] += sql_extra
+        if config:
+            step["config"].update(config)
+        document = doc(step)
+        document["spec"]["inputs"] = inputs
+        return document
+
+    def test_an_input_that_is_declared_and_used_passes(self):
+        document = self.doc_with({"slaHours": {"type": "integer", "default": 24}}, " AND age < ${{ inputs.slaHours }}")
+        self.assertEqual(errors(document, user_configurable=["slaHours"]), [])
+
+    def test_an_input_used_but_not_declared_is_an_error_naming_the_step(self):
+        got = errors(self.doc_with({}, " AND age < ${{ inputs.slaHours }}"))
+        self.assertEqual([(e["check"], e["step"]) for e in got], [("inputs", "r")])
+        self.assertIn("slaHours", got[0]["message"])
+
+    def test_an_input_in_refs_or_config_other_than_sql_counts_too(self):
+        document = self.doc_with({"slaHours": {"type": "integer"}}, config={"note": "limit ${{inputs.slaHours}}"})
+        self.assertEqual(errors(document, user_configurable=["slaHours"]), [])
+
+    def test_a_configurable_value_the_use_case_does_not_declare_is_an_error(self):
+        self.assertTrue(any("does not declare it" in m for m in messages(self.doc_with({}), user_configurable=["slaHours"])))
+
+    def test_a_declared_value_that_no_step_uses_is_an_error_when_the_requirement_makes_it_configurable(self):
+        got = messages(self.doc_with({"slaHours": {"type": "integer"}}), user_configurable=["slaHours"])
+        self.assertTrue(any("would change nothing" in m for m in got))
+
+    def test_a_declared_input_nobody_uses_is_only_a_warning_without_a_requirement(self):
+        result = u.check(self.doc_with({"spare": {"type": "string"}}), None, True)
+        self.assertEqual(result["errors"], [])
+        self.assertTrue(any("spare" in w["message"] for w in result["warnings"]))
+
+    def test_no_configurable_values_and_no_inputs_is_fine(self):
+        self.assertEqual(errors(self.doc_with({}), user_configurable=[]), [])
+
+
+class SingleSystemL1(unittest.TestCase):
+    def l1(self, step_id, rule, assessment):
+        return {"id": step_id, "type": "create_rule", "level": "L1", "name": rule, "refs": {"rule": rule}, "config": {"assessmentName": assessment}}
+
+    def test_one_system_per_l1_assessment_passes(self):
+        document = doc(self.l1("a", "FetchUsersFromWorkday", "Workday"), self.l1("b", "GetOktaUsers", "Okta"))
+        self.assertEqual(errors(document, rule_systems={"FetchUsersFromWorkday": "httprequest", "GetOktaUsers": "oktaconnector"}), [])
+
+    def test_two_systems_in_one_l1_assessment_is_an_error_that_names_them(self):
+        document = doc(self.l1("a", "FetchUsersFromWorkday", "Okta Termination"), self.l1("b", "GetOktaUsers", "Okta Termination"))
+        got = messages(document, rule_systems={"FetchUsersFromWorkday": "httprequest", "GetOktaUsers": "oktaconnector"})
+        self.assertEqual(len(got), 1)
+        self.assertIn("'Okta Termination'", got[0])
+        self.assertIn("httprequest, oktaconnector", got[0])
+
+    def test_two_connector_types_of_one_product_are_one_system(self):
+        document = doc(self.l1("a", "GetOktaUsers", "Okta"), self.l1("b", "GetOktaUsersGroupsFactorsV2", "Okta"))
+        self.assertEqual(errors(document, rule_systems={"GetOktaUsers": "okta", "GetOktaUsersGroupsFactorsV2": "okta"}), [])
+
+    def test_a_rule_that_needs_no_application_does_not_count_as_a_system(self):
+        document = doc(self.l1("a", "GetOktaUsers", "Okta"), self.l1("b", "ReconcileTerminatedUsersOktaWorkday", "Okta"))
+        self.assertEqual(errors(document, rule_systems={"GetOktaUsers": "oktaconnector", "ReconcileTerminatedUsersOktaWorkday": "nocredapp"}), [])
+
+    def test_a_rule_missing_from_the_map_is_an_error(self):
+        got = messages(doc(self.l1("a", "GetOktaUsers", "Okta")), rule_systems={})
+        self.assertTrue(any("no entry for the L1 rule 'GetOktaUsers'" in m for m in got))
+
+    def test_without_the_map_nothing_is_checked(self):
+        document = doc(self.l1("a", "FetchUsersFromWorkday", "X"), self.l1("b", "GetOktaUsers", "X"))
+        self.assertEqual(errors(document), [])
+
+    def test_sql_rules_and_other_levels_are_not_l1_rules(self):
+        document = doc(rule("r", "OkReport", columns(EXTRAS), level="L2"))
+        self.assertEqual(errors(document, rule_systems={}), [])
+
+
 class TheTool(unittest.TestCase):
     def test_a_text_that_does_not_parse_is_reported_by_the_tool(self):
         result = asyncio.run(u.check_use_case_design("a: b: c"))
@@ -228,3 +363,81 @@ class TheTool(unittest.TestCase):
 
 if __name__ == "__main__":
     unittest.main()
+
+
+class RuleApplicationTypes(unittest.TestCase):
+    def rule(self, name, assessment="a"):
+        return {"id": f"r-{name}", "type": "create_rule", "level": "L1", "name": name, "refs": {"rule": name, "assessment": assessment}, "config": {"assessmentName": assessment}}
+
+    def app(self, app_id, app_type):
+        return {"id": app_id, "type": "create_application", "config": {"applicationType": app_type}}
+
+    def scope(self, apps, assessment="a"):
+        return {"id": f"scope-{assessment}", "type": "create_application_scope", "prerequisiteSteps": list(apps), "config": {"assessment": assessment}}
+
+    def run_check(self, document, types):
+        return u.check(document, None, True, None, None, None, types)
+
+    def test_a_scope_holding_the_type_passes(self):
+        document = doc(self.app("o", "OktaConnector"), self.scope(["o"]), self.rule("GetOktaUsers"))
+        self.assertEqual(self.run_check(document, {"GetOktaUsers": "oktaconnector"})["errors"], [])
+
+    def test_a_rule_whose_type_the_scope_lacks_is_an_error_that_names_what_it_holds(self):
+        document = doc(self.app("o", "OktaConnector"), self.scope(["o"]), self.rule("GetOktaUsers"), self.rule("GetOktaUsersGroupsFactorsV2"))
+        got = self.run_check(document, {"GetOktaUsers": "OktaConnector", "GetOktaUsersGroupsFactorsV2": "HttpRequest"})["errors"]
+        self.assertEqual(len(got), 1)
+        self.assertIn("GetOktaUsersGroupsFactorsV2", got[0]["message"])
+        self.assertIn("OktaConnector", got[0]["message"])
+
+    def test_any_of_several_acceptable_types_is_enough(self):
+        document = doc(self.app("o", "HttpRequest"), self.scope(["o"]), self.rule("X"))
+        self.assertEqual(self.run_check(document, {"X": ["OktaConnector", "HttpRequest"]})["errors"], [])
+
+    def test_a_rule_without_an_entry_is_an_error(self):
+        document = doc(self.app("o", "HttpRequest"), self.scope(["o"]), self.rule("X"))
+        self.assertTrue(any("no entry for the L1 rule 'X'" in e["message"] for e in self.run_check(document, {})["errors"]))
+
+    def test_a_missing_scope_is_only_a_warning(self):
+        got = self.run_check(doc(self.rule("X")), {"X": "HttpRequest"})
+        self.assertEqual(got["errors"], [])
+        self.assertTrue(got["warnings"])
+
+    def test_nothing_is_checked_without_the_map(self):
+        self.assertEqual(u.check(doc(self.rule("X")), None, True)["errors"], [])
+
+
+class ExistingApplications(unittest.TestCase):
+    def app(self, name, ref=True):
+        return {"id": name, "type": "create_application", "name": name, "refs": {"application": name} if ref else {}, "config": {"applicationType": "Okta"}}
+
+    def run_check(self, document, existing):
+        return u.check(document, None, True, None, None, None, None, existing)["errors"]
+
+    def test_a_reference_to_an_application_the_tenant_has_passes(self):
+        self.assertEqual(self.run_check(doc(self.app("Okta")), ["Okta"]), [])
+
+    def test_a_reference_the_tenant_lacks_is_an_error(self):
+        got = self.run_check(doc(self.app("Okta")), [])
+        self.assertEqual(len(got), 1)
+        self.assertIn("clear refs", got[0]["message"])
+
+    def test_an_application_to_create_has_no_reference_and_passes(self):
+        self.assertEqual(self.run_check(doc(self.app("Okta", ref=False)), []), [])
+
+    def test_without_the_list_nothing_is_checked(self):
+        self.assertEqual(u.check(doc(self.app("Okta")), None, True)["errors"], [])
+
+    def test_a_reference_whose_type_differs_is_an_error(self):
+        got = self.run_check(doc(self.app("Okta")), [{"name": "Okta", "type": "HttpRequest"}])
+        self.assertTrue(any("is of type httprequest but the step needs okta" in e["message"] for e in got))
+
+    def test_a_reference_of_the_right_type_passes(self):
+        self.assertEqual(self.run_check(doc(self.app("Okta")), [{"name": "Okta", "type": "Okta"}]), [])
+
+    def test_creating_an_application_under_a_name_the_tenant_has_is_an_error(self):
+        got = self.run_check(doc(self.app("Connect Okta application", ref=False)), [{"name": "Connect Okta application", "type": "HttpRequest"}])
+        self.assertEqual(len(got), 1)
+        self.assertIn("already has an application with that name (type httprequest)", got[0]["message"])
+
+    def test_a_new_name_passes(self):
+        self.assertEqual(self.run_check(doc(self.app("Okta via connector", ref=False)), [{"name": "Connect Okta application", "type": "HttpRequest"}]), [])

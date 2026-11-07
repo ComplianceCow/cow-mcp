@@ -392,6 +392,33 @@ async def list_application_types(name: str | None = None, version: str | None = 
         }
 
 
+
+@mcp.tool()
+async def describe_application_types(names: list[str], ctx: Context | None = None) -> dict:
+    """
+    Looks up SEVERAL application types by name in one call (at most 20), each as list_application_types does with a name: the type's configuration with its credentialTypes. Use it to read
+    every application type a design needs at once instead of one call per type.
+
+    Returns applicationTypes: {name: the configuration of that type, or {"error": "Application type not found"}}.
+    """
+    import asyncio
+
+    wanted = list(dict.fromkeys(n.strip() for n in names if isinstance(n, str) and n.strip()))
+    if not wanted:
+        return {"error": "Give at least one application type name."}
+    gate = asyncio.Semaphore(4)
+
+    async def one(name: str):
+        async with gate:
+            return name, await list_application_types(name=name, ctx=ctx)
+
+    found = dict(await asyncio.gather(*(one(n) for n in wanted[:20])))
+    result: dict = {"applicationTypes": found}
+    if len(wanted) > 20:
+        result["notLookedUp"] = wanted[20:]
+    return result
+
+
 @mcp.tool()
 async def create_application_types(application_type_name: str, ctx: Context | None = None) -> dict:
     """

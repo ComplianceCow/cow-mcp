@@ -9,10 +9,12 @@ import yaml
 from fastmcp import Context
 
 from mcpconfig.config import mcp
+from tools.playbook import design_store, preflight
 
 FIRST_KEYS = ["System", "Source", "ResourceID", "ResourceName", "ResourceType", "ResourceLocation", "ResourceTags"]
 LAST_KEYS = ["ValidationStatusCode", "ValidationStatusNotes", "ComplianceStatus", "ComplianceStatusReason", "EvaluatedTime", "UserAction", "ActionStatus", "ActionResponseURL"]
 REMEDIATION = ("create_action", "create_workflow")
+_INPUT_REFERENCE = re.compile(r"\$\{\{\s*inputs\.([A-Za-z_]\w*)\s*\}\}")
 
 
 def _issue(severity: str, check: str, message: str, step: str | None = None) -> dict:
@@ -188,7 +190,52 @@ def _steps(doc: Any) -> list[dict]:
     return [s for s in steps if isinstance(s, dict)] if isinstance(steps, list) else []
 
 
-def check(doc: Any, remediation_columns: dict[str, list[str]] | None, remediation_confirmed: bool) -> dict:
+def _texts(value: Any):
+    if isinstance(value, str):
+        yield value
+    elif isinstance(value, dict):
+        for item in value.values():
+            yield from _texts(item)
+    elif isinstance(value, list):
+        for item in value:
+            yield from _texts(item)
+
+
+def _upstream_rule(step: dict, by_id: dict[str, dict], evidence: str) -> dict | None:
+    """The nearest rule step before `step` that has no SQL (an L1 rule whose README defines its evidence), preferring one that names the evidence."""
+    found: list[dict] = []
+    seen: set[str] = set()
+    queue = list(step.get("prerequisiteSteps") or [])
+    while queue:
+        sid = queue.pop(0)
+        if sid in seen or sid not in by_id:
+            continue
+        seen.add(sid)
+        upstream = by_id[sid]
+        if upstream.get("type") == "create_rule" and not isinstance((upstream.get("config") or {}).get("sql"), str):
+            found.append(upstream)
+        queue.extend(upstream.get("prerequisiteSteps") or [])
+    return next((r for r in found if evidence in str(r.get("description") or "")), found[0] if found else None)
+
+
+def _rule_evidence_issues(step: dict, rule: dict, evidence: str, wanted: list[str], new_rules: list[str]) -> list[dict]:
+    issues: list[dict] = []
+    sid, description = step.get("id"), str(rule.get("description") or "")
+    name = (rule.get("refs") or {}).get("rule") or rule.get("name")
+    if evidence not in description:
+        issues.append(_issue("warning", "remediation", f"the rule '{name}' is the nearest rule before this step but its description does not name '{evidence}': make sure its README outputs that evidence", sid))
+    mine, theirs = (step.get("config") or {}).get("assessmentName"), (rule.get("config") or {}).get("assessmentName")
+    if mine and theirs and mine != theirs:
+        issues.append(_issue("error", "remediation", f"the step starts on the assessment '{mine}' but '{evidence}' is written in '{theirs}'", sid))
+    missing = [c for c in wanted if c not in description]
+    if missing and name in new_rules:
+        issues.append(_issue("error", "remediation-columns", f"'{name}' is a new rule, so its output exists only as its description: state in it that '{evidence}' outputs {', '.join(missing)} at position 8 (between ResourceTags and ValidationStatusCode)", rule.get("id")))
+    elif wanted and name not in new_rules:
+        issues.append(_issue("warning", "remediation-columns", f"'{evidence}' comes from the existing rule '{name}': its README must output {', '.join(wanted)} (not checked here)", rule.get("id")))
+    return issues
+
+
+def check(doc: Any, remediation_columns: dict[str, list[str]] | None, remediation_confirmed: bool, user_configurable: list[str] | None = None, rule_systems: dict[str, Any] | None = None, new_rules: list[str] | None = None, rule_app_types: dict[str, Any] | None = None, existing_applications: list[Any] | None = None) -> dict:
     issues: list[dict] = []
     steps = _steps(doc)
     if not steps:
@@ -252,11 +299,19 @@ def check(doc: Any, remediation_columns: dict[str, list[str]] | None, remediatio
         evidence = str(evidence)
         producer = producers.get(evidence)
         if producer is None:
-            issues.append(_issue("error", "remediation", f"no create_rule step writes the evidence '{evidence}'", sid))
+            rule_producer = _upstream_rule(step, by_id, evidence)
+            if rule_producer is None:
+                issues.append(_issue("error", "remediation", f"no rule step before this one writes the evidence '{evidence}': add the rule that produces it (an L1 rule or a SQL rule with config.evidenceName) to its prerequisiteSteps", sid))
+            else:
+                issues.extend(_rule_evidence_issues(step, rule_producer, evidence, [str(c) for c in columns.get(evidence, [])], new_rules or []))
         elif producer.get("id") not in (step.get("prerequisiteSteps") or []):
             issues.append(_issue("error", "remediation", f"'{producer.get('id')}' writes '{evidence}' but is not in this step's prerequisiteSteps", sid))
         elif producer.get("level") and step.get("level") and producer["level"] != step["level"]:
             issues.append(_issue("warning", "remediation", f"the step is {step['level']} but '{evidence}' is produced at {producer['level']}", sid))
+        if producer is not None:
+            mine, theirs = (step.get("config") or {}).get("assessmentName"), (producer.get("config") or {}).get("assessmentName")
+            if mine and theirs and mine != theirs:
+                issues.append(_issue("error", "remediation", f"the step starts on the assessment '{mine}' but '{evidence}' is written in '{theirs}': the workflow would never see its evidence", sid))
         if step.get("type") == "create_workflow":
             folder = (step.get("refs") or {}).get("workflow")
             if not isinstance(folder, str) or not folder or re.search(r"\s", folder):
@@ -286,6 +341,91 @@ def check(doc: Any, remediation_columns: dict[str, list[str]] | None, remediatio
             elif not upstream:
                 issues.append(_issue("warning", "remediation-columns", f"'{column}' is selected by its bare name: the upstream evidence '{result['from']}' must have it, or the SQL fails when the rule runs", producer["id"]))
 
+    declared = set((doc.get("spec") or {}).get("inputs") or {}) if isinstance((doc.get("spec") or {}).get("inputs"), dict) else set()
+    used: set[str] = set()
+    for step in steps:
+        names = {m for text in list(_texts(step.get("config"))) + list(_texts(step.get("refs"))) for m in _INPUT_REFERENCE.findall(text)}
+        used |= names
+        for name in sorted(names - declared):
+            issues.append(_issue("error", "inputs", f"the step uses ${{{{ inputs.{name} }}}} but spec.inputs does not declare '{name}'", step.get("id") if isinstance(step.get("id"), str) else None))
+    for name in sorted(declared - used):
+        issues.append(_issue("warning", "inputs", f"spec.inputs declares '{name}' but no step uses ${{{{ inputs.{name} }}}}"))
+    for name in user_configurable or []:
+        if name not in declared:
+            issues.append(_issue("error", "inputs", f"the requirement makes '{name}' configurable by the user, but spec.inputs does not declare it: declare it (type, default, title) and use ${{{{ inputs.{name} }}}} where it applies"))
+        elif name not in used:
+            issues.append(_issue("error", "inputs", f"'{name}' is declared in spec.inputs but no step uses ${{{{ inputs.{name} }}}}, so the user's value would change nothing"))
+
+    if rule_systems is not None:
+        no_system = {"", "nocredapp", "nocred", "none", "no system", "logical"}
+        by_assessment: dict[str, dict[str, set[str]]] = {}
+        for sid, step in by_id.items():
+            config = step.get("config") if isinstance(step.get("config"), dict) else {}
+            if step.get("type") != "create_rule" or step.get("level") != "L1" or config.get("sql"):
+                continue
+            rule = (step.get("refs") or {}).get("rule") or step.get("name")
+            if rule not in rule_systems:
+                issues.append(_issue("error", "l1-systems", f"rule_systems has no entry for the L1 rule '{rule}': pass the system (the product) it reads, such as okta, workday or aws; 'nocredapp' when it needs no application", sid))
+                continue
+            value = rule_systems[rule]
+            kinds = {str(k).strip().lower() for k in (value if isinstance(value, list) else [value])} - no_system
+            by_assessment.setdefault(str(config.get("assessmentName")), {}).setdefault(rule, set()).update(kinds)
+        for assessment, rules in by_assessment.items():
+            systems = sorted(set().union(*rules.values())) if rules else []
+            if len(systems) > 1:
+                detail = "; ".join(f"{r}: {', '.join(sorted(k)) or 'no system'}" for r, k in sorted(rules.items()))
+                issues.append(_issue("error", "l1-systems", f"the L1 assessment '{assessment}' draws from {len(systems)} systems ({', '.join(systems)}): {detail}. An L1 assessment uses one system and one application scope: plan one L1 assessment per system and do the reconciliation at L2"))
+
+    if rule_app_types is not None:
+        def norm(value: Any) -> str:
+            return re.sub(r"[^a-z0-9]", "", str(value).lower())
+
+        for sid, step in by_id.items():
+            config = step.get("config") if isinstance(step.get("config"), dict) else {}
+            if step.get("type") != "create_rule" or step.get("level") != "L1" or config.get("sql"):
+                continue
+            rule = (step.get("refs") or {}).get("rule") or step.get("name")
+            if rule not in rule_app_types:
+                issues.append(_issue("error", "l1-app-types", f"rule_app_types has no entry for the L1 rule '{rule}': pass the application type it runs against (find_rule_by_name `appTypes`, NoCredApp when it needs none)", sid))
+                continue
+            value = rule_app_types[rule]
+            wanted = {norm(v) for v in (value if isinstance(value, list) else [value])}
+            keys = {k for k in ((step.get("refs") or {}).get("assessment"), config.get("assessmentName")) if k}
+            scopes = [x for x in by_id.values() if x.get("type") == "create_application_scope" and keys & {(x.get("config") or {}).get("assessment"), (x.get("config") or {}).get("assessmentName")}]
+            if not scopes:
+                issues.append(_issue("warning", "l1-app-types", f"no application scope step names the assessment of the L1 rule '{rule}', so its application type was not checked", sid))
+                continue
+            held = {norm((by_id[a].get("config") or {}).get("applicationType")) for x in scopes for a in x.get("prerequisiteSteps") or [] if a in by_id and by_id[a].get("type") == "create_application"}
+            if not wanted & held:
+                names = sorted(str((by_id[a].get("config") or {}).get("applicationType")) for x in scopes for a in x.get("prerequisiteSteps") or [] if a in by_id and by_id[a].get("type") == "create_application")
+                issues.append(_issue("error", "l1-app-types", f"the L1 rule '{rule}' runs on {' or '.join(sorted(map(str, value if isinstance(value, list) else [value])))} but the application scope of its assessment holds only: {', '.join(names) or 'no application'}. Add an application of that type to the scope's prerequisiteSteps (a new create_application step when the tenant has none)", sid))
+
+    if existing_applications is not None:
+        def norm_type(value: Any) -> str:
+            return re.sub(r"[^a-z0-9]", "", str(value or "").lower())
+
+        known: dict[str, str] = {}
+        for entry in existing_applications:
+            if isinstance(entry, dict):
+                known[str(entry.get("name", "")).strip()] = norm_type(entry.get("type"))
+            else:
+                known[str(entry).strip()] = ""
+        for sid, step in by_id.items():
+            if step.get("type") != "create_application":
+                continue
+            reference = (step.get("refs") or {}).get("application") if isinstance(step.get("refs"), dict) else None
+            wanted = norm_type((step.get("config") or {}).get("applicationType"))
+            if reference:
+                name = str(reference).strip()
+                if name not in known:
+                    issues.append(_issue("error", "applications", f"refs.application '{name}' is not an application of this tenant (existing: {', '.join(sorted(known)) or 'none'}): clear refs so the step creates it", sid))
+                elif known[name] and wanted and known[name] != wanted:
+                    issues.append(_issue("error", "applications", f"the existing application '{name}' is of type {known[name]} but the step needs {wanted}: reuse an application of the needed type, or create a new one under another name", sid))
+            else:
+                name = str(step.get("name") or "").strip()
+                if name in known:
+                    issues.append(_issue("error", "applications", f"the step creates '{name}' but the tenant already has an application with that name" + (f" (type {known[name]})" if known[name] else "") + ": reuse it (set refs.application) when the type is the one needed, otherwise give the new application another name", sid))
+
     produces_findings = any(re.search(r"NON_COMPLIANT", (s.get("config") or {}).get("sql") or "") for s in by_id.values())
     if (remediation_steps or produces_findings) and not remediation_confirmed:
         issues.append(_issue("error", "remediation-decision", "the user has not confirmed the remediation decision (action, workflow, both or none, and the layer of each): ask it in Questions and write the YAML after the answer; 'none' is also the user's answer"))
@@ -300,12 +440,12 @@ def check(doc: Any, remediation_columns: dict[str, list[str]] | None, remediatio
 
 
 @mcp.tool()
-async def check_use_case_design(yaml_text: str, remediation_columns: dict[str, list[str]] | None = None, remediation_confirmed_by_user: bool = False, ctx: Context | None = None) -> dict:
+async def check_use_case_design(yaml_text: str, remediation_columns: dict[str, list[str]] | None = None, remediation_confirmed_by_user: bool = False, user_configurable: list[str] | None = None, rule_systems: dict[str, Any] | None = None, new_rules: list[str] | None = None, rule_app_types: dict[str, Any] | None = None, existing_applications: list[Any] | None = None, ctx: Context | None = None) -> dict:
     """
     Purpose:
         Check a use-case YAML against the designer's own rules before it is returned: that it parses, that every step has an id and valid prerequisites, that every
         evidence SQL outputs the 16 mandatory keys in order, that every action or workflow is triggered by an evidence a prerequisite rule writes, that each such evidence
-        outputs the columns its READMEs require at position 8, and that the user's remediation decision was confirmed. It reads nothing from the platform and writes nothing.
+        outputs the columns its READMEs require at position 8, and that the user's remediation decision was confirmed, and that every value the requirement makes user-configurable is declared in spec.inputs and used. It reads nothing from the platform and writes nothing.
         validate_use_case_yaml (the platform's schema check) is a different check and does not replace this one.
 
     Inputs:
@@ -313,6 +453,17 @@ async def check_use_case_design(yaml_text: str, remediation_columns: dict[str, l
         remediation_columns: {"<evidenceName>": ["<column>", ...]} for the evidence that triggers each action or workflow: the columns its READMEs require, with their exact names.
             An evidence with no required column is given an empty list, and only after its READMEs were read.
         remediation_confirmed_by_user: true only when the user answered the remediation question (including "none") and the layer of each remediation.
+        rule_systems: {"<rule name>": "<system the rule reads>"} for every L1 rule step: the product, such as "okta", "workday" or "aws", never the connector type. Two connector types of one product
+            (HttpRequest and OktaConnector for Okta) are one system; a rule that needs no application is "nocredapp". An L1 assessment may hold rules of one system only. Pass it every time you write an L1 rule; leave it out only when the use case has no L1 rule.
+        rule_app_types: {"<rule name>": "<application type>"} (or a list of acceptable types) for every L1 rule step: the `appTypes` find_rule_by_name returned, `NoCredApp` for a rule that needs no
+            application. The application scope of the rule's assessment must hold an application of that type, or the rule has nothing to run against. Leave it out only when the use case has no L1 rule.
+        existing_applications: the tenant's applications from preflight_tenant, each as {"name": ..., "type": ...} (an empty list when it has none). Every `refs.application` must be one of them, with
+            the type the step needs; a step that creates an application must not reuse the name of an existing one. A name kept from the matched use case that the tenant does not have is an
+            application to create, so its `refs` must be empty. Leave it out only when you did not call preflight_tenant.
+        new_rules: the names of the rules this use case builds new (no existing rule). A new L1 rule that feeds an action or workflow must state in its description every column that remediation requires, since its
+            output is defined only there. Leave it out when no rule is new.
+        user_configurable: the names of the values the requirement says the user sets ("user-configured", "user input", a threshold or period they choose), as named in spec.inputs. Each must be
+            declared in spec.inputs and used by a step as ${{ inputs.<name> }}; pass an empty list when the requirement names none. Every ${{ inputs.<name> }} in any step must be declared in spec.inputs whatever you pass.
 
     Returns:
         valid, errors, warnings (each: check, step, message) and checked. Fix every error and call again; do not return a YAML with errors.
@@ -320,4 +471,28 @@ async def check_use_case_design(yaml_text: str, remediation_columns: dict[str, l
     doc, problem = parse(yaml_text)
     if problem:
         return {"valid": False, "errors": [problem], "warnings": [], "checked": {"steps": 0}}
-    return check(doc, remediation_columns, bool(remediation_confirmed_by_user))
+    result = check(doc, remediation_columns, bool(remediation_confirmed_by_user), user_configurable, rule_systems, new_rules, rule_app_types, existing_applications)
+    if result["valid"]:
+        arguments = {"remediation_columns": remediation_columns, "remediation_confirmed_by_user": remediation_confirmed_by_user, "user_configurable": user_configurable,
+                     "rule_systems": rule_systems, "new_rules": new_rules, "rule_app_types": rule_app_types, "existing_applications": existing_applications}
+        did = design_store.save(yaml_text, preflight.identity_of(ctx).get("domainName"), arguments)
+        if did:
+            result["designId"] = did
+            result["stored"] = "This design is stored under designId. Put the id in your answer: whoever reads your answer fetches the design with get_design(designId), so do not paste the YAML."
+    return result
+
+
+@mcp.tool()
+async def get_design(design_id: str, step_ids: list[str] | None = None, ctx: Context | None = None) -> dict:
+    """
+    Purpose:
+        Read a design that passed check_use_case_design, by the designId that call returned. Read-only.
+
+    Inputs:
+        design_id: the designId.
+        step_ids: optional step ids; returns just those steps (and spec.inputs) instead of the whole YAML.
+
+    Returns:
+        success, designId, name, outline (every step: id, type, level, name, prerequisiteSteps) and either yaml (the whole design) or steps (the ones asked for, with missing: ids that do not exist).
+    """
+    return design_store.read(design_id, preflight.identity_of(ctx).get("domainName"), step_ids)

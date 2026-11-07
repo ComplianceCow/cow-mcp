@@ -412,3 +412,18 @@ def summarize_listing(output: Any, search: str | None = None) -> list[dict]:
         })
     words = (search or "").lower().split()
     return [r for r in rows if all(w in " ".join(str(r[k] or "") for k in ("folder", "workflow", "description")).lower() for w in words)]
+
+
+BRIEF_OMITTED = ("templates", "assessmentInputsRead")
+
+
+def brief(report: dict) -> dict:
+    """The inspection without the parts only the person who creates the workflow needs: each workflow's `templates` and `assessmentInputsRead`,
+    and the `sample` text of every assessment input (the structure a file must follow). The chain, the prerequisites, the application scopes and
+    the inputs still to be set stay."""
+    out = dict(report)
+    out["workflows"] = {name: {k: v for k, v in detail.items() if k not in BRIEF_OMITTED} for name, detail in (report.get("workflows") or {}).items()}
+    if "assessmentInputs" in out:
+        out["assessmentInputs"] = [{k: v for k, v in item.items() if k != "sample"} for item in out["assessmentInputs"]]
+    out["brief"] = "templates, assessmentInputsRead and the samples of assessmentInputs are left out: call again without brief to get them (needed when the workflow is created)"
+    return out
