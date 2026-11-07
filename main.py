@@ -81,6 +81,7 @@ if "playbook" in MCP_TOOLS:
     from tools.playbook import rules_index
     from tools.playbook import verify_run
     from tools.playbook import design_resolve
+    from tools.playbook import prove_rule
     if os.environ.get("PLAYBOOK_PUSH_ENABLED", "").strip().lower() in {"1", "true", "yes", "on"}:
         from tools.playbook import usecase_tools
     
