@@ -90,6 +90,32 @@ class AvailableTypes(unittest.TestCase):
         self.assertEqual(p.application_types_of([{"meta": {}}, config("X")]), [{"name": "X", "displayName": None, "credentialTypes": []}])
 
 
+def control(number, name):
+    return {"displayable": number, "name": name}
+
+
+class ControlTree(unittest.TestCase):
+    def test_controls_are_listed_in_number_order_with_parents_included(self):
+        got = p.control_tree([control("3.2", "b"), control("1", "p"), control("1.1", "c"), control("3", "q"), control("3.10", "z"), control("3.9", "y")])
+        self.assertEqual([c["number"] for c in got["controls"]], ["1", "1.1", "3", "3.2", "3.9", "3.10"])
+
+    def test_the_next_free_number_under_each_parent(self):
+        got = p.control_tree([control("1", "p"), control("1.1", "c"), control("3", "q"), control("3.1", "d"), control("3.2", "e")])
+        self.assertEqual(got["nextFreeNumber"][""], "4")
+        self.assertEqual(got["nextFreeNumber"]["1"], "1.2")
+        self.assertEqual(got["nextFreeNumber"]["3"], "3.3")
+
+    def test_a_gap_is_not_filled_the_number_after_the_highest_is_offered(self):
+        got = p.control_tree([control("1", "p"), control("1.1", "a"), control("1.4", "b")])
+        self.assertEqual(got["nextFreeNumber"]["1"], "1.5")
+
+    def test_an_empty_assessment_starts_at_one(self):
+        self.assertEqual(p.control_tree([])["nextFreeNumber"], {"": "1"})
+
+    def test_the_alias_stands_in_for_a_missing_displayable(self):
+        self.assertEqual(p.control_tree([{"alias": "2", "name": "x"}])["controls"], [{"number": "2", "name": "x"}])
+
+
 class Rows(unittest.TestCase):
     def test_items_are_returned(self):
         self.assertEqual(p.rows_of({"items": [{"a": 1}], "TotalPage": 1}), [{"a": 1}])

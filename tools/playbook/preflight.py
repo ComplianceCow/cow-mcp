@@ -136,6 +136,23 @@ def identity_of(ctx: Context | None) -> dict:
     return value if isinstance(value, dict) else {}
 
 
+async def gather_tenant(ctx: Context | None) -> dict:
+    """The raw rows of everything the tenant holds, each None when its lookup failed."""
+    async def get(path: str, query: dict) -> Any:
+        return await utils.make_GET_API_call_to_CCow(path, ctx=ctx, query_params=query)
+
+    return {
+        "identity": identity_of(ctx),
+        "apps": await fetch_all(get, constants.URL_CREATE_APPLICATION),
+        "scopes": await fetch_all(get, constants.URL_CREATE_APPLICATION_SCOPE),
+        "plans": await fetch_all(get, constants.URL_PLANS, {"fields": "basic"}),
+        "categories": rows_of(await get(constants.URL_ASSESSMENT_CATEGORIES, {})),
+        "configs": await fetch_all(get, constants.URL_WORKFLOW_CREATE, {"fields": "meta"}),
+        "bindings": await fetch_all(get, constants.URL_WORKFLOW_BINDINGS),
+        "app_configs": await fetch_all(get, constants.URL_APPLICATION_CONFIGS, {"isStatusToBeIncluded": "true"}),
+    }
+
+
 @mcp.tool()
 async def preflight_tenant(ctx: Context | None = None) -> dict:
     """
@@ -148,14 +165,62 @@ async def preflight_tenant(ctx: Context | None = None) -> dict:
         tenant, isEmpty, counts, applications, applicationsByType, availableApplicationTypes, applicationScopes, assessments, categories, workflows, notes (what to do about what exists) and lookupFailed (lists that could
         not be read: treat those as unknown, never as empty).
     """
+    t = await gather_tenant(ctx)
+    return summarize(t["identity"], t["apps"], t["scopes"], t["plans"], t["categories"], t["configs"], t["bindings"], t["app_configs"])
+
+
+
+def _number_key(number: str) -> list[int]:
+    return [int(part) if part.isdigit() else 0 for part in str(number).split(".")]
+
+
+def control_tree(rows: list[dict]) -> dict:
+    """The controls of one assessment as {controls: [{number, name}] in number order, nextFreeNumber: {parent number ("" for the top level): the next free number under it}}."""
+    controls = [{"number": str(r.get("displayable") or r.get("alias") or ""), "name": str(r.get("name") or "")} for r in rows]
+    controls = [c for c in controls if c["number"]]
+    controls.sort(key=lambda c: _number_key(c["number"]))
+    taken = {c["number"] for c in controls}
+    parents = {""} | {c["number"].rsplit(".", 1)[0] for c in controls if "." in c["number"]} | {c["number"] for c in controls}
+    free: dict[str, str] = {}
+    for parent in sorted(parents, key=_number_key):
+        prefix = f"{parent}." if parent else ""
+        used = [int(c["number"][len(prefix):].split(".")[0]) for c in controls if c["number"].startswith(prefix) and c["number"][len(prefix):].split(".")[0].isdigit() and c["number"] != parent]
+        n = (max(used) + 1) if used else 1
+        while f"{prefix}{n}" in taken:
+            n += 1
+        free[parent] = f"{prefix}{n}"
+    return {"controls": controls, "nextFreeNumber": free}
+
+
+@mcp.tool()
+async def describe_assessments(names: list[str], ctx: Context | None = None) -> dict:
+    """
+    Purpose:
+        The controls (number and name, parents included) of existing assessments, with the next free number under each parent. Use it for every existing assessment a design reuses, so that no new control
+        takes a number that is already held by a control with another name. Read-only. Give up to 20 names, exactly as preflight_tenant lists them.
+
+    Returns:
+        assessments: {name: {id, level, controls: [{number, name}], nextFreeNumber: {parent number ("" is the top level): next free number}}}; notFound: names with no assessment; lookupFailed: names whose
+        controls could not be read (unknown, not empty).
+    """
     async def get(path: str, query: dict) -> Any:
         return await utils.make_GET_API_call_to_CCow(path, ctx=ctx, query_params=query)
 
-    apps = await fetch_all(get, constants.URL_CREATE_APPLICATION)
-    scopes = await fetch_all(get, constants.URL_CREATE_APPLICATION_SCOPE)
     plans = await fetch_all(get, constants.URL_PLANS, {"fields": "basic"})
-    categories = rows_of(await get(constants.URL_ASSESSMENT_CATEGORIES, {}))
-    configs = await fetch_all(get, constants.URL_WORKFLOW_CREATE, {"fields": "meta"})
-    bindings = await fetch_all(get, constants.URL_WORKFLOW_BINDINGS)
-    app_configs = await fetch_all(get, constants.URL_APPLICATION_CONFIGS, {"isStatusToBeIncluded": "true"})
-    return summarize(identity_of(ctx), apps, scopes, plans, categories, configs, bindings, app_configs)
+    if plans is None:
+        return {"success": False, "error": "Could not read the assessments of the tenant."}
+    wanted = list(dict.fromkeys(n.strip() for n in names if isinstance(n, str) and n.strip()))[:20]
+    by_name = {_name(p): p for p in plans}
+    out: dict[str, dict] = {}
+    not_found, failed = [], []
+    for name in wanted:
+        plan = by_name.get(name)
+        if plan is None:
+            not_found.append(name)
+            continue
+        rows = await fetch_all(get, constants.URL_PLAN_CONTROLS, {"plan_id": _id(plan), "fields": "basic"})
+        if rows is None:
+            failed.append(name)
+            continue
+        out[name] = {"id": _id(plan), "level": "L1 asset" if plan.get("type") == "integration" else "L2/L3 assessment", **control_tree(rows)}
+    return {"success": True, "assessments": out, "notFound": not_found, "lookupFailed": failed}

@@ -441,3 +441,38 @@ class ExistingApplications(unittest.TestCase):
 
     def test_a_new_name_passes(self):
         self.assertEqual(self.run_check(doc(self.app("Okta via connector", ref=False)), [{"name": "Connect Okta application", "type": "HttpRequest"}]), [])
+
+
+class ExistingControls(unittest.TestCase):
+    def control(self, number, name, assessment="Okta User Inventory"):
+        return {"id": f"c{number}", "type": "create_control", "name": name, "level": "L1", "config": {"assessmentName": assessment, "displayable": number}}
+
+    def run_check(self, step, held):
+        return u.check(doc(step), None, True, None, None, None, None, None, held)
+
+    HELD = {"Okta User Inventory": [{"number": "1", "name": "Terminated User Access Revocation"}, {"number": "3.2", "name": "Okta Users with Group Memberships"}]}
+
+    def test_a_number_held_by_another_control_is_an_error(self):
+        got = self.run_check(self.control("3.2", "Okta Suspended Users Inventory"), self.HELD)["errors"]
+        self.assertEqual(len(got), 1)
+        self.assertIn("held by 'Okta Users with Group Memberships'", got[0]["message"])
+
+    def test_a_parent_number_is_checked_too(self):
+        self.assertEqual(len(self.run_check(self.control("1", "Residual Group Membership Check"), self.HELD)["errors"]), 1)
+
+    def test_a_free_number_passes(self):
+        self.assertEqual(self.run_check(self.control("3.3", "Okta Suspended Users Inventory"), self.HELD)["errors"], [])
+
+    def test_reusing_a_control_with_the_same_number_and_name_passes(self):
+        self.assertEqual(self.run_check(self.control("3.2", "Okta Users with Group Memberships"), self.HELD)["errors"], [])
+
+    def test_the_same_name_under_another_number_is_a_warning(self):
+        got = self.run_check(self.control("3.4", "Okta Users with Group Memberships"), self.HELD)
+        self.assertEqual(got["errors"], [])
+        self.assertTrue(got["warnings"])
+
+    def test_a_new_assessment_is_not_checked(self):
+        self.assertEqual(self.run_check(self.control("1", "Anything", assessment="Brand New"), self.HELD)["errors"], [])
+
+    def test_without_the_map_nothing_is_checked(self):
+        self.assertEqual(u.check(doc(self.control("3.2", "x")), None, True)["errors"], [])

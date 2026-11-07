@@ -235,7 +235,7 @@ def _rule_evidence_issues(step: dict, rule: dict, evidence: str, wanted: list[st
     return issues
 
 
-def check(doc: Any, remediation_columns: dict[str, list[str]] | None, remediation_confirmed: bool, user_configurable: list[str] | None = None, rule_systems: dict[str, Any] | None = None, new_rules: list[str] | None = None, rule_app_types: dict[str, Any] | None = None, existing_applications: list[Any] | None = None) -> dict:
+def check(doc: Any, remediation_columns: dict[str, list[str]] | None, remediation_confirmed: bool, user_configurable: list[str] | None = None, rule_systems: dict[str, Any] | None = None, new_rules: list[str] | None = None, rule_app_types: dict[str, Any] | None = None, existing_applications: list[Any] | None = None, existing_controls: dict[str, list[dict]] | None = None) -> dict:
     issues: list[dict] = []
     steps = _steps(doc)
     if not steps:
@@ -426,6 +426,34 @@ def check(doc: Any, remediation_columns: dict[str, list[str]] | None, remediatio
                 if name in known:
                     issues.append(_issue("error", "applications", f"the step creates '{name}' but the tenant already has an application with that name" + (f" (type {known[name]})" if known[name] else "") + ": reuse it (set refs.application) when the type is the one needed, otherwise give the new application another name", sid))
 
+    for sid, step in by_id.items():
+        if step.get("type") != "create_control_dependency":
+            continue
+        config = step.get("config") if isinstance(step.get("config"), dict) else {}
+        source, target = by_id.get(config.get("sourceControl")), by_id.get(config.get("targetControl"))
+        if source is None or target is None:
+            issues.append(_issue("error", "dependency", f"the dependency names a control that is not a step of this use case (sourceControl '{config.get('sourceControl')}', targetControl '{config.get('targetControl')}')", sid))
+            continue
+        a, b = (source.get("config") or {}).get("assessmentName"), (target.get("config") or {}).get("assessmentName")
+        if a and b and a != b:
+            issues.append(_issue("error", "dependency", f"the dependency feeds '{target.get('name') or config.get('targetControl')}' (assessment '{b}') from '{source.get('name') or config.get('sourceControl')}' (assessment '{a}'): a run executes one assessment, so a rule only receives inputs from controls of its own assessment and this control would never start. Combine data from two assessments with link_control from each into a higher-layer control and a SQL rule over the linked evidence, or fetch both datasets in one assessment", sid))
+
+    if existing_controls is not None:
+        for sid, step in by_id.items():
+            if step.get("type") != "create_control":
+                continue
+            config = step.get("config") if isinstance(step.get("config"), dict) else {}
+            held = existing_controls.get(config.get("assessmentName"))
+            number = str(config.get("displayable") or config.get("alias") or "")
+            if not held or not number:
+                continue
+            by_number = {str(c.get("number")): str(c.get("name")) for c in held if isinstance(c, dict)}
+            name = str(step.get("name") or "")
+            if number in by_number and by_number[number] != name:
+                issues.append(_issue("error", "controls", f"the control '{name}' takes number {number} in the existing assessment '{config.get('assessmentName')}', but that number is held by '{by_number[number]}': use a free number (describe_assessments gives nextFreeNumber) and keep the existing control as it is", sid))
+            elif number not in by_number and name in by_number.values():
+                issues.append(_issue("warning", "controls", f"a control named '{name}' already exists in '{config.get('assessmentName')}' under another number than {number}: reuse it instead of creating a second one", sid))
+
     produces_findings = any(re.search(r"NON_COMPLIANT", (s.get("config") or {}).get("sql") or "") for s in by_id.values())
     if (remediation_steps or produces_findings) and not remediation_confirmed:
         issues.append(_issue("error", "remediation-decision", "the user has not confirmed the remediation decision (action, workflow, both or none, and the layer of each): ask it in Questions and write the YAML after the answer; 'none' is also the user's answer"))
@@ -440,7 +468,7 @@ def check(doc: Any, remediation_columns: dict[str, list[str]] | None, remediatio
 
 
 @mcp.tool()
-async def check_use_case_design(yaml_text: str, remediation_columns: dict[str, list[str]] | None = None, remediation_confirmed_by_user: bool = False, user_configurable: list[str] | None = None, rule_systems: dict[str, Any] | None = None, new_rules: list[str] | None = None, rule_app_types: dict[str, Any] | None = None, existing_applications: list[Any] | None = None, ctx: Context | None = None) -> dict:
+async def check_use_case_design(yaml_text: str, remediation_columns: dict[str, list[str]] | None = None, remediation_confirmed_by_user: bool = False, user_configurable: list[str] | None = None, rule_systems: dict[str, Any] | None = None, new_rules: list[str] | None = None, rule_app_types: dict[str, Any] | None = None, existing_applications: list[Any] | None = None, existing_controls: dict[str, list[dict]] | None = None, ctx: Context | None = None) -> dict:
     """
     Purpose:
         Check a use-case YAML against the designer's own rules before it is returned: that it parses, that every step has an id and valid prerequisites, that every
@@ -460,6 +488,9 @@ async def check_use_case_design(yaml_text: str, remediation_columns: dict[str, l
         existing_applications: the tenant's applications from preflight_tenant, each as {"name": ..., "type": ...} (an empty list when it has none). Every `refs.application` must be one of them, with
             the type the step needs; a step that creates an application must not reuse the name of an existing one. A name kept from the matched use case that the tenant does not have is an
             application to create, so its `refs` must be empty. Leave it out only when you did not call preflight_tenant.
+        existing_controls: {"<assessment name>": [{"number": ..., "name": ...}, ...]} for every existing assessment the design adds controls to: the `controls` describe_assessments returned (parents
+            included). A control step whose number is held by a control with another name is an error: take a free number (describe_assessments gives nextFreeNumber). Leave it out only when no
+            existing assessment is reused.
         new_rules: the names of the rules this use case builds new (no existing rule). A new L1 rule that feeds an action or workflow must state in its description every column that remediation requires, since its
             output is defined only there. Leave it out when no rule is new.
         user_configurable: the names of the values the requirement says the user sets ("user-configured", "user input", a threshold or period they choose), as named in spec.inputs. Each must be
@@ -471,10 +502,11 @@ async def check_use_case_design(yaml_text: str, remediation_columns: dict[str, l
     doc, problem = parse(yaml_text)
     if problem:
         return {"valid": False, "errors": [problem], "warnings": [], "checked": {"steps": 0}}
-    result = check(doc, remediation_columns, bool(remediation_confirmed_by_user), user_configurable, rule_systems, new_rules, rule_app_types, existing_applications)
+    result = check(doc, remediation_columns, bool(remediation_confirmed_by_user), user_configurable, rule_systems, new_rules, rule_app_types, existing_applications, existing_controls)
     if result["valid"]:
         arguments = {"remediation_columns": remediation_columns, "remediation_confirmed_by_user": remediation_confirmed_by_user, "user_configurable": user_configurable,
-                     "rule_systems": rule_systems, "new_rules": new_rules, "rule_app_types": rule_app_types, "existing_applications": existing_applications}
+                     "rule_systems": rule_systems, "new_rules": new_rules, "rule_app_types": rule_app_types, "existing_applications": existing_applications,
+                     "existing_controls": existing_controls}
         did = design_store.save(yaml_text, preflight.identity_of(ctx).get("domainName"), arguments)
         if did:
             result["designId"] = did
