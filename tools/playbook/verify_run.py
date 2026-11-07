@@ -71,6 +71,15 @@ def classify_control(control_no: str, evidences: list[dict], log_error: str | No
     return {"verdict": "OK", "cause": "", "fix": ""}
 
 
+def empty_share(rows: list[dict]) -> float | None:
+    """The share of the cells of sample rows that hold nothing (null, "", [], {}), or None without rows. Rows that are mostly empty often mean the source returned nothing
+    and the rule made a placeholder row, which counts as a row but is not evidence."""
+    cells = [v for row in rows if isinstance(row, dict) for v in row.values()]
+    if not cells:
+        return None
+    return round(sum(1 for v in cells if v is None or v == "" or v == [] or v == {}) / len(cells), 2)
+
+
 def order_by_dependency(controls: dict[str, list[dict]]) -> list[str]:
     """Control numbers so that a control comes after those it depends on."""
     done: list[str] = []
@@ -179,6 +188,7 @@ async def verify(assessment_id: str, run_id: str | None, name: str, wait_seconds
             entry = {"name": e.get("name"), "status": status_by_name.get(e.get("name"), "Completed" if items is not None else "Yet to start"), "rows": None if items is None else len(items)}
             if samples and items:
                 entry["sample"] = items[:samples]
+                entry["emptyShare"] = empty_share(items[:samples])
             evidences.append(entry)
         raw[number] = {"control": c, "evidences": evidences, "log_error": log_error}
     verdicts: dict[str, str] = {}
@@ -204,7 +214,8 @@ async def verify_assessment(assessment_id: str, run_id: str | None = None, name:
         run_id: an existing run to judge; leave out to start a new one.
         name: the name of the run when one is started.
         wait_seconds: how long to wait for the run to finish (default 540, which stays inside the 660 seconds a caller is given).
-        samples: how many rows (at most 3) of each evidence to return in `sample`, to show a person what was produced; 0 returns none.
+        samples: how many rows (at most 3) of each evidence to return in `sample`, to show a person what was produced; 0 returns none. With samples, each evidence also has `emptyShare`, the
+            share of empty cells in them: above 0.5 the rows are probably placeholders (the source returned nothing), so OK means rows exist, not that they are evidence.
 
     Returns:
         success, runId, started, status, finished, controls (per control: controlNo, name, verdict, cause, fix, evidence: [{name, status, rows}]), counts per verdict and ok (true when every

@@ -56,14 +56,27 @@ class Helpers(unittest.TestCase):
         self.assertEqual((got["value"], got["defaultValue"], got["dataType"]), ("<<MINIO_FILE_PATH>>", "<<MINIO_FILE_PATH>>", "FILE"))
 
     def test_only_a_validated_application_of_the_right_type_is_picked(self):
-        picked, missing = p.pick_applications({"oktaconnector": {"appType": ["oktaconnector"]}}, [UNVALIDATED, OKTA])
-        self.assertEqual((picked[0]["applicationId"], missing), ("a1", []))
-        _, missing = p.pick_applications({"oktaconnector": {}}, [UNVALIDATED])
+        picked, missing, ambiguous = p.pick_applications({"oktaconnector": {"appType": ["oktaconnector"]}}, [UNVALIDATED, OKTA])
+        self.assertEqual((picked[0]["applicationId"], missing, ambiguous), ("a1", [], {}))
+        _, missing, _ = p.pick_applications({"oktaconnector": {}}, [UNVALIDATED])
         self.assertEqual(missing, ["oktaconnector"])
 
-    def test_a_chosen_application_overrides_the_default(self):
-        picked, _ = p.pick_applications({"oktaconnector": {}}, [OKTA, {**OKTA, "id": "a3"}], {"oktaconnector": "a3"})
-        self.assertEqual(picked[0]["applicationId"], "a3")
+    def test_several_validated_applications_of_a_type_are_never_guessed_between(self):
+        second = {**OKTA, "id": "a3", "credentialName": "Second Okta"}
+        picked, missing, ambiguous = p.pick_applications({"oktaconnector": {}}, [OKTA, second])
+        self.assertEqual((picked, ambiguous), ([], {"oktaconnector": ["Okta app", "Second Okta"]}))
+
+    def test_naming_the_application_by_name_or_id_settles_it_whatever_the_key(self):
+        second = {**OKTA, "id": "a3", "credentialName": "Second Okta"}
+        for chosen in (["Second Okta"], ["a3"], {"any key": "a3"}, {"httprequest": "Second Okta"}):
+            picked, _, ambiguous = p.pick_applications({"oktaconnector": {}}, [OKTA, second], chosen)
+            self.assertEqual((picked[0]["applicationId"], ambiguous), ("a3", {}), chosen)
+
+    def test_naming_an_application_of_another_type_does_not_settle_it(self):
+        other = {"id": "w1", "credentialName": "Workday", "appType": "HttpRequest::", "isValidated": True}
+        second = {**OKTA, "id": "a3"}
+        _, _, ambiguous = p.pick_applications({"oktaconnector": {}}, [OKTA, second, other], ["Workday"])
+        self.assertIn("oktaconnector", ambiguous)
 
     def test_log_records_come_from_the_text_of_the_file(self):
         self.assertEqual(p.log_records('[{"Error": "x"}]'), [{"Error": "x"}])
@@ -74,7 +87,7 @@ class Prove(unittest.TestCase):
     def test_a_rule_whose_tasks_log_no_error_passes_with_its_output_rows(self):
         got = run([line("t1-GetOktaUsers", LogFile="log", OktaUsers="out")], {"log": {"display_content": "[]"}, "out": rows(3)})
         self.assertEqual(got["verdict"], "PASS")
-        self.assertEqual(got["tasks"][0]["outputs"], [{"name": "OktaUsers", "format": "json", "sizeKb": None, "rows": 3, "sample": [{"UserStatus": "ACTIVE"}] * 3}])
+        self.assertEqual(got["tasks"][0]["outputs"], [{"name": "OktaUsers", "format": "json", "sizeKb": None, "rows": 3, "sample": [{"UserStatus": "ACTIVE"}] * 3, "emptyShare": 0.0}])
         self.assertEqual(run.payload["applications"][0]["applicationId"], "a1")
 
     def test_the_first_error_is_the_cause_and_the_later_ones_are_consequences(self):
@@ -107,10 +120,21 @@ class Prove(unittest.TestCase):
         got = run([line("t1", LogFile="log", Users="out")], {"log": {"file_format": "json", "display_content": "[]"}, "out": {"file_format": "parquet", "file_size_kb": 0, "display_content": ""}})
         self.assertIn("Users", got["warning"])
 
+    def test_a_pass_whose_rows_are_mostly_empty_carries_a_warning(self):
+        placeholder = {"file_format": "json", "display_content": json.dumps([{"RuleName": "", "RuleStatus": "", "RuleConditions": None, "System": "okta"}])}
+        got = run([line("t1", LogFile="log", Report="out")], {"log": {"file_format": "json", "display_content": "[]"}, "out": placeholder})
+        self.assertEqual(got["verdict"], "PASS")
+        self.assertIn("placeholder", got["warning"])
+
     def test_no_validated_application_means_the_rule_is_not_run(self):
         got = run([], {}, apps=(UNVALIDATED,))
         self.assertEqual(got["verdict"], "NEEDS_APPLICATION")
         self.assertEqual(got["missingApplicationTypes"], ["oktaconnector"])
+
+    def test_two_validated_applications_of_the_type_ask_for_a_choice_and_run_nothing(self):
+        got = run([], {}, apps=(OKTA, {**OKTA, "id": "a3", "credentialName": "Second Okta"}))
+        self.assertEqual(got["verdict"], "NEEDS_CHOICE")
+        self.assertEqual(got["candidates"], {"oktaconnector": ["Okta app", "Second Okta"]})
 
     def test_a_rule_that_cannot_be_read_is_not_found(self):
         async def none():

@@ -129,6 +129,16 @@ class VerifyEndToEnd(unittest.TestCase):
         self.assertNotIn("sample", without["controls"][0]["evidence"][0])
         self.assertEqual(with_two["controls"][0]["evidence"][0]["sample"], [{"a": 1}, {"a": 2}])
 
+    def test_empty_share_counts_the_cells_that_hold_nothing(self):
+        self.assertEqual(v.empty_share([{"a": "x", "b": "", "c": None, "d": [], "e": 1}]), 0.6)
+        self.assertEqual(v.empty_share([{"a": 1}, {"a": 2}]), 0.0)
+        self.assertIsNone(v.empty_share([]))
+
+    def test_a_sample_reports_how_empty_it_is(self):
+        controls = [{"id": "r1", "controlNo": "1", "name": "n", "evidence": [{"id": "e1", "name": "R"}]}]
+        got = asyncio.run(v.verify("p", "run1", "x", 60, None, adapters(controls, {"e1": rows({"RuleName": "", "RuleStatus": "", "System": "okta"})}, {}, {"1": []}), samples=3))
+        self.assertGreater(got["controls"][0]["evidence"][0]["emptyShare"], 0.5)
+
     def test_an_all_healthy_run_is_ok(self):
         controls = [{"id": "r1", "controlNo": "1", "name": "n", "evidence": [{"id": "e1", "name": "R"}]}]
         got = asyncio.run(v.verify("p", "run1", "x", 60, None, adapters(controls, {"e1": rows({"a": 1})}, {}, {"1": []})))

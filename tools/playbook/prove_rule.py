@@ -40,20 +40,31 @@ def application_needs(structure: dict) -> dict[str, dict]:
     return needs
 
 
-def pick_applications(needs: dict[str, dict], tenant_apps: list[dict], chosen: dict[str, str] | None = None) -> tuple[list[dict], list[str]]:
-    """The applications to run with, and the application types for which the tenant has no validated application."""
-    chosen = chosen or {}
-    picked, missing = [], []
+def _wanted(chosen: Any) -> list[str]:
+    """The applications the caller named, as a list of ids or names (a mapping contributes its values)."""
+    if isinstance(chosen, dict):
+        chosen = list(chosen.values())
+    return [str(c).strip() for c in (chosen or []) if str(c).strip()]
+
+
+def pick_applications(needs: dict[str, dict], tenant_apps: list[dict], chosen: Any = None) -> tuple[list[dict], list[str], dict[str, list[str]]]:
+    """The applications to run with, the application types for which the tenant has no validated application, and the types for which it has several
+    and the caller has not said which: a guess between two applications would prove the rule against the wrong system."""
+    wanted = _wanted(chosen)
+    picked, missing, ambiguous = [], [], {}
     for tag, tags in needs.items():
         candidates = [a for a in tenant_apps if _norm(str(a.get("appType", "")).split("::")[0]) == _norm(tag) and a.get("isValidated")]
-        if tag in chosen:
-            candidates = [a for a in tenant_apps if a.get("id") == chosen[tag]] or candidates
+        named = [a for a in candidates if a.get("id") in wanted or a.get("credentialName") in wanted]
+        if named:
+            candidates = named[:1]
         if not candidates:
             missing.append(tag)
-            continue
-        app = candidates[0]
-        picked.append({"applicationType": str(app.get("appType", "")).split("::")[0], "applicationId": app.get("id"), "appTags": tags, "name": app.get("credentialName")})
-    return picked, missing
+        elif len(candidates) > 1:
+            ambiguous[tag] = [str(a.get("credentialName")) for a in candidates]
+        else:
+            app = candidates[0]
+            picked.append({"applicationType": str(app.get("appType", "")).split("::")[0], "applicationId": app.get("id"), "appTags": tags, "name": app.get("credentialName")})
+    return picked, missing, ambiguous
 
 
 def log_records(display_content: Any) -> list[dict]:
@@ -76,7 +87,9 @@ def judge(status: str | None, tasks: list[dict]) -> dict:
         return {"verdict": "FAIL", "firstError": {"task": None, "message": "the execution ended in ERROR without a task error", "kind": "RULE_ERROR", "fix": "open the execution in the platform"}, "consequences": []}
     if not failing:
         empty = [o["name"] for t in tasks for o in t.get("outputs", []) if o.get("rows") == 0 or o.get("sizeKb") == 0]
-        return {"verdict": "PASS", "firstError": None, "consequences": [], **({"warning": "ran without errors but produced no rows: " + ", ".join(empty)} if empty else {})}
+        hollow = [o["name"] for t in tasks for o in t.get("outputs", []) if (o.get("emptyShare") or 0) > 0.5]
+        warnings = (["ran without errors but produced no rows: " + ", ".join(empty)] if empty else []) + (["the rows are mostly empty (the source may have returned nothing and the rule made a placeholder row): " + ", ".join(hollow)] if hollow else [])
+        return {"verdict": "PASS", "firstError": None, "consequences": [], **({"warning": "; ".join(warnings)} if warnings else {})}
     first = failing[0]
     message = (first.get("errors") or [first.get("error") or "the task failed"])[0]
     kind, fix = verify_run.classify_log_error(str(message))
@@ -84,7 +97,7 @@ def judge(status: str | None, tasks: list[dict]) -> dict:
     return {"verdict": "FAIL", "firstError": {"task": first["name"], "message": message, "kind": kind, "fix": fix}, "consequences": consequences}
 
 
-async def prove(rule_name: str, chosen: dict[str, str] | None, wait_seconds: int, ctx: Context | None, adapters: dict | None = None, samples: int = 3) -> dict:
+async def prove(rule_name: str, chosen: Any, wait_seconds: int, ctx: Context | None, adapters: dict | None = None, samples: int = 3) -> dict:
     """The tool's logic. `adapters` replaces the platform calls in tests."""
     from tools.rules import rules as rules_module
 
@@ -118,7 +131,10 @@ async def prove(rule_name: str, chosen: dict[str, str] | None, wait_seconds: int
         return {"success": False, "rule": rule_name, "verdict": "NOT_FOUND", "error": f"The rule '{rule_name}' could not be read from the tenant."}
 
     needs = application_needs(structure)
-    applications, missing = pick_applications(needs, await a["apps"](), chosen)
+    applications, missing, ambiguous = pick_applications(needs, await a["apps"](), chosen)
+    if ambiguous:
+        return {"success": True, "rule": rule_name, "verdict": "NEEDS_CHOICE", "candidates": ambiguous,
+                "fix": "several validated applications fit: call again with `applications` naming the one the rule is for (its name or id), for example the application the design names for it"}
     if missing:
         return {"success": True, "rule": rule_name, "verdict": "NEEDS_APPLICATION", "missingApplicationTypes": missing,
                 "fix": "the tenant has no validated application of " + ", ".join(missing) + ": create it and enter its credentials in the platform, then prove the rule"}
@@ -153,7 +169,7 @@ async def prove(rule_name: str, chosen: dict[str, str] | None, wait_seconds: int
                 errors += [str(r["Error"]) for r in records if r.get("Error")]
             else:
                 rows = len(records) if fmt == "json" else None
-                outputs.append({"name": name, "format": fmt or None, "sizeKb": read.get("file_size_kb"), "rows": rows, **({"sample": records[:samples]} if samples and records else {})})
+                outputs.append({"name": name, "format": fmt or None, "sizeKb": read.get("file_size_kb"), "rows": rows, **({"sample": records[:samples], "emptyShare": verify_run.empty_share(records[:samples])} if samples and records else {})})
         if line.get("error"):
             errors.append(str(line["error"]))
         tasks.append({"name": line["task_name"], "status": line.get("status"), "errors": errors, "outputs": outputs})
@@ -161,7 +177,7 @@ async def prove(rule_name: str, chosen: dict[str, str] | None, wait_seconds: int
 
 
 @mcp.tool()
-async def prove_rule(rule_name: str, applications: dict[str, str] | None = None, wait_seconds: int = 120, ctx: Context | None = None) -> dict:
+async def prove_rule(rule_name: str, applications: list[str] | dict[str, str] | None = None, wait_seconds: int = 120, ctx: Context | None = None) -> dict:
     """
     Purpose:
         Run a rule once and say whether it works. A rule can be created without error and still fail when run, and the engine marks a task completed even when it wrote an error to its log, so this reads
@@ -170,11 +186,12 @@ async def prove_rule(rule_name: str, applications: dict[str, str] | None = None,
 
     Inputs:
         rule_name: the rule, as published in the tenant.
-        applications: optional {application type tag: application id} to run with; by default the first validated application of each type the rule needs.
+        applications: the applications to run with, as a list of names or ids (the application the rule is for). Needed only when the tenant has several validated applications of a type the rule
+            needs (a generic HTTP rule fits every HttpRequest application): the tool never guesses between them. With one validated application of a type, it is used.
         wait_seconds: how long to wait for the execution (default 120).
 
     Returns:
-        verdict: PASS, FAIL, NEEDS_APPLICATION (no validated application of a type the rule needs), NOT_FOUND or TIMEOUT. With a run: tasks (name, status, errors, outputs with row counts and a sample),
+        verdict: PASS, FAIL, NEEDS_APPLICATION (no validated application of a type the rule needs), NEEDS_CHOICE (several do: candidates lists them), NOT_FOUND or TIMEOUT. With a run: tasks (name, status, errors, outputs with row counts and a sample),
         firstError (task, message, kind, fix), consequences (the later errors) and, for a PASS with an empty output, a warning.
     """
     return await prove(rule_name, applications, max(10, min(int(wait_seconds), 600)), ctx)
