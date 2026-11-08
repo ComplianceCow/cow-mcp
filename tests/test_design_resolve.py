@@ -205,3 +205,16 @@ class Scopes(unittest.TestCase):
         got = self.resolve({"zz"})
         self.assertEqual(got["action"], r.CONFLICT)
         self.assertIn("Okta app", got["reason"])
+
+
+class CredentialChoices(unittest.TestCase):
+    def test_a_new_application_reports_its_credential_type_and_the_alternatives(self):
+        step = {"id": "j", "type": "create_application", "name": "Jira new", "config": {"applicationType": "JiraCloud", "creadentialType": "OAuth 1.1.1"}}
+        tenant = {**TENANT, "typeCredentials": {"JiraCloud": ["OAuth 1.1.1", "BasicAuthentication 1.1.1"]}}
+        got = r.resolve(doc(step), tenant)["credentialsNeeded"][0]
+        self.assertEqual((got["credentialType"], got["otherCredentialTypes"]), ("OAuth 1.1.1", ["BasicAuthentication 1.1.1"]))
+
+    def test_a_type_with_one_credential_type_offers_no_alternative(self):
+        step = {"id": "j", "type": "create_application", "name": "Jira new", "config": {"applicationType": "JiraCloud", "credentialType": "OAuth 1.1.1"}}
+        got = r.resolve(doc(step), {**TENANT, "typeCredentials": {"JiraCloud": ["OAuth 1.1.1"]}})["credentialsNeeded"][0]
+        self.assertNotIn("otherCredentialTypes", got)

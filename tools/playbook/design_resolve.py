@@ -78,7 +78,12 @@ def resolve(doc: dict, tenant: dict) -> dict:
             else:
                 results[s["id"]] = _step(s, CREATE)
                 if _norm(wanted) != "nocredapp":
-                    credentials.append({"application": name, "state": "will be created: its credentials must be entered in the platform"})
+                    chosen = str(c.get("credentialType") or c.get("creadentialType") or "")
+                    held = [t for t in (tenant.get("typeCredentials") or {}).get(wanted) or [] if t != chosen]
+                    entry = {"application": name, "state": "will be created: its credentials must be entered in the platform", "credentialType": chosen}
+                    if held:
+                        entry["otherCredentialTypes"] = held
+                    credentials.append(entry)
         elif kind == "create_application_scope":
             existing = (tenant.get("scopes") or {}).get(name)
             held = (tenant.get("scopeApplications") or {}).get(name)
@@ -211,6 +216,7 @@ async def snapshot(doc: dict, ctx: Context | None) -> dict:
     return {
         "applications": apps,
         "availableTypes": [t["name"] for t in types] if types is not None else None,
+        "typeCredentials": {t["name"]: t["credentialTypes"] for t in types} if types is not None else {},
         "scopes": {preflight._name(s): preflight._id(s) for s in raw["scopes"] or []},
         "scopeApplications": {preflight._name(s): set(s.get("credentialRef") or []) for s in raw["scopes"] or []},
         "categories": sorted(preflight._name(c) for c in raw["categories"]) if raw["categories"] is not None else None,
@@ -231,7 +237,7 @@ async def resolve_design(design_id: str, ctx: Context | None = None) -> dict:
         type, workflow names already taken) or BLOCKED (it cannot be done: an application type not installed, a rule that could not be looked up). A category that does not exist is created with the assessment that names it.
 
     Returns:
-        ready (no conflict and nothing blocked), counts, conflicts, blockers, risks (new rules are unproven until run), credentialsNeeded (applications that exist unvalidated or will be created, whose
+        ready (no conflict and nothing blocked), counts, conflicts, blockers, risks (new rules are unproven until run), credentialsNeeded (applications that exist unvalidated or will be created, whose credentialType is the one the design chose and otherCredentialTypes the others the platform offers for that application type, so the user is asked which credential they hold; whose
         credentials a person must enter in the platform), valuesNeeded (what a person must give for the workflow blueprints: the assessment inputs they read, with the addresses their samples name), assessments (the ids of the design's assessments that exist, to verify them after the build) and steps (every step with its action, reason and existingId). A design may be approved for an unattended build only when ready is true.
     """
     domain = preflight.identity_of(ctx).get("domainName")
