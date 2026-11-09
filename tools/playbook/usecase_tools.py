@@ -13,6 +13,7 @@ from fastmcp import Context
 
 from constants import constants
 from mcpconfig.config import mcp
+from tools.playbook import design_store, preflight
 from tools.playbook import usecase_push as push_logic
 from utils import utils
 
@@ -62,10 +63,11 @@ async def validate_use_case_yaml(yaml_text: str, source_name: str | None = None,
 
 @mcp.tool()
 async def push_use_case(
-    yaml_text: str,
+    yaml_text: str | None = None,
     source_name: str | None = None,
     replace: bool = False,
     approval: str | None = None,
+    design_id: str | None = None,
     ctx: Context | None = None,
 ) -> dict:
     """
@@ -81,7 +83,8 @@ async def push_use_case(
            that changed after the preview needs a new preview and a new yes.
 
     Inputs:
-        yaml_text: the whole use case, as YAML text.
+        yaml_text: the whole use case, as YAML text. Leave it out and give design_id to push a design stored by check_use_case_design, unchanged.
+        design_id: the designId a valid check_use_case_design returned; used when yaml_text is left out. Do not paste the YAML when you have the id.
         source_name: the file name to record it under, such as "servicenow.yaml". Left out, it is the use case's id plus .yaml.
         replace: true only when the person has agreed to overwrite a version that is already in the catalog.
         approval: the code from the preview. Without it nothing is written.
@@ -92,6 +95,11 @@ async def push_use_case(
         document. A conflict means this id and version are already in the catalog: do not retry with replace unless the person agrees to
         overwrite it.
     """
+    if yaml_text is None:
+        stored = design_store.load(design_id or "", preflight.identity_of(ctx).get("domainName"))
+        if stored is None:
+            return {"pushed": False, "problem": "Give yaml_text, or a design_id from a valid check_use_case_design call for this tenant."}
+        yaml_text = stored[0]
     prepared = push_logic.prepare(yaml_text, source_name, replace)
     if approval is None:
         return await push_logic.review(prepared, _poster(ctx, constants.URL_PLAYBOOK_VALIDATE))

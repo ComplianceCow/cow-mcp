@@ -13,6 +13,7 @@ from mcpconfig.config import mcp
 from constants import constants
 from mcptypes import assets_tools_type as vo
 from fastmcp import Context
+from tools.playbook import match_rows
 
 
 # Match-quality bands. Deliberately conservative: a wrong "full match" is the one
@@ -1116,6 +1117,10 @@ async def match_use_case(utterance: str, limit: int = 5, ctx: Context | None = N
         utterance: the user requirement in natural language.
         limit: maximum number of candidate use cases to return.
 
+    Candidates: one row per use case (id, version, name, description, inScope, outOfScope, blockingInputs, levels, stepCount and `steps`: the
+        detail, config and requiresApplication of each step), and one row per catalog object (application, assessment, control, rule, action,
+        workflow) that can be reused on its own.
+
     Output contract:
         Returns the utterance, matcher mode, candidate list, thresholds, guidance,
         and the best-match classification. The result should be interpreted as a
@@ -1158,7 +1163,7 @@ async def match_use_case(utterance: str, limit: int = 5, ctx: Context | None = N
     """, ctx=ctx)
     
     catalog_rows = await _get_catalog_match_candidates(ctx=ctx)
-    rows = use_case_rows + catalog_rows
+    rows = match_rows.group_by_use_case(use_case_rows) + catalog_rows
     if LLM_MATCH:
         # No score, no threshold, no truncation — the correct candidate must
         # not be cut before the caller ever sees it. Judgment happens on the

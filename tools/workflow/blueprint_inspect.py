@@ -227,6 +227,87 @@ def occurrences(doc: Any, needles: list[str]) -> dict[str, dict]:
     return {n: {"count": totals[n], "where": hits[n]} for n in needles}
 
 
+def _empty(value: Any) -> bool:
+    return value is None or value == "" or value == [] or value == {}
+
+
+def required_inputs_unset(spec: dict) -> list[dict]:
+    """The inputs a rule or function needs (not optional) that hold no value, no uploaded file and no mapping from an earlier node, so nothing would supply them
+    when the workflow runs. A rule may fill some of them with a default of its own (its log or config files); this lists them so each is decided, not to say each is wrong."""
+    found = []
+    for kind, label, node in nodes(spec):
+        reference = action_of(node).get("reference") or {}
+        for item in inputs_of(node):
+            if item.get("optional") or "mapValueFrom" in item:
+                continue
+            if not _empty(item.get("value")) or item.get("fileName") or item.get("fileContent") or item.get("fileAttachments"):
+                continue
+            found.append({
+                "activity": label,
+                "kind": "activity" if kind == "activities" else "condition",
+                "rule": reference.get("name"),
+                "input": item.get("name"),
+                "type": item.get("type"),
+                "desc": _clip(item.get("desc") or "", 160),
+                "settable": str(item.get("type", "")).lower() != "file",
+            })
+    return found
+
+
+def assessment_inputs_read(spec: dict) -> list[dict]:
+    """The activities that read an assessment input (the rule FetchAssessmentInput): its name (the literal value of `InputName`, None when it is taken from an earlier
+    step) and the activity's description when that carries a sample of the content, so what the assessment must be given is known without reading every activity."""
+    found = []
+    for _, label, node in nodes(spec):
+        action = action_of(node)
+        reference = action.get("reference") or {}
+        if reference.get("name") != "FetchAssessmentInput":
+            continue
+        name_input = next((i for i in inputs_of(node) if i.get("name") == "InputName"), None) or {}
+        name = name_input.get("value") if is_literal(name_input) and not _empty(name_input.get("value")) else None
+        desc = (action.get("desc") or reference.get("desc") or "").strip()
+        found.append({"activity": label, "inputName": name, "sample": desc if len(desc) >= FILE_DESC_MIN else None})
+    return found
+
+
+def chain_assessment_inputs(workflows: dict[str, dict]) -> list[dict]:
+    """The assessment inputs the whole chain reads, one entry per name, with every workflow and activity that reads it and the first sample found."""
+    merged: dict[Any, dict] = {}
+    for workflow, report in workflows.items():
+        for item in report.get("assessmentInputsRead") or []:
+            entry = merged.setdefault(item["inputName"] or (workflow, item["activity"]), {"inputName": item["inputName"], "readBy": [], "sample": None})
+            entry["readBy"].append({"workflow": workflow, "activity": item["activity"]})
+            entry["sample"] = entry["sample"] or item["sample"]
+    return list(merged.values())
+
+
+def mapping_issues(spec: dict) -> list[dict]:
+    """Inputs taken from an earlier node whose source cannot supply them: an activity that is not in the workflow, an output field the source does not declare, or an event mapping
+    with no field named. Such an input is accepted when the workflow is created and fails or runs empty when it runs."""
+    found = []
+    labelled = {label: node for _, label, node in nodes(spec)}
+    for _, label, node in nodes(spec):
+        for item in inputs_of(node):
+            mapping = item.get("mapValueFrom")
+            if not isinstance(mapping, dict):
+                continue
+            source = (mapping.get("source") or {}).get("label") or (mapping.get("source") or {}).get("displayable")
+            field = mapping.get("outputField")
+            problem = None
+            if mapping.get("type") == "Activity":
+                if source not in labelled:
+                    problem = f"its source activity '{source}' is not in this workflow"
+                else:
+                    declared = [o.get("name") for o in (action_of(labelled[source]).get("reference") or {}).get("outputs") or [] if isinstance(o, dict)]
+                    if field and declared and field not in declared:
+                        problem = f"'{source}' has no output '{field}'"
+            elif mapping.get("type") == "Event" and not field:
+                problem = f"it is taken from the event '{source}' without naming the field of the event"
+            if problem:
+                found.append({"activity": label, "input": item.get("name"), "problem": problem})
+    return found
+
+
 def inspect(doc: dict, find: list[str] | None = None, include_literals: bool = False, activities: list[str] | None = None) -> dict:
     spec = doc.get("spec") or {}
     metadata = doc.get("metadata") or {}
@@ -242,6 +323,9 @@ def inspect(doc: dict, find: list[str] | None = None, include_literals: bool = F
         "rules": sorted(r["name"] for r in needs(spec)["rules"]),
         "conditionLiterals": condition_literals(spec),
         "literalInputCount": len(literal),
+        "requiredInputsUnset": required_inputs_unset(spec),
+        "mappingIssues": mapping_issues(spec),
+        "assessmentInputsRead": assessment_inputs_read(spec),
     }
     if include_literals:
         report["literalInputs"] = literal
@@ -328,3 +412,18 @@ def summarize_listing(output: Any, search: str | None = None) -> list[dict]:
         })
     words = (search or "").lower().split()
     return [r for r in rows if all(w in " ".join(str(r[k] or "") for k in ("folder", "workflow", "description")).lower() for w in words)]
+
+
+BRIEF_OMITTED = ("templates", "assessmentInputsRead")
+
+
+def brief(report: dict) -> dict:
+    """The inspection without the parts only the person who creates the workflow needs: each workflow's `templates` and `assessmentInputsRead`,
+    and the `sample` text of every assessment input (the structure a file must follow). The chain, the prerequisites, the application scopes and
+    the inputs still to be set stay."""
+    out = dict(report)
+    out["workflows"] = {name: {k: v for k, v in detail.items() if k not in BRIEF_OMITTED} for name, detail in (report.get("workflows") or {}).items()}
+    if "assessmentInputs" in out:
+        out["assessmentInputs"] = [{k: v for k, v in item.items() if k != "sample"} for item in out["assessmentInputs"]]
+    out["brief"] = "templates, assessmentInputsRead and the samples of assessmentInputs are left out: call again without brief to get them (needed when the workflow is created)"
+    return out
