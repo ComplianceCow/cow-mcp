@@ -9,7 +9,8 @@ import yaml
 from fastmcp import Context
 
 from mcpconfig.config import mcp
-from tools.playbook import design_store, preflight
+from tools.playbook import blueprint_fit, design_store, preflight
+from utils import utils
 
 FIRST_KEYS = ["System", "Source", "ResourceID", "ResourceName", "ResourceType", "ResourceLocation", "ResourceTags"]
 LAST_KEYS = ["ValidationStatusCode", "ValidationStatusNotes", "ComplianceStatus", "ComplianceStatusReason", "EvaluatedTime", "UserAction", "ActionStatus", "ActionResponseURL"]
@@ -489,6 +490,17 @@ def check(doc: Any, remediation_columns: dict[str, list[str]] | None, remediatio
     }
 
 
+async def _blueprint_listing(ctx: Context | None) -> list[dict] | None:
+    """The workflow blueprints the platform lists (folder, description, hasDefinition), or None when they cannot be read: the check is then skipped."""
+    try:
+        from tools.workflow import blueprint_inspect
+        output = await utils.make_API_call_to_CCow_and_get_response("/pc-api/v1/workflows", method="GET", request_body={"fields": "basic"}, ctx=ctx)
+        listing = blueprint_inspect.summarize_listing(output, None) if isinstance(output, dict) and "items" in output else None
+        return listing if isinstance(listing, list) else None
+    except Exception:
+        return None
+
+
 @mcp.tool()
 async def check_use_case_design(yaml_text: str, remediation_columns: dict[str, list[str]] | None = None, remediation_confirmed_by_user: bool = False, user_configurable: list[str] | None = None, rule_systems: dict[str, Any] | None = None, new_rules: list[str] | None = None, rule_app_types: dict[str, Any] | None = None, existing_applications: list[Any] | None = None, existing_controls: dict[str, list[dict]] | None = None, ctx: Context | None = None) -> dict:
     """
@@ -525,6 +537,10 @@ async def check_use_case_design(yaml_text: str, remediation_columns: dict[str, l
     if problem:
         return {"valid": False, "errors": [problem], "warnings": [], "checked": {"steps": 0}}
     result = check(doc, remediation_columns, bool(remediation_confirmed_by_user), user_configurable, rule_systems, new_rules, rule_app_types, existing_applications, existing_controls)
+    blueprint_errors = blueprint_fit.issues(doc, await _blueprint_listing(ctx)) if isinstance(doc, dict) else []
+    if blueprint_errors:
+        result["errors"] = list(result["errors"]) + blueprint_errors
+        result["valid"] = False
     if result["valid"]:
         arguments = {"remediation_columns": remediation_columns, "remediation_confirmed_by_user": remediation_confirmed_by_user, "user_configurable": user_configurable,
                      "rule_systems": rule_systems, "new_rules": new_rules, "rule_app_types": rule_app_types, "existing_applications": existing_applications,
