@@ -15,6 +15,19 @@ FIRST_KEYS = ["System", "Source", "ResourceID", "ResourceName", "ResourceType", 
 LAST_KEYS = ["ValidationStatusCode", "ValidationStatusNotes", "ComplianceStatus", "ComplianceStatusReason", "EvaluatedTime", "UserAction", "ActionStatus", "ActionResponseURL"]
 REMEDIATION = ("create_action", "create_workflow")
 _INPUT_REFERENCE = re.compile(r"\$\{\{\s*inputs\.([A-Za-z_]\w*)\s*\}\}")
+_SQL_OPERATION = re.compile(r"INTERVAL|DATE_ADD|DATE_SUB|DATEDIFF|TIMESTAMPDIFF|JULIANDAY|EXTRACT|<=|>=|<>|!=|[=<>+\-*/]", re.I)
+
+
+def _applied_in_sql(sql: str, name: str) -> bool:
+    """True when ${{ inputs.<name> }} takes part in the SQL's logic (a comparison or a date or number calculation) rather than only in message text."""
+    token = re.compile(r"\$\{\{\s*inputs\." + re.escape(name) + r"\s*\}\}")
+    code = re.sub(r"'((?:[^']|'')*)'", lambda m: m.group(0) if token.fullmatch(m.group(1).strip()) else "''", sql.replace("||", " "))
+    for found in token.finditer(code):
+        before = code[:found.start()].rsplit(",", 1)[-1].rsplit(";", 1)[-1][-80:]
+        after = re.split(r"[,;]", code[found.end():], maxsplit=1)[0][:80]
+        if _SQL_OPERATION.search(before) or _SQL_OPERATION.search(after):
+            return True
+    return False
 
 
 def _issue(severity: str, check: str, message: str, step: str | None = None) -> dict:
@@ -350,6 +363,15 @@ def check(doc: Any, remediation_columns: dict[str, list[str]] | None, remediatio
             issues.append(_issue("error", "inputs", f"the step uses ${{{{ inputs.{name} }}}} but spec.inputs does not declare '{name}'", step.get("id") if isinstance(step.get("id"), str) else None))
     for name in sorted(declared - used):
         issues.append(_issue("warning", "inputs", f"spec.inputs declares '{name}' but no step uses ${{{{ inputs.{name} }}}}"))
+    applied: set[str] = set()
+    for step in steps:
+        config = step.get("config") if isinstance(step.get("config"), dict) else {}
+        outside_sql = {k: v for k, v in config.items() if k != "sql"}
+        applied |= {m for text in list(_texts(outside_sql)) + list(_texts(step.get("refs"))) for m in _INPUT_REFERENCE.findall(text)}
+        if isinstance(config.get("sql"), str):
+            applied |= {n for n in _INPUT_REFERENCE.findall(config["sql"]) if _applied_in_sql(config["sql"], n)}
+    for name in sorted((declared & used) - applied):
+        issues.append(_issue("error", "inputs", f"'{name}' is only used inside message text: no SQL compares or calculates with it, so changing the user's value changes no result. Use it in the logic, for example in a date comparison"))
     for name in user_configurable or []:
         if name not in declared:
             issues.append(_issue("error", "inputs", f"the requirement makes '{name}' configurable by the user, but spec.inputs does not declare it: declare it (type, default, title) and use ${{{{ inputs.{name} }}}} where it applies"))

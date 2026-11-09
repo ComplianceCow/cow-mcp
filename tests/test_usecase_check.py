@@ -313,6 +313,24 @@ class UserInputs(unittest.TestCase):
     def test_no_configurable_values_and_no_inputs_is_fine(self):
         self.assertEqual(errors(self.doc_with({}), user_configurable=[]), [])
 
+    def test_an_input_used_only_in_message_text_is_an_error(self):
+        message = ", 'Grace period of ${{ inputs.slaHours }} hours' AS Note"
+        got = messages(self.doc_with({"slaHours": {"type": "integer"}}, message))
+        self.assertTrue(any("only used inside message text" in m for m in got))
+
+    def test_an_input_concatenated_into_text_is_still_only_message_text(self):
+        message = ", 'Grace period: ' || ${{ inputs.slaHours }} || ' hours' AS Note"
+        got = messages(self.doc_with({"slaHours": {"type": "integer"}}, message))
+        self.assertTrue(any("only used inside message text" in m for m in got))
+
+    def test_an_input_inside_an_interval_comparison_is_applied(self):
+        sql = " AND o.StatusChanged > w.TerminationDate + INTERVAL '${{ inputs.slaHours }}' HOUR"
+        self.assertEqual(errors(self.doc_with({"slaHours": {"type": "integer"}}, sql)), [])
+
+    def test_an_input_applied_in_one_rule_and_quoted_in_another_passes(self):
+        sql = " AND age < ${{ inputs.slaHours }} AND '${{ inputs.slaHours }} hours' <> ''"
+        self.assertEqual(errors(self.doc_with({"slaHours": {"type": "integer"}}, sql)), [])
+
 
 class SingleSystemL1(unittest.TestCase):
     def l1(self, step_id, rule, assessment):
