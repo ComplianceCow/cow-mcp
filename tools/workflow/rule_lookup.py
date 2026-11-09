@@ -71,6 +71,12 @@ def _catalog_name(item: dict) -> Any:
     return (item.get("meta") or {}).get("name")
 
 
+def catalog_scope(item: Any) -> str | None:
+    """"global" for a rule of the platform's global catalog, "local" for one that only this environment's local catalog holds (made here, not published by the platform), else None."""
+    value = str((item.get("catalog") if isinstance(item, dict) else getattr(item, "catalog", None)) or "").lower()
+    return "global" if value == "globalcatalog" else "local" if value == "localcatalog" else None
+
+
 def describe(name: str, tenant_items: Any, catalog_items: Any) -> dict:
     """`tenant_items` and `catalog_items` are the rows each listing returned for the name, or None when that lookup failed.
 
@@ -97,6 +103,8 @@ def describe(name: str, tenant_items: Any, catalog_items: Any) -> dict:
         "description": meta.get("description") or (in_tenant or {}).get("description"),
         "appTypes": sorted(types),
         "discoverable": _discoverable(in_catalog) if in_catalog else None,
+        "catalogScope": catalog_scope(in_catalog) if in_catalog else None,
+        "unvetted": bool(in_catalog) and catalog_scope(in_catalog) == "local" and not _readme(copies, in_catalog),
         "inputs": _inputs(in_tenant, in_catalog),
         "outputs": _outputs(in_tenant, in_catalog),
         "readme": _readme(copies, in_catalog),

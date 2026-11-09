@@ -9,12 +9,26 @@ import yaml
 from fastmcp import Context
 
 from mcpconfig.config import mcp
-from tools.playbook import design_store, preflight
+from tools.playbook import blueprint_fit, design_store, preflight
+from utils import utils
 
 FIRST_KEYS = ["System", "Source", "ResourceID", "ResourceName", "ResourceType", "ResourceLocation", "ResourceTags"]
 LAST_KEYS = ["ValidationStatusCode", "ValidationStatusNotes", "ComplianceStatus", "ComplianceStatusReason", "EvaluatedTime", "UserAction", "ActionStatus", "ActionResponseURL"]
 REMEDIATION = ("create_action", "create_workflow")
 _INPUT_REFERENCE = re.compile(r"\$\{\{\s*inputs\.([A-Za-z_]\w*)\s*\}\}")
+_SQL_OPERATION = re.compile(r"INTERVAL|DATE_ADD|DATE_SUB|DATEDIFF|TIMESTAMPDIFF|JULIANDAY|EXTRACT|<=|>=|<>|!=|[=<>+\-*/]", re.I)
+
+
+def _applied_in_sql(sql: str, name: str) -> bool:
+    """True when ${{ inputs.<name> }} takes part in the SQL's logic (a comparison or a date or number calculation) rather than only in message text."""
+    token = re.compile(r"\$\{\{\s*inputs\." + re.escape(name) + r"\s*\}\}")
+    code = re.sub(r"'((?:[^']|'')*)'", lambda m: m.group(0) if token.fullmatch(m.group(1).strip()) else "''", sql.replace("||", " "))
+    for found in token.finditer(code):
+        before = code[:found.start()].rsplit(",", 1)[-1].rsplit(";", 1)[-1][-80:]
+        after = re.split(r"[,;]", code[found.end():], maxsplit=1)[0][:80]
+        if _SQL_OPERATION.search(before) or _SQL_OPERATION.search(after):
+            return True
+    return False
 
 
 def _issue(severity: str, check: str, message: str, step: str | None = None) -> dict:
@@ -350,6 +364,15 @@ def check(doc: Any, remediation_columns: dict[str, list[str]] | None, remediatio
             issues.append(_issue("error", "inputs", f"the step uses ${{{{ inputs.{name} }}}} but spec.inputs does not declare '{name}'", step.get("id") if isinstance(step.get("id"), str) else None))
     for name in sorted(declared - used):
         issues.append(_issue("warning", "inputs", f"spec.inputs declares '{name}' but no step uses ${{{{ inputs.{name} }}}}"))
+    applied: set[str] = set()
+    for step in steps:
+        config = step.get("config") if isinstance(step.get("config"), dict) else {}
+        outside_sql = {k: v for k, v in config.items() if k != "sql"}
+        applied |= {m for text in list(_texts(outside_sql)) + list(_texts(step.get("refs"))) for m in _INPUT_REFERENCE.findall(text)}
+        if isinstance(config.get("sql"), str):
+            applied |= {n for n in _INPUT_REFERENCE.findall(config["sql"]) if _applied_in_sql(config["sql"], n)}
+    for name in sorted((declared & used) - applied):
+        issues.append(_issue("error", "inputs", f"'{name}' is only used inside message text: no SQL compares or calculates with it, so changing the user's value changes no result. Use it in the logic, for example in a date comparison"))
     for name in user_configurable or []:
         if name not in declared:
             issues.append(_issue("error", "inputs", f"the requirement makes '{name}' configurable by the user, but spec.inputs does not declare it: declare it (type, default, title) and use ${{{{ inputs.{name} }}}} where it applies"))
@@ -467,6 +490,17 @@ def check(doc: Any, remediation_columns: dict[str, list[str]] | None, remediatio
     }
 
 
+async def _blueprint_listing(ctx: Context | None) -> list[dict] | None:
+    """The workflow blueprints the platform lists (folder, description, hasDefinition), or None when they cannot be read: the check is then skipped."""
+    try:
+        from tools.workflow import blueprint_inspect
+        output = await utils.make_API_call_to_CCow_and_get_response("/pc-api/v1/workflows", method="GET", request_body={"fields": "basic"}, ctx=ctx)
+        listing = blueprint_inspect.summarize_listing(output, None) if isinstance(output, dict) and "items" in output else None
+        return listing if isinstance(listing, list) else None
+    except Exception:
+        return None
+
+
 @mcp.tool()
 async def check_use_case_design(yaml_text: str, remediation_columns: dict[str, list[str]] | None = None, remediation_confirmed_by_user: bool = False, user_configurable: list[str] | None = None, rule_systems: dict[str, Any] | None = None, new_rules: list[str] | None = None, rule_app_types: dict[str, Any] | None = None, existing_applications: list[Any] | None = None, existing_controls: dict[str, list[dict]] | None = None, ctx: Context | None = None) -> dict:
     """
@@ -503,6 +537,10 @@ async def check_use_case_design(yaml_text: str, remediation_columns: dict[str, l
     if problem:
         return {"valid": False, "errors": [problem], "warnings": [], "checked": {"steps": 0}}
     result = check(doc, remediation_columns, bool(remediation_confirmed_by_user), user_configurable, rule_systems, new_rules, rule_app_types, existing_applications, existing_controls)
+    blueprint_errors = blueprint_fit.issues(doc, await _blueprint_listing(ctx)) if isinstance(doc, dict) else []
+    if blueprint_errors:
+        result["errors"] = list(result["errors"]) + blueprint_errors
+        result["valid"] = False
     if result["valid"]:
         arguments = {"remediation_columns": remediation_columns, "remediation_confirmed_by_user": remediation_confirmed_by_user, "user_configurable": user_configurable,
                      "rule_systems": rule_systems, "new_rules": new_rules, "rule_app_types": rule_app_types, "existing_applications": existing_applications,

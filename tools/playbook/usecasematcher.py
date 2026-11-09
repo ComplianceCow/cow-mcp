@@ -13,7 +13,7 @@ from mcpconfig.config import mcp
 from constants import constants
 from mcptypes import assets_tools_type as vo
 from fastmcp import Context
-from tools.playbook import match_rows
+from tools.playbook import match_rows, simulated_no_match
 
 
 # Match-quality bands. Deliberately conservative: a wrong "full match" is the one
@@ -1021,7 +1021,7 @@ async def list_use_cases(domain: str | None = None, lifecycle: str = "published"
     Rules:
         Do not use this as a substitute for the requirement-driven match tools.
     """
-    return await q("""
+    rows = await q("""
         MATCH (u:UseCase {isLatest:true})
         WHERE ($lifecycle IS NULL OR u.lifecycle = $lifecycle)
         AND ($domain IS NULL OR u.domainArea = $domain OR u.domain = $domain)
@@ -1031,6 +1031,7 @@ async def list_use_cases(domain: str | None = None, lifecycle: str = "published"
             count(s) AS steps, u.blockingInputs AS blockingInputs
         ORDER BY u.name
     """, ctx=ctx, domain=domain, lifecycle=lifecycle)
+    return [r for r in rows if not simulated_no_match.hidden(r.get("id"))]
 
 SEARCHABLE_CATALOG_TYPES = [
     "UseCase",
@@ -1163,14 +1164,19 @@ async def match_use_case(utterance: str, limit: int = 5, ctx: Context | None = N
     """, ctx=ctx)
     
     catalog_rows = await _get_catalog_match_candidates(ctx=ctx)
-    rows = match_rows.group_by_use_case(use_case_rows) + catalog_rows
+    use_case_candidates = [r for r in match_rows.group_by_use_case(use_case_rows) if not simulated_no_match.hidden(r.get("id"))]
+    rows = use_case_candidates + [r for r in catalog_rows if not simulated_no_match.hidden(r.get("id"))]
+    if simulated_no_match.active(utterance):
+        logger.info("match_use_case: simulated no-match lease applies, returning no candidates\n")
+        rows, use_case_candidates = [], []
     if LLM_MATCH:
         # No score, no threshold, no truncation — the correct candidate must
         # not be cut before the caller ever sees it. Judgment happens on the
         # other side of this call, against these exact fields.
         return {
             "utterance": utterance, "matcher": "llm",
-            "guidance": (
+            "useCaseCandidates": len(use_case_candidates),
+            "guidance": match_rows.no_use_case_note(len(use_case_candidates)) + (
                 "No score was computed. Weigh each candidate's inScope, "
                 "outOfScope, and description against the utterance yourself "
                 "and decide FULL, PARTIAL, or NONE per candidate. FULL: read "
@@ -1313,8 +1319,12 @@ async def match_steps(utterance: str, limit: int = 8, exclude_use_case: str | No
     """, ctx=ctx, exclude=exclude_use_case, ids=use_case_ids)
     if use_case_ids:
         rows = [r for r in rows if r["useCaseId"] in set(use_case_ids)]
+    rows = [r for r in rows if not simulated_no_match.hidden(r["useCaseId"])]
     for r in rows:
         r["adaptedFrom"] = f"{r['useCaseId']}/{r['stepId']}"
+    if simulated_no_match.active(utterance):
+        logger.info("match_steps: simulated no-match lease applies, returning no steps\n")
+        rows = []
 
     if LLM_MATCH:
         return {
@@ -1375,7 +1385,7 @@ async def describe_use_case(use_case_id: str, ctx: Context | None = None) -> dic
             u.levels AS levels, u.inScope AS inScope, u.outOfScope AS outOfScope,
             u.blockingInputs AS blockingInputs, u.lifecycle AS lifecycle
     """, ctx=ctx, id=use_case_id)
-    if not head:
+    if not head or simulated_no_match.hidden(use_case_id):
         return {"error": f"no use case {use_case_id!r} — try list_use_cases"}
     
     steps = await q("""

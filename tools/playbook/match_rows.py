@@ -22,3 +22,12 @@ def group_by_use_case(rows: list[dict[str, Any]]) -> list[dict[str, Any]]:
             candidate.setdefault(field, None)
         candidate["stepCount"] = len(candidate["steps"])
     return list(grouped.values())
+
+
+def no_use_case_note(use_case_count: int) -> str:
+    """What the matcher must be told when the catalog holds no use case for it to adopt: separate catalog objects can never make a FULL MATCH."""
+    if use_case_count:
+        return ""
+    return ("NO USE CASE CANDIDATE EXISTS: the rows below are separate catalog objects, not a use case. FULL is impossible, because there are no "
+            "catalog steps to adopt; classify PARTIAL (reusable parts) or NONE. Never infer or invent a use case id: describe_use_case on a guessed id "
+            "is not a match. ")

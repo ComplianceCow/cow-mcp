@@ -847,7 +847,7 @@ def fetch_rules_api(params: dict[str, Any] = None, ctx: Optional[Context] = None
                 
                 meta =data.get('meta',None)
                 if meta:
-                    combined_rules.append(vo.SimplifiedRuleVO.model_validate(meta))
+                    combined_rules.append(vo.SimplifiedRuleVO.model_validate({**meta, "catalog": data.get("catalog")}))
                 
             total_pages = int(response.get("totalPage", 0))
             cur_page += 1
@@ -1441,7 +1441,7 @@ def fetch_action_rules_api(params: dict[str, Any] = None, include_read_me: bool 
                 if data.get("readmeData") and isinstance(meta, dict):
                     meta["readmeData"] = data["readmeData"]
                 if meta:
-                    combined_rules.append(vo.SimplifiedRuleVO.model_validate(meta))
+                    combined_rules.append(vo.SimplifiedRuleVO.model_validate({**meta, "catalog": data.get("catalog")}))
 
             total_pages = int(response.get("totalPage", 0))
             cur_page += 1

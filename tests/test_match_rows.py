@@ -39,3 +39,13 @@ class GroupByUseCase(unittest.TestCase):
 
 if __name__ == "__main__":
     unittest.main()
+
+
+class NoUseCaseNote(unittest.TestCase):
+    def test_a_catalog_without_a_use_case_says_full_is_impossible(self):
+        note = m.no_use_case_note(0)
+        self.assertIn("FULL is impossible", note)
+        self.assertIn("invent", note)
+
+    def test_a_catalog_with_a_use_case_adds_nothing(self):
+        self.assertEqual(m.no_use_case_note(1), "")
