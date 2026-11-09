@@ -42,3 +42,13 @@ class IndexLines(unittest.TestCase):
 
 if __name__ == "__main__":
     unittest.main()
+
+
+class UnvettedMarker(unittest.TestCase):
+    def test_a_local_rule_is_marked_and_a_global_one_is_not(self):
+        got = r.index_lines([
+            {"name": "LocalOne", "purpose": "Does a thing", "catalog": "localcatalog"},
+            {"name": "GlobalOne", "purpose": "Does another", "catalog": "globalcatalog"},
+            {"name": "NoField", "purpose": "Unknown origin"},
+        ])
+        self.assertEqual(got, ["GlobalOne: Does another", "LocalOne: Does a thing " + r.LOCAL_MARK, "NoField: Unknown origin"])

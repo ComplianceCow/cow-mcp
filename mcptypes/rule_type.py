@@ -127,6 +127,7 @@ class SimplifiedRuleVO(BaseModel):
     purpose: Optional[str] = ""
     description: Optional[str] = ""
     readmeData: Optional[str] = ""
+    catalog: Optional[str] = ""
 
     model_config = {
         "extra": "ignore"

@@ -1404,7 +1404,8 @@ async def find_rule_by_name(name: str, ctx: Context | None = None) -> dict:
     Returns success (false when the rule is in neither place), name and where: "tenant" (published), "catalog" (published by the platform when a workflow that uses it is
     created), "missing", or "unchecked" when a lookup failed. When found it also returns what the two services hold about the rule: purpose, description, appTypes (the
     application types the rule and its tasks need, lower case, `nocredapp` needs no credential), discoverable (whether get_rules_summary lists it; null for a rule found only in
-    the tenant), inputs ({name, type, required}), outputs ({name, type, description}) and readme (the README text, or null when the rule has none: many rules do not).
+    the tenant), catalogScope ("global" for a rule the platform publishes, "local" for one made in this environment), unvetted (true for a local rule with no README: it was made here, not
+    published by the platform, and nothing documents what it outputs, so it is never adopted as an existing rule), inputs ({name, type, required}), outputs ({name, type, description}) and readme (the README text, or null when the rule has none: many rules do not).
     lookupFailed names a service ("tenant" or "catalog") that could not be read: what only it holds, for example the README, is then unknown, not absent. Call the tool again.
     """
     tenant = await utils.make_GET_API_call_to_CCow(constants.URL_WORKFLOW_PREBUILD_RULES, ctx, query_params={"name": name})

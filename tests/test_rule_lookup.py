@@ -189,3 +189,22 @@ class TheTool(unittest.TestCase):
 
 if __name__ == "__main__":
     unittest.main()
+
+
+class LocalCatalogRules(unittest.TestCase):
+    def test_a_local_catalog_rule_without_a_readme_is_unvetted(self):
+        local = catalog_rule("FetchOktaDeprovisionedUsersWithGroups")
+        local["catalog"] = "localcatalog"
+        found = r.describe(local["meta"]["name"], [], [local])
+        self.assertEqual((found["catalogScope"], found["unvetted"]), ("local", True))
+
+    def test_a_global_catalog_rule_is_not_unvetted_even_without_a_readme(self):
+        glob = catalog_rule("GetOktaUsers")
+        glob["catalog"] = "globalcatalog"
+        found = r.describe("GetOktaUsers", [], [glob])
+        self.assertEqual((found["catalogScope"], found["unvetted"]), ("global", False))
+
+    def test_a_local_rule_with_a_readme_is_trusted(self):
+        local = with_spec(catalog_rule("MyRule"), readme="# My rule")
+        local["catalog"] = "localcatalog"
+        self.assertFalse(r.describe("MyRule", [], [local])["unvetted"])

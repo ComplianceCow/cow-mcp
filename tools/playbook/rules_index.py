@@ -6,9 +6,11 @@ from typing import Any
 from fastmcp import Context
 
 from mcpconfig.config import mcp
+from tools.workflow import rule_lookup
 from utils import rule
 
 PURPOSE_LIMIT = 160
+LOCAL_MARK = "[local rule, not from the platform: find_rule_by_name says if it is unvetted]"
 
 
 def _text(value: Any) -> str:
@@ -27,7 +29,10 @@ def index_lines(rules: list[Any]) -> list[str]:
         if not purpose or purpose.lower() == name.lower():
             description = _text(get("description"))
             purpose = description if description.lower() != name.lower() else ""
-        seen[name] = purpose if len(purpose) <= PURPOSE_LIMIT else purpose[:PURPOSE_LIMIT - 1].rstrip() + "…"
+        purpose = purpose if len(purpose) <= PURPOSE_LIMIT else purpose[:PURPOSE_LIMIT - 1].rstrip() + "…"
+        if rule_lookup.catalog_scope(item) == "local":
+            purpose = (purpose + " " if purpose else "") + LOCAL_MARK
+        seen[name] = purpose
     return [f"{name}: {seen[name]}" if seen[name] else name for name in sorted(seen, key=str.lower)]
 
 
