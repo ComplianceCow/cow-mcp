@@ -74,6 +74,13 @@ class Refused(unittest.TestCase):
         self.assertTrue(messages(with_(samples=[{"label": "s", "values": {"created": "a while ago"}}])))
         self.assertEqual(messages(with_(cases=[{"when": {"field": "created", "is": "greater_than", "value": "2026-01-31"}, "verdict": "COMPLIANT"}, {"verdict": "NON_COMPLIANT"}])), [])
 
+    def test_columns_are_a_list_of_named_typed_columns_without_repeats(self):
+        good = with_(columns=[{"name": "UserEmail", "kind": "text", "from": "Okta users", "about": "The user's email"}, {"name": "LastLogin", "kind": "time"}])
+        self.assertEqual(messages(good), [])
+        for bad in ([{"name": "A"}], [{"name": "A", "kind": "date"}], [{"name": "A", "kind": "text"}, {"name": "A", "kind": "text"}], [{"name": "", "kind": "text"}],
+                    [{"name": "A", "kind": "text", "x": 1}], "UserEmail", [{"name": f"c{i}", "kind": "text"} for i in range(41)]):
+            self.assertTrue(messages(with_(columns=bad)), bad)
+
     def test_a_setting_that_does_not_exist_or_is_not_a_number_cannot_be_used_as_an_amount(self):
         gone = with_(cases=[{"when": {"field": "created", "is": "less_than", "than": {"now": True, "minus": {"amount": {"setting": "missing"}, "unit": "day"}}}, "verdict": "COMPLIANT"}, {"verdict": "NON_COMPLIANT"}])
         self.assertTrue(any("number setting" in m for m in messages(gone)))

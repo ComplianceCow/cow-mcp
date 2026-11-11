@@ -19,7 +19,7 @@ VERDICTS = {"COMPLIANT", "NON_COMPLIANT", "NOT_APPLICABLE"}
 LEVELS = {"L1", "L2", "L3"}
 OPS = {"equals", "not_equals", "in", "not_in", "greater_than", "at_least", "less_than", "at_most", "missing", "present", "is_true", "is_false"}
 ORDERING = {"greater_than", "at_least", "less_than", "at_most"}
-MAX_CHECKS, MAX_FIELDS, MAX_SETTINGS, MAX_CASES, MAX_SAMPLES, MAX_LEAVES, MAX_DEPTH = 12, 12, 6, 12, 6, 40, 6
+MAX_CHECKS, MAX_FIELDS, MAX_SETTINGS, MAX_CASES, MAX_SAMPLES, MAX_LEAVES, MAX_DEPTH, MAX_COLUMNS = 12, 12, 6, 12, 6, 40, 6, 40
 
 
 def _issue(check: str, path: str, message: str) -> dict:
@@ -109,6 +109,29 @@ class _Check:
             if s.get("unit") is not None and s.get("unit") not in UNITS:
                 self.bad(f"{p}.unit", f"unit is one of {sorted(UNITS)}")
             self.settings[sid] = kind
+
+    def columns(self) -> None:
+        columns = self.raw.get("columns", [])
+        if not isinstance(columns, list) or len(columns) > MAX_COLUMNS:
+            self.bad("columns", f"columns is a list of at most {MAX_COLUMNS}")
+            return
+        seen: set[str] = set()
+        for i, col in enumerate(columns):
+            p = f"columns[{i}]"
+            if not isinstance(col, dict) or set(col) - {"name", "kind", "from", "about"}:
+                self.bad(p, "a column has name, kind, and optionally from and about")
+                continue
+            if not _text(col.get("name"), 80):
+                self.bad(f"{p}.name", "name is the column's name in the evidence")
+            elif col["name"] in seen:
+                self.bad(f"{p}.name", f"the column '{col['name']}' is listed twice")
+            else:
+                seen.add(col["name"])
+            if col.get("kind") not in FIELD_KINDS:
+                self.bad(f"{p}.kind", f"kind is one of {sorted(FIELD_KINDS)}")
+            for extra, limit in (("from", 80), ("about", 160)):
+                if col.get(extra) is not None and not _text(col.get(extra), limit):
+                    self.bad(f"{p}.{extra}", f"{extra} is a short text")
 
     # ── conditions
     def condition(self, c: Any, path: str, depth: int = 0) -> None:
@@ -298,10 +321,11 @@ class _Check:
         for extra in ("step", "control"):
             if raw.get(extra) is not None and not _text(raw.get(extra), 160):
                 self.bad(extra, f"{extra} is the name as the plan writes it")
-        unknown = set(raw) - {"id", "title", "about", "level", "step", "control", "fields", "settings", "applies_to", "cases", "samples"}
+        unknown = set(raw) - {"id", "title", "about", "level", "step", "control", "fields", "settings", "columns", "applies_to", "cases", "samples"}
         if unknown:
             self.bad("", f"unknown keys: {sorted(unknown)}")
         self.declare()
+        self.columns()
         if "applies_to" in raw:
             self.condition(raw["applies_to"], "applies_to")
         self.cases()
@@ -341,13 +365,17 @@ async def compliance_logic(checks: list[dict], ctx: Context | None = None) -> di
 
     Inputs:
         checks: 1 to 12 checks. Each check is:
-          id: lower case letters, digits, - or _ (for example "mfa-reconciliation")
+          id: lower case letters, digits, - or _ (for example "mfa-reconciliation"); the same for every field and setting id: "last-login" or "last_login", never "lastLogin"
           title: a short name a person would use ("MFA reconciliation")
           about: one or two sentences: what the check establishes
           level: "L1", "L2" or "L3" (optional); step: the plan step it belongs to, as the plan writes it (optional); control: the control it sits on (optional)
           fields: what the check looks at, each {id, label, kind: "text"|"number"|"time"|"flag", options: [texts the logic compares with] (text only),
               from: the evidence it comes from, column: the evidence column}
           settings: what a person can change, each {id, label, kind: "number"|"text", default, unit: "minute"|"hour"|"day"|"week"}
+          columns: ALWAYS fill this in when you know the evidence's columns: the columns of the evidence the check reads that its logic does not use (yet), so a
+              person can bring one in, up to 40 (for example the email, the user type or a created date next to the ones the check tests), each
+              {name: the column's name, kind: "text"|"number"|"time"|"flag", from: the evidence it is in, about: what it holds}. List only columns you know from the
+              rule's README, the design or a run; never guess one.
           applies_to: a condition that picks the records checked; every other record is skipped (optional)
           cases: 1 to 12, TRIED IN ORDER, the first whose `when` fits gives the result; the last may omit `when` (otherwise). Each {when, verdict:
               "COMPLIANT"|"NON_COMPLIANT"|"NOT_APPLICABLE", code, reason}
