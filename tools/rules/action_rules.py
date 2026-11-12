@@ -1264,7 +1264,8 @@ async def get_assessment_run_details(
                 "assessmentRunId": assessment_run_id,
                 "assessmentId": assessment_id,
                 "controls": controls,
-                "assessmentRunStatus": run_status
+                "assessmentRunStatus": run_status,
+                "ui-url": f"{utils.get_assessment_run_details_ui_url(assessment_run_id)}"
             },
         }
 
