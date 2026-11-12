@@ -1194,6 +1194,20 @@ async def get_assessment_run_details(
         if err:
             return err
 
+        # getting plan instance details
+        
+        planinstance_url = (
+            f"{constants.URL_PLAN_INSTANCES}/{assessment_run_id}"
+        )
+        output = await utils.make_GET_API_call_to_CCow(planinstance_url, ctx=ctx)
+        logger.debug(
+            "get_all_recent_run_details plan instance output: {}\n".format(
+                json.dumps(output) if isinstance(output, (dict, list)) else output
+            )
+        )
+
+        run_status = output.get("status") if isinstance(output, dict) else None
+
         output, error = await get_assessment_run_controls(
             ctx,
             assessment_run_id,
@@ -1250,6 +1264,7 @@ async def get_assessment_run_details(
                 "assessmentRunId": assessment_run_id,
                 "assessmentId": assessment_id,
                 "controls": controls,
+                "assessmentRunStatus": run_status
             },
         }
 
