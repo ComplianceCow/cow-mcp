@@ -339,6 +339,8 @@ def get_ui_url(ui_path: str) -> str:
 def get_assessment_details_ui_url(assessment_id: str) -> str:
     return get_ui_url(f"ui/assessment-controls/{assessment_id}")
 
+def get_assessment_run_details_ui_url(assessment_run_id: str) -> str:
+    return get_ui_url(f"ui/plan-run-details/{assessment_run_id}")
 
 def get_workflow_config_ui_url(workflow_id: str) -> str:
     return get_ui_url(f"ui/workflow-config/{workflow_id}")
