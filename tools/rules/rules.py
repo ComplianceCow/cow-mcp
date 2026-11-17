@@ -7,6 +7,7 @@ import mimetypes
 import os
 import traceback
 import uuid
+from copy import deepcopy
 from datetime import datetime
 from pathlib import Path
 from typing import Any, Optional, get_type_hints
@@ -9705,3 +9706,596 @@ async def create_control_l2(
         logger.error(traceback.format_exc())
         logger.error(f"create_control_l2 error: {e}\n")
         return {"success": False, "error": f"Unexpected error creating control: {e}"}
+
+
+if constants.ENABLE_CCOW_API_TOOLS:
+    @mcp.tool(annotations=utils.tool_annotations('Attach Rule with Control Inputs', read_only=False))
+    async def attach_rule_with_inputs(
+        rule_id: str,
+        assessment_name: str,
+        control_id: str,
+        input_values: dict[str, dict[str, Any]] | None = None,
+        create_evidence: bool = True,
+        dry_run: bool = False,
+        pending_dependency_inputs: list[str] | None = None,
+        evidence_name: str | None = None,
+        ctx: Context | None = None,
+    ) -> dict[str, Any]:
+        """Attach an existing published rule with safe, control-specific input mappings.
+
+        Omitted inputs use rule defaults on first attachment. Every assessment-sourced
+        input has its own <input_name>_<control_displayable> key and explicit mapping.
+        Existing independent mappings and values are preserved on retries.
+        input_values contains only overrides: {"value": 14}, raw text files with
+        file_name, or {"use_rule_default": true} to reset an existing value.
+        Empty file overrides clear the stored value. Optional empty
+        defaults remain empty. Declare dependency inputs separately; empty values do
+        not establish dependencies. Required missing values return needs_input.
+
+        Args:
+            rule_id: Existing published tenant rule UUID, not a name or catalog ID.
+            assessment_name: Exact assessment name used to verify control membership.
+            control_id: Target leaf control UUID.
+            input_values: Overrides keyed by exact rule input name. Omit unchanged defaults.
+            create_evidence: Request automatic evidence on first attachment (default True).
+            evidence_name: Optional evidence template name; requires create_evidence=True.
+            dry_run: Validate and preview without writing (default False).
+            pending_dependency_inputs: Inputs supplied by later control-output dependencies.
+
+        Returns:
+            dict[str, Any]:
+                needs_input - lists all conflicts without writing. Resubmit only known choices.
+                ready is a read-only preview. attached/unchanged includes verified mappings.
+                A different attached rule is rejected; this tool does not replace rules.
+                partial_failure means a write may have occurred: inspect inputs before retrying.
+                Automatic evidence is requested, not execution-verified. Pending dependencies
+                must be configured and verified before the assessment runs.
+        """
+        write_started = False
+        try:
+            if evidence_name is not None:
+                evidence_name = evidence_name.strip()
+                if not evidence_name:
+                    return {
+                        'success': False,
+                        'status': 'invalid_request',
+                        'error': 'evidence_name cannot be empty',
+                    }
+                if not create_evidence:
+                    return {
+                        'success': False,
+                        'status': 'invalid_request',
+                        'error': 'evidence_name requires create_evidence=True',
+                    }
+            uuid.UUID(rule_id)
+            uuid.UUID(control_id)
+            control_url = f'{constants.URL_PLAN_CONTROLS}/{control_id}'
+            target_control = await rule.request_rule_input_api(control_url, ctx=ctx)
+            if (
+                target_control.get('leafControl') is False
+                or target_control.get('planControls')
+            ):
+                return {
+                    'success': False,
+                    'status': 'invalid_request',
+                    'error': 'Control must be the requested leaf control',
+                }
+            assessment_id = target_control.get('planId') or target_control.get('assessmentId')
+            if not assessment_id:
+                return {
+                    'success': False,
+                    'status': 'invalid_request',
+                    'error': 'Control has no assessment',
+                }
+            assessment = await rule.request_rule_input_api(f'{constants.URL_PLANS}/{assessment_id}', ctx=ctx)
+            if assessment.get('name') != assessment_name:
+                return {
+                    'success': False,
+                    'status': 'invalid_request',
+                    'error': 'Control does not belong to the named assessment',
+                }
+            if target_control.get('ruleId') and target_control['ruleId'] != rule_id:
+                return {
+                    'success': False,
+                    'status': 'invalid_request',
+                    'error': 'A different rule is already attached',
+                }
+            published_rule = await rule.get_published_rule(rule_id, ctx)
+            rule_inputs = published_rule.get('ruleInputs') or {}
+            assessment_inputs, file_uploads, input_bindings, input_conflicts = await rule.build_control_input_plan(
+                assessment,
+                target_control,
+                rule_inputs or {},
+                input_values or {},
+                pending_dependency_inputs or [],
+                ctx,
+            )
+            if input_conflicts:
+                return {
+                    'success': False,
+                    'status': 'needs_input',
+                    'changed': False,
+                    'conflicts': input_conflicts,
+                }
+            if dry_run:
+                return {
+                    'success': True,
+                    'status': 'ready',
+                    'changed': False,
+                    'bindings': input_bindings,
+                }
+            copy_file_keys = {
+                binding['assessment_input_key']
+                for binding in input_bindings
+                if str(rule_inputs[binding['input_name']].get('type', '')).lower() == 'file'
+                and (
+                    target_control.get('ruleId') != rule_id
+                    or (input_values or {}).get(binding['input_name'], {}).get('use_rule_default') is True
+                )
+            }
+            write_started = bool(
+                file_uploads or copy_file_keys
+                or assessment_inputs != (assessment.get('inputs') or {})
+            )
+            saved_input_keys = await rule.save_assessment_input_changes(
+                assessment,
+                assessment_inputs,
+                file_uploads,
+                ctx,
+                copy_file_keys=copy_file_keys,
+            )
+            if target_control.get('ruleId') != rule_id:
+                latest_control = await rule.request_rule_input_api(control_url, ctx=ctx)
+                if latest_control.get('ruleId') not in (target_control.get('ruleId'), rule_id):
+                    return {
+                        'success': False,
+                        'status': 'partial_failure' if write_started else 'invalid_request',
+                        'error': 'Attached rule changed; inspect the control before retrying',
+                    }
+                write_started = True
+                attach_payload = {
+                    'ruleId': rule_id,
+                    'createEvidence': create_evidence,
+                    'addAllAssessmentUserInputsWithValues': False,
+                    'AddAsAssessmentUserInput': False,
+                }
+                await rule.request_rule_input_api(
+                    f'{control_url}/link-rule',
+                    'POST',
+                    attach_payload,
+                    ctx,
+                )
+            verified_control = await rule.request_rule_input_api(control_url, ctx=ctx)
+            verified_assessment = await rule.request_rule_input_api(f'{constants.URL_PLANS}/{assessment_id}', ctx=ctx)
+            if verified_control.get('ruleId') != rule_id:
+                return {
+                    'success': False,
+                    'status': 'partial_failure' if write_started else 'invalid_request',
+                    'error': 'Rule attachment could not be verified',
+                }
+            verification_keys = set(saved_input_keys)
+            verification_keys.update(binding['assessment_input_key'] for binding in input_bindings)
+            for input_key in verification_keys:
+                changed_fields = rule.find_assessment_input_differences(
+                    assessment_inputs[input_key],
+                    (verified_assessment.get('inputs') or {}).get(input_key),
+                )
+                if changed_fields:
+                    return {
+                        'success': False,
+                        'status': 'partial_failure' if write_started else 'invalid_request',
+                        'error': f'Input {input_key} verification failed: {', '.join(changed_fields)}',
+                    }
+            evidence_template = None
+            evidence_created = False
+            if evidence_name:
+                evidence_template = await rule.find_rule_evidence(
+                    assessment_id, control_id, evidence_name, ctx,
+                )
+                if evidence_template is None:
+                    write_started = True
+                    evidence_payload = {
+                        'planControlID': control_id,
+                        'reCalculateCompliancePCT': True,
+                        'templateType': 'evidence',
+                        'ownerType': 'user',
+                        'type': 'assign',
+                        'isUploadFlow': True,
+                        'userSelectedComplianceWeight__': 5,
+                        'removeGraphConfigYamlFile': True,
+                        'name': evidence_name,
+                        'description': evidence_name,
+                        'userDefinedSynthesizerName': 'rule_default_synthesizer_card',
+                    }
+                    await rule.request_rule_input_api(
+                        f'{control_url}/evidences', 'POST', evidence_payload, ctx,
+                    )
+                    evidence_template = await rule.find_rule_evidence(
+                        assessment_id, control_id, evidence_name, ctx,
+                    )
+                    if evidence_template is None:
+                        return {
+                            'success': False,
+                            'status': 'partial_failure' if write_started else 'invalid_request',
+                            'error': 'Created evidence template could not be verified',
+                        }
+                    evidence_created = True
+            result = {
+                'success': True,
+                'status': 'attached' if write_started else 'unchanged',
+                'verified': True,
+                'bindings': input_bindings,
+                'pending_dependencies': pending_dependency_inputs or [],
+                'evidence_requested': evidence_created or (create_evidence and target_control.get('ruleId') != rule_id),
+            }
+            if evidence_template is not None:
+                result['evidence_template'] = {
+                    'id': evidence_template['id'],
+                    'name': evidence_name,
+                    'created': evidence_created,
+                    'verified': True,
+                }
+            return result
+        except (ValueError, TypeError, KeyError, IndexError, UnicodeError) as error:
+            logger.exception("attach_rule_with_inputs failed")
+            return {
+                'success': False,
+                'status': 'partial_failure' if write_started else 'invalid_request',
+                'error': str(error),
+            }
+        except Exception as error:
+            logger.exception("attach_rule_with_inputs failed unexpectedly")
+            return {
+                'success': False,
+                'status': 'partial_failure' if write_started else 'invalid_request',
+                'error': 'Unable to complete the rule attachment. Please inspect the current state before retrying.',
+            }
+
+
+    @mcp.tool(annotations=utils.tool_annotations('Save Rule Assessment Input', read_only=False))
+    async def save_rule_assessment_input(
+        assessment_id: str,
+        input_key: str,
+        value: Any,
+        input_type: str = 'string',
+        file_name: str = '',
+        allow_shared_update: bool = False,
+        ctx: Context | None = None,
+        control_id: str | None = None,
+    ) -> dict[str, Any]:
+        """Create or update a stored assessment value while preserving its control mappings.
+
+        Args:
+            assessment_id: Assessment plan UUID.
+            input_key: Assessment input key normally; exact attached rule input name
+                when control_id is supplied. The returned input_key is the stored key.
+            value: Typed JSON value, or raw UTF-8 file content when input_type=file.
+            input_type: string, bool, integer, float, file, jq_expression or sql_expression.
+            file_name: Required for non-empty file content; ignored for scalar inputs.
+            allow_shared_update: Set True only for an assessment-wide shared-key update.
+                This does not allow changing other controls in control_id mode.
+            control_id: Optional leaf control UUID in this assessment. Requires an attached
+                published rule and matching input_type. Saves <input_key>_<displayable>
+                and its mapping; existing independent keys are reused. Other controls are preserved.
+
+        Returns:
+            dict[str, Any]:
+                Returns verified success, or an error. partial_failure means a write may have
+                occurred; inspect the assessment inputs before retrying. Existing types cannot
+                change. With control_id, saves an independent value for one input of the
+                already-attached rule. Each changed key is patched separately. File uploads use an empty input, then
+                update-input, then a final file-reference patch on that same key. Rule
+                default files are copied by hash; raw text overrides are uploaded as provided.
+                Empty file content clears the stored value without calling update-input.
+                A failed upload can leave the selected input empty until a successful retry.
+                This call waits for saving and verification, then returns the final result.
+        """
+        assessment_input_key = input_key
+        write_started = False
+        try:
+            if not assessment_input_key.strip():
+                return {
+                    'success': False,
+                    'status': 'invalid_request',
+                    'error': 'input_key is required',
+                }
+            uuid.UUID(assessment_id)
+            assessment = await rule.request_rule_input_api(f'{constants.URL_PLANS}/{assessment_id}', ctx=ctx)
+            assessment_inputs = deepcopy(assessment.get('inputs') or {})
+            rule_input_name = assessment_input_key
+            target_control = None
+            if control_id:
+                uuid.UUID(control_id)
+                control_url = f'{constants.URL_PLAN_CONTROLS}/{control_id}'
+                target_control = await rule.request_rule_input_api(control_url, ctx=ctx)
+                if (
+                    (target_control.get('planId') or target_control.get('assessmentId'))
+                    != assessment_id
+                    or target_control.get('leafControl') is False
+                    or target_control.get('planControls')
+                ):
+                    return {
+                        'success': False,
+                        'status': 'invalid_request',
+                        'error': 'Control must be a leaf in the specified assessment',
+                    }
+                attached_rule_id = target_control.get('ruleId')
+                if not attached_rule_id:
+                    return {
+                        'success': False,
+                        'status': 'invalid_request',
+                        'error': 'Control has no attached rule',
+                    }
+                published_rule = await rule.get_published_rule(attached_rule_id, ctx)
+                rule_input = (published_rule.get('ruleInputs') or {}).get(rule_input_name)
+                if not isinstance(rule_input, dict):
+                    return {
+                        'success': False,
+                        'status': 'invalid_request',
+                        'error': 'Input does not exist on the attached published rule',
+                    }
+                if rule_input_name in (target_control.get('dependedInputs') or {}):
+                    return {
+                        'success': False,
+                        'status': 'invalid_request',
+                        'error': 'Input is supplied by a control-output dependency',
+                    }
+                if str(rule_input.get('type', '')).lower() != input_type.lower():
+                    return {
+                        'success': False,
+                        'status': 'invalid_request',
+                        'error': 'input_type must match the attached rule input type',
+                    }
+                input_choice = {'value': value}
+                if input_type.lower() == 'file':
+                    input_choice['file_name'] = file_name
+                assessment_inputs, _, input_bindings, input_conflicts = await rule.build_control_input_plan(
+                    assessment,
+                    target_control,
+                    {rule_input_name: rule_input},
+                    {rule_input_name: input_choice},
+                    [],
+                    ctx,
+                )
+                if input_conflicts:
+                    return {'success': False, 'status': 'needs_input', 'conflicts': input_conflicts}
+                assessment_input_key = input_bindings[0]['assessment_input_key']
+                input_definition = assessment_inputs[assessment_input_key]
+            else:
+                input_definition = deepcopy(
+                    (
+                        assessment_inputs.get(assessment_input_key)
+                        or {'type': input_type.lower(), 'controlInputsMapping': []}
+                    ),
+                )
+            if str(input_definition.get('type', '')).lower() != input_type.lower():
+                return {
+                    'success': False,
+                    'status': 'invalid_request',
+                    'error': 'Cannot change an existing input type',
+                }
+            consumer_controls = {
+                str(mapping['cowDisplayable'])
+                for mapping in input_definition.get('controlInputsMapping') or []
+                if mapping.get('cowDisplayable') is not None
+            }
+            if len(consumer_controls) > 1 and not allow_shared_update:
+                return {
+                    'success': False,
+                    'status': 'needs_input',
+                    'affected_controls': sorted(consumer_controls),
+                }
+            file_uploads = {}
+            if input_type.lower() == 'file':
+                if not isinstance(value, str):
+                    return {
+                        'success': False,
+                        'status': 'invalid_request',
+                        'error': 'Files require raw text',
+                    }
+                if value and (not isinstance(file_name, str) or not file_name.strip()):
+                    return {
+                        'success': False,
+                        'status': 'invalid_request',
+                        'error': 'Non-empty files require file_name',
+                    }
+                file_uploads[assessment_input_key] = (value, file_name)
+            else:
+                rule.validate_rule_input_value(value, input_type, input_definition.get('allowedValues'))
+            input_definition['defaultvalue'] = value if not file_uploads else ''
+            assessment_inputs[assessment_input_key] = input_definition
+            if target_control and await rule.request_rule_input_api(control_url, ctx=ctx) != target_control:
+                return {
+                    'success': False,
+                    'status': 'invalid_request',
+                    'error': 'Control changed; refresh before retrying',
+                }
+            write_started = True
+            await rule.save_assessment_input_changes(assessment, assessment_inputs, file_uploads, ctx)
+            save_result = {
+                'success': True,
+                'verified': True,
+                'input_key': assessment_input_key,
+            }
+            if target_control:
+                if await rule.request_rule_input_api(control_url, ctx=ctx) != target_control:
+                    return {
+                        'success': False,
+                        'status': 'partial_failure' if write_started else 'invalid_request',
+                        'error': 'Control changed during input update; inspect its mappings',
+                    }
+                save_result.update(control_id=control_id, rule_input_name=rule_input_name)
+            return save_result
+        except (ValueError, TypeError, KeyError, IndexError, UnicodeError) as error:
+            logger.exception("save_rule_assessment_input failed")
+            return {
+                'success': False,
+                'status': 'partial_failure' if write_started else 'invalid_request',
+                'error': str(error),
+            }
+        except Exception as error:
+            logger.exception("save_rule_assessment_input failed unexpectedly")
+            return {
+                'success': False,
+                'status': 'partial_failure' if write_started else 'invalid_request',
+                'error': 'Unable to save the assessment input. Please inspect the current state before retrying.',
+            }
+
+
+    @mcp.tool()
+    async def reconcile_plan_instance(
+        assessment_id: str,
+        use_default_config: bool = True,
+        control_ids: list[str] | None = None,
+        ctx: Context | None = None,
+    ) -> dict[str, Any]:
+        """Check an assessment plan for missing inputs and application configuration issues.
+
+        Args:
+            assessment_id: Assessment plan UUID, not an assessment run ID.
+            use_default_config: Use the platform's default reconciliation configuration.
+            control_ids: Optional control UUIDs to check. Omit or pass [] to check all controls.
+
+        Returns:
+            The complete platform report: planId, controlsChecked, checksRun,
+            checksSkipped, findings, summary, warnings, and ready. A report with
+            ready=False is a completed check with issues, not a request failure.
+        """
+        try:
+            uuid.UUID(assessment_id)
+            for control_id in control_ids or []:
+                uuid.UUID(control_id)
+
+            payload = {
+                "planId": assessment_id,
+                "useDefaultConfig": use_default_config,
+                "controlIds": control_ids if control_ids is not None else [],
+            }
+            response = await utils.make_API_call_to_CCow_and_get_response(
+                f"{constants.URL_PLAN_INSTANCES}/reconcile", "POST", payload, ctx=ctx
+            )
+            error = utils.handle_error_response(response, "reconcile_plan_instance")
+            if error:
+                return error
+            if not isinstance(response, dict) or not response:
+                return {"success": False, "error": "Invalid reconciliation response from the platform."}
+            return response
+        except (ValueError, TypeError, AttributeError):
+            return {"success": False, "error": "assessment_id and control_ids must be valid UUIDs."}
+        except Exception:
+            logger.exception("reconcile_plan_instance failed")
+            return {"success": False, "error": "Unable to reconcile the assessment plan. Please retry or contact support."}
+
+
+    @mcp.tool(annotations=utils.tool_annotations('Inspect Rule Assessment Inputs', read_only=True))
+    async def inspect_rule_assessment_inputs(
+        assessment_id: str,
+        ctx: Context | None = None,
+    ) -> dict[str, Any]:
+        """Inspect assessment values and their control mappings without changing anything.
+
+        Args:
+            assessment_id: Assessment plan UUID, not an assessment run ID.
+
+        Returns:
+            dict[str, Any]:
+                Returns input keys, types, scalar values or file references, and control mappings.
+                File content is excluded; use read_rule_input_file to inspect a configuration.
+        """
+        try:
+            uuid.UUID(assessment_id)
+            assessment = await rule.request_rule_input_api(f'{constants.URL_PLANS}/{assessment_id}', ctx=ctx)
+            assessment_inputs = deepcopy(assessment.get('inputs') or {})
+            for input_definition in assessment_inputs.values():
+                if (
+                    str(input_definition.get('type', '')).lower() == 'file'
+                    and isinstance(input_definition.get('defaultvalue'), dict)
+                ):
+                    input_definition['defaultvalue'].pop('FileContent', None)
+            return {
+                'success': True,
+                'assessment_id': assessment_id,
+                'inputs': assessment_inputs,
+            }
+        except (ValueError, TypeError, KeyError) as error:
+            logger.exception("inspect_rule_assessment_inputs failed")
+            return {'success': False, 'error': str(error)}
+        except Exception as error:
+            logger.exception("inspect_rule_assessment_inputs failed unexpectedly")
+            return {
+                'success': False,
+                'error': 'Unable to inspect assessment inputs. Please retry or contact support.',
+            }
+
+
+    @mcp.tool(annotations=utils.tool_annotations('Get Rule Default Inputs', read_only=True))
+    async def get_rule_default_inputs(
+        rule_id: str,
+        ctx: Context | None = None,
+    ) -> dict[str, Any]:
+        """
+        Get default input definitions from an existing published CC rule.
+
+        Args:
+            rule_id: Published rule UUID.
+
+        Returns:
+            dict:
+                - success: Whether the request succeeded.
+                - rule_id: Requested rule UUID.
+                - rule_name: Published rule name.
+                - inputs: Input definitions, including defaults and file metadata.
+                - error: Error message when the request fails.
+        """
+        try:
+            uuid.UUID(rule_id)
+
+            published_rule = await rule.get_published_rule(rule_id, ctx)
+            rule_inputs = published_rule.get("ruleInputs") or {}
+
+            return {
+                "success": True,
+                "rule_id": rule_id,
+                "rule_name": published_rule.get("name", ""),
+                "inputs": deepcopy(rule_inputs),
+            }
+
+        except ValueError as error:
+            logger.exception("get_rule_default_inputs failed")
+            return {"success": False, "error": str(error)}
+        except Exception:
+            logger.exception("get_rule_default_inputs failed unexpectedly")
+            return {
+                "success": False,
+                "error": "Unable to get rule default inputs. Please retry or contact support.",
+            }
+
+
+    @mcp.tool(annotations=utils.tool_annotations('Read Rule Input File', read_only=True))
+    async def read_rule_input_file(file_hash: str, ctx: Context | None = None) -> dict[str, Any]:
+        """Read a configuration file using its stored FileHash.
+
+        Args:
+            file_hash: FileHash from a rule or assessment file reference, not an etag.
+
+        Returns:
+            dict[str, Any]:
+                Returns decoded UTF-8 content and file_name. Errors do not return empty content.
+                Supply the decoded text when saving a changed configuration; do not send Base64.
+        """
+        try:
+            downloaded_file = await rule.download_rule_input_file(file_hash, ctx)
+            return {
+                'success': True,
+                'file_name': downloaded_file['file_name'],
+                'content': downloaded_file['content'],
+            }
+        except (ValueError, TypeError, KeyError, IndexError, UnicodeError) as error:
+            logger.exception("read_rule_input_file failed")
+            return {'success': False, 'error': str(error)}
+        except Exception as error:
+            logger.exception("read_rule_input_file failed unexpectedly")
+            return {
+                'success': False,
+                'error': 'Unable to read the input file. Please retry or contact support.',
+            }

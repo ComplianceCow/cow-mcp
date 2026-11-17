@@ -2,6 +2,9 @@ from mcptypes.exception import CCowExceptionVO
 import base64
 import csv
 import json
+import math
+import uuid
+from copy import deepcopy
 import re
 from datetime import datetime
 from io import BytesIO, StringIO
@@ -15,7 +18,7 @@ from ruamel.yaml import YAML
 
 import mcptypes.rule_type as vo
 from constants import constants
-from utils import rule, wsutils
+from utils import rule, utils, wsutils
 from utils.debug import logger
 from fastmcp import Context
 
@@ -1450,3 +1453,506 @@ def fetch_action_rules_api(params: dict[str, Any] = None, include_read_me: bool 
             has_next = False
 
     return combined_rules
+
+
+# Input planning, per-key persistence and read-back verification.
+
+async def get_published_rule(rule_id: str, ctx: Context | None) -> dict[str, Any]:
+    """Read one published rule and validate its input definitions once."""
+    rule_url = constants.URL_GET_CC_RULE_BY_ID.replace('{id}', rule_id)
+    published_rule = await request_rule_input_api(rule_url, ctx=ctx)
+    if 'items' in published_rule:
+        rule_items = published_rule['items']
+        if not isinstance(rule_items, list):
+            raise ValueError('Published rule items must be a list')
+        if not rule_items:
+            raise ValueError('Published rule was not found')
+        published_rule = rule_items[0]
+    if not isinstance(published_rule, dict) or 'ruleInputs' not in published_rule:
+        raise ValueError('Published rule input definitions are missing')
+    rule_inputs = published_rule['ruleInputs']
+    if rule_inputs is not None and not isinstance(rule_inputs, dict):
+        raise ValueError('Published rule input definitions must be an object')
+    return published_rule
+
+
+async def build_control_input_plan(
+    assessment: dict[str, Any],
+    target_control: dict[str, Any],
+    rule_inputs: dict[str, Any],
+    input_choices: dict[str, dict[str, Any]],
+    pending_dependency_inputs: list[str],
+    ctx: Context | None,
+) -> tuple[dict[str, Any], dict[str, tuple[str, str]], list[dict[str, Any]], list[dict[str, Any]]]:
+    """Use defaults for new control inputs and preserve existing values on retries."""
+    if set(input_choices) - rule_inputs.keys() or set(pending_dependency_inputs) - rule_inputs.keys():
+        raise ValueError('Unknown rule input name')
+    assessment_inputs = deepcopy(assessment.get('inputs') or {})
+    input_bindings = []
+    input_conflicts = []
+    file_uploads = {}
+    control_displayable = str(target_control.get('displayable') or target_control.get('alias') or '')
+    if not control_displayable:
+        raise ValueError('Control displayable is missing')
+
+    for rule_input_name, rule_input in rule_inputs.items():
+        if not isinstance(rule_input, dict):
+            raise ValueError(f'{rule_input_name}: invalid rule input definition')
+
+        def matches_target_input(mapping):
+            return (
+                str(mapping.get('cowDisplayable', '')) == control_displayable
+                and mapping.get('cowControlInputName') == rule_input_name
+            )
+
+        mapped_input_keys = [
+            key for key, definition in assessment_inputs.items()
+            if any(matches_target_input(mapping) for mapping in definition.get('controlInputsMapping') or [])
+        ]
+        input_choice = input_choices.get(rule_input_name)
+        if (
+            rule_input_name in (target_control.get('dependedInputs') or {})
+            or rule_input_name in pending_dependency_inputs
+        ):
+            if mapped_input_keys or input_choice is not None:
+                input_conflicts.append({
+                    'input_name': rule_input_name,
+                    'reason': 'competing_control_dependency',
+                })
+            continue
+        if len(mapped_input_keys) > 1:
+            input_conflicts.append({
+                'input_name': rule_input_name,
+                'reason': 'multiple_bindings',
+                'keys': mapped_input_keys,
+            })
+            continue
+
+        assessment_input_key = f'{rule_input_name}_{control_displayable}'
+        previous_input = assessment_inputs.get(mapped_input_keys[0]) if mapped_input_keys else None
+        if previous_input and mapped_input_keys[0] != rule_input_name:
+            mappings = previous_input.get('controlInputsMapping') or []
+            if all(matches_target_input(mapping) for mapping in mappings):
+                assessment_input_key = mapped_input_keys[0]  # Keep existing independent keys, including __ keys.
+        existing_input = assessment_inputs.get(assessment_input_key)
+        if existing_input is not None:
+            mappings = existing_input.get('controlInputsMapping') or []
+            if not mappings or any(not matches_target_input(mapping) for mapping in mappings):
+                raise ValueError(f'{rule_input_name}: assessment input key belongs to another binding')
+
+        input_type = str(rule_input.get('type', '')).lower()
+        if existing_input and str(existing_input.get('type', '')).lower() != input_type:
+            raise ValueError(f'{rule_input_name}: cannot change an existing input type')
+        input_value = rule_input.get('defaultvalue')
+        if input_type == 'file':
+            if not isinstance(input_value, dict) or not input_value.get('FileHash'):
+                input_value = rule_input.get('fileMeta')
+            if isinstance(input_value, dict) and input_value.get('FileHash'):
+                input_value = {
+                    'FileHash': input_value['FileHash'],
+                    'FileName': input_value.get('FileName'),
+                    'FileContent': None,
+                }
+            else:
+                input_value = ''
+        default_value = deepcopy(input_value)
+        if target_control.get('ruleId') and previous_input is not None:
+            input_value = previous_input.get('defaultvalue')
+
+        file_upload = None
+        if input_choice is not None:
+            if not isinstance(input_choice, dict):
+                raise ValueError(f'{rule_input_name}: input override must be an object')
+            choice_fields = set(input_choice) & {'value', 'use_rule_default'}
+            if len(choice_fields) != 1 or set(input_choice) - {'value', 'use_rule_default', 'file_name'}:
+                raise ValueError(f'{rule_input_name}: choose value or use_rule_default')
+            if 'use_rule_default' in input_choice:
+                if input_choice['use_rule_default'] is not True:
+                    raise ValueError(f'{rule_input_name}: use_rule_default must be true')
+                input_value = deepcopy(default_value)
+            else:
+                input_value = input_choice['value']
+                if input_type == 'file':
+                    file_name = input_choice.get('file_name', '')
+                    if not isinstance(input_value, str):
+                        raise ValueError(f'{rule_input_name}: file overrides require raw text')
+                    if input_value and (not isinstance(file_name, str) or not file_name.strip()):
+                        raise ValueError(f'{rule_input_name}: non-empty files require file_name')
+                    file_upload = (input_value, file_name)
+
+        empty_value = input_value is None or input_value == ''
+        explicit_empty_file = file_upload is not None and input_value == ''
+        preserved_empty_file = previous_input is not None and input_choice is None and input_type == 'file'
+        if empty_value:
+            if rule_input.get('isrequired') and not explicit_empty_file and not preserved_empty_file:
+                input_conflicts.append({'input_name': rule_input_name, 'reason': 'value_required_or_invalid', 'type': input_type})
+                continue
+            if input_type == 'file':
+                input_value = ''
+        elif file_upload is None:
+            try:
+                validate_rule_input_value(input_value, input_type, rule_input.get('allowedValues'))
+            except ValueError:
+                input_conflicts.append({'input_name': rule_input_name, 'reason': 'value_required_or_invalid', 'type': input_type})
+                continue
+
+        target_mapping = {
+            'cowDisplayable': control_displayable,
+            'cowControlInputName': rule_input_name,
+        }
+        if existing_input:
+            target_mapping = deepcopy(existing_input['controlInputsMapping'][0])
+        for source_input in assessment_inputs.values():
+            if source_input.get('controlInputsMapping'):
+                source_input['controlInputsMapping'] = [
+                    mapping for mapping in source_input['controlInputsMapping']
+                    if not matches_target_input(mapping)
+                ]
+        input_definition = deepcopy(existing_input if existing_input is not None else rule_input)
+        input_definition.pop('name', None)
+        input_definition.pop('fileMeta', None)
+        input_definition['type'] = input_type
+        input_definition['defaultvalue'] = '' if file_upload is not None else input_value
+        input_definition['controlInputsMapping'] = [target_mapping]
+        assessment_inputs[assessment_input_key] = input_definition
+        if file_upload is not None:
+            file_uploads[assessment_input_key] = file_upload
+        input_bindings.append({
+            'input_name': rule_input_name,
+            'assessment_input_key': assessment_input_key,
+            'control': control_displayable,
+        })
+    return assessment_inputs, file_uploads, input_bindings, input_conflicts
+
+
+async def save_assessment_input_changes(
+    assessment: dict[str, Any],
+    assessment_inputs: dict[str, Any],
+    file_uploads: dict[str, tuple[str, str]],
+    ctx: Context | None,
+    copy_file_keys: set[str] | None = None,
+) -> list[str]:
+    """Save changed keys individually; initialize file values with an empty input first."""
+    assessment_url = f"{constants.URL_PLANS}/{assessment['id']}"
+    original_inputs = deepcopy(assessment.get('inputs') or {})
+    saved_input_keys = []
+    copy_file_keys = copy_file_keys or set()
+
+    for input_key, planned_input in assessment_inputs.items():
+        if (
+            input_key not in file_uploads
+            and input_key not in copy_file_keys
+            and planned_input == original_inputs.get(input_key)
+        ):
+            continue
+        current_assessment = await request_rule_input_api(assessment_url, ctx=ctx)
+        current_inputs = current_assessment.get('inputs') or {}
+        current_input = current_inputs.get(input_key)
+        if (
+            (input_key in current_inputs) != (input_key in original_inputs)
+            or find_assessment_input_differences(original_inputs.get(input_key), current_input)
+        ):
+            raise ValueError(f'Input {input_key} changed; refresh before retrying')
+
+        input_definition = deepcopy(planned_input)
+        if input_key not in original_inputs:
+            input_definition = {
+                'template': None,
+                'isrequired': True,
+                'showfieldinui': True,
+                'format': '',
+                'description': '',
+                'allowedValues': None,
+                'controlInputsMapping': [],
+                **input_definition,
+            }
+        requested_file = input_definition.get('defaultvalue')
+        copy_default_file = (
+            str(input_definition.get('type', '')).lower() == 'file'
+            and isinstance(requested_file, dict)
+            and bool(requested_file.get('FileHash'))
+            and input_key not in file_uploads
+            and (
+                input_key in copy_file_keys
+                or requested_file != (current_input or {}).get('defaultvalue')
+            )
+        )
+        if input_key in file_uploads or copy_default_file:
+            empty_input = {**input_definition, 'defaultvalue': ''}
+            await patch_assessment_input(assessment_url, input_key, empty_input, ctx)
+            if copy_default_file:
+                file_reference = await copy_rule_input_file(
+                    assessment['id'], input_key, requested_file['FileHash'], ctx,
+                )
+            else:
+                file_content, file_name = file_uploads[input_key]
+                file_reference = await upload_rule_input_file(
+                    assessment['id'], input_key, file_content.encode('utf-8'), file_name, ctx,
+                )
+            current_assessment = await request_rule_input_api(assessment_url, ctx=ctx)
+            current_input = (current_assessment.get('inputs') or {}).get(input_key)
+            if (
+                find_assessment_input_differences(empty_input, current_input)
+                and find_assessment_input_differences(
+                    {**empty_input, 'defaultvalue': file_reference}, current_input,
+                )
+            ):
+                raise ValueError(f'Input {input_key} changed during upload; inspect it before retrying')
+            if file_reference:
+                validate_rule_input_value(file_reference, 'file', input_definition.get('allowedValues'))
+            input_definition['defaultvalue'] = file_reference
+
+        await patch_assessment_input(assessment_url, input_key, input_definition, ctx)
+        assessment_inputs[input_key] = input_definition
+        original_inputs[input_key] = input_definition
+        saved_input_keys.append(input_key)
+
+    stored_inputs = (await request_rule_input_api(assessment_url, ctx=ctx)).get('inputs') or {}
+    for input_key in saved_input_keys:
+        changed_fields = find_assessment_input_differences(original_inputs[input_key], stored_inputs.get(input_key))
+        if changed_fields:
+            raise ValueError(f'Input {input_key} verification failed: {', '.join(changed_fields)}')
+        assessment_inputs[input_key] = deepcopy(stored_inputs[input_key])
+    return saved_input_keys
+
+
+async def patch_assessment_input(
+    assessment_url: str,
+    input_key: str,
+    input_definition: dict[str, Any],
+    ctx: Context | None,
+) -> None:
+    input_path = '/inputs/' + input_key.replace('~', '~0').replace('/', '~1')
+    patch_operations = [{'op': 'add', 'path': input_path, 'value': input_definition}]
+    await request_rule_input_api(assessment_url, 'PATCH', patch_operations, ctx)
+
+
+def find_assessment_input_differences(
+    expected_input: dict[str, Any] | None,
+    stored_input: dict[str, Any] | None,
+) -> list[str]:
+    """Compare stored input meaning, allowing the backend's empty/default metadata."""
+    if expected_input is None and stored_input is None:
+        return []
+    if not isinstance(stored_input, dict):
+        return ['missing_input']
+    if not isinstance(expected_input, dict):
+        return ['unexpected_input']
+    changed_fields = []
+    metadata_defaults = {
+        'template': None,
+        'isrequired': False,
+        'showfieldinui': False,
+        'format': '',
+        'description': '',
+        'allowedValues': [],
+    }
+    for field, default_value in metadata_defaults.items():
+        expected_value = expected_input.get(field, default_value)
+        stored_value = stored_input.get(field, default_value)
+        if field == 'allowedValues':
+            expected_value = expected_value or []
+            stored_value = stored_value or []
+        if expected_value != stored_value:
+            changed_fields.append(field)
+    input_type = str(expected_input.get('type', '')).lower()
+    if input_type != str(stored_input.get('type', '')).lower():
+        changed_fields.append('type')
+
+    expected_value = expected_input.get('defaultvalue')
+    stored_value = stored_input.get('defaultvalue')
+    if input_type == 'file':
+        for field in ('FileHash', 'FileName'):
+            expected_field_value = expected_value or None
+            stored_field_value = stored_value or None
+            if isinstance(expected_value, dict):
+                expected_field_value = expected_value.get(field)
+            if isinstance(stored_value, dict):
+                stored_field_value = stored_value.get(field)
+            if expected_field_value != stored_field_value:
+                changed_fields.append('defaultvalue.' + field)
+    elif (
+        expected_value != stored_value
+        or (input_type not in ('float', 'number') and type(expected_value) is not type(stored_value))
+    ):
+        changed_fields.append('defaultvalue')
+
+    def input_mapping_routes(input_definition):
+        mapping_routes = []
+        for mapping in input_definition.get('controlInputsMapping') or []:
+            if mapping.get('cowDisplayable'):
+                mapping_fields = ('cowDisplayable', 'cowControlInputName')
+            else:
+                mapping_fields = ('cnControlID', 'cnControlInputName')
+            route = tuple(str(mapping.get(field) or '') for field in mapping_fields)
+            mapping_routes.append(route)
+        return sorted(mapping_routes)
+    if input_mapping_routes(expected_input) != input_mapping_routes(stored_input):
+        changed_fields.append('controlInputsMapping')
+    return changed_fields
+
+
+def validate_rule_input_value(
+    value: Any,
+    input_type: str,
+    allowed_values: list[Any] | None = None,
+) -> None:
+    input_type = input_type.lower()
+    if input_type in ('string', 'text', 'jq_expression', 'sql_expression'):
+        valid_value = isinstance(value, str)
+    elif input_type in ('bool', 'boolean'):
+        valid_value = type(value) is bool
+    elif input_type in ('integer', 'int'):
+        valid_value = type(value) is int
+    elif input_type in ('float', 'number'):
+        valid_value = type(value) is int or (type(value) is float and math.isfinite(value))
+    else:
+        valid_value = (
+            input_type == 'file'
+            and isinstance(value, dict)
+            and value.get('FileHash')
+            and value.get('FileName')
+        )
+    if not valid_value or (allowed_values and value not in allowed_values):
+        raise ValueError(f'Invalid value for input type {input_type}')
+
+
+async def download_rule_input_bytes(
+    file_hash: str,
+    ctx: Context | None,
+) -> tuple[bytes, str]:
+    """Read stored bytes without decoding binary files as text."""
+    if not re.fullmatch('[A-Za-z0-9_-]{1,256}', file_hash):
+        raise ValueError('Invalid file hash')
+    response = await request_rule_input_api(
+        f'{constants.URL_FETCH_FILE_BY_HASH}/{file_hash}', ctx=ctx,
+    )
+    encoded_content = response.get('FileContent')
+    if not isinstance(encoded_content, str):
+        raise ValueError('Downloaded file content is missing or is not Base64 text')
+    file_name = response.get('FileName')
+    if not isinstance(file_name, str) or not file_name.strip():
+        raise ValueError('Downloaded file name is missing')
+    return base64.b64decode(encoded_content, validate=True), file_name
+
+
+async def copy_rule_input_file(
+    assessment_id: str,
+    input_key: str,
+    file_hash: str,
+    ctx: Context | None = None,
+) -> dict[str, Any] | str:
+    """Copy a stored file into an initialized assessment input and return its reference."""
+    file_content, file_name = await download_rule_input_bytes(file_hash, ctx)
+    return await upload_rule_input_file(
+        assessment_id, input_key, file_content, file_name, ctx,
+    )
+
+
+async def upload_rule_input_file(
+    assessment_id: str,
+    input_key: str,
+    file_content: bytes,
+    file_name: str,
+    ctx: Context | None,
+) -> dict[str, Any] | str:
+    """Upload bytes and verify the returned reference. Empty content stays empty."""
+    if not file_content:
+        return ''
+    upload_payload = {
+        'planId': assessment_id,
+        'inputs': {
+            input_key: {
+                'value': base64.b64encode(file_content).decode('ascii'),
+                'fileName': file_name,
+            },
+        },
+    }
+    response = await request_rule_input_api(
+        f'{constants.URL_PLANS}/update-input', 'POST', upload_payload, ctx,
+    )
+    file_reference = ((response.get('inputs') or {}).get(input_key) or {}).get('value')
+    if not isinstance(file_reference, dict):
+        assessment = await request_rule_input_api(
+            f'{constants.URL_PLANS}/{assessment_id}', ctx=ctx,
+        )
+        file_reference = ((assessment.get('inputs') or {}).get(input_key) or {}).get('defaultvalue')
+    validate_rule_input_value(file_reference, 'file')
+    uploaded_content, uploaded_name = await download_rule_input_bytes(file_reference['FileHash'], ctx)
+    if uploaded_content != file_content or uploaded_name != file_name or file_reference['FileName'] != file_name:
+        raise ValueError('Uploaded file failed content verification')
+    return file_reference
+
+
+async def download_rule_input_file(
+    file_hash: str,
+    ctx: Context | None,
+) -> dict[str, str]:
+    file_content, file_name = await download_rule_input_bytes(file_hash, ctx)
+    return {'file_name': file_name, 'content': file_content.decode('utf-8')}
+
+
+async def find_rule_evidence(
+    assessment_id: str,
+    control_id: str,
+    evidence_name: str,
+    ctx: Context | None,
+) -> dict[str, Any] | None:
+    """Find the named template on this control using the existing evidence-list API."""
+    response = await request_rule_input_api(
+        f'{constants.URL_PLANS}/{assessment_id}/fetch-all-evidences', 'POST', ctx=ctx,
+    )
+    evidence_items = response.get('items')
+    if not isinstance(evidence_items, list):
+        raise ValueError('Evidence list could not be read')
+    matching_evidence = [
+        evidence for evidence in evidence_items
+        if evidence.get('planControlId') == control_id and evidence.get('name') == evidence_name
+    ]
+    if len(matching_evidence) > 1:
+        raise ValueError('Multiple evidence templates match this control and name')
+    if matching_evidence:
+        if not matching_evidence[0].get('id'):
+            raise ValueError('Evidence template ID is missing')
+        return matching_evidence[0]
+    return None
+
+
+async def request_rule_input_api(
+    endpoint: str,
+    method: str = 'GET',
+    payload: Any = None,
+    ctx: Context | None = None,
+) -> dict[str, Any]:
+    request_id = uuid.uuid4().hex[:12]
+    method = method.upper()
+    request_details = {
+        'method': method,
+        'url': constants.host + endpoint,
+        'params': payload if method in ('GET', 'DELETE') else None,
+        'body': payload if method not in ('GET', 'DELETE') else None,
+    }
+    logger.debug(
+        '[rule-input-api:%s] REQUEST %s',
+        request_id,
+        json.dumps(request_details, ensure_ascii=False, default=str),
+    )
+    try:
+        response = await utils.make_API_call_to_CCow_and_get_response(endpoint, method, payload, ctx=ctx)
+        logger.debug(
+            '[rule-input-api:%s] RESPONSE %s',
+            request_id,
+            json.dumps(response, ensure_ascii=False, default=str),
+        )
+        invalid_response = not isinstance(response, dict) or response.get('success') is False
+        if invalid_response or utils.handle_error_response(response, 'rule_inputs'):
+            raise ValueError('The platform request failed. Please retry or contact support.')
+        return response
+    except Exception:
+        logger.exception(
+            '[rule-input-api:%s] FAILED %s %s',
+            request_id,
+            method,
+            constants.host + endpoint,
+        )
+        raise ValueError('The platform request failed. Please retry or contact support.') from None
