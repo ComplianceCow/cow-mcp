@@ -7,36 +7,36 @@ from tools.playbook import request_user_input as r
 class Calls:
     """A fake of the platform API that records every call."""
 
-    def __init__(self, register=(201, None), trigger=(201, {"workflowInstanceId": "wf-1"})):
+    def __init__(self, register=(201, None)):
         self.log = []
         self.register = register
-        self.trigger = trigger
 
     async def __call__(self, method, path, body):
         self.log.append((method, path, body))
         if path == r.ASKS_URL:
             status, answer = self.register
-            return status, answer if answer is not None else {"ask_id": "ask-1", "status": "open", "expires_at": "2026-11-19T10:00:00Z", "chat_url": "https://app/c/x"}
-        return self.trigger
+            return status, answer if answer is not None else {"ask_id": "ask-1", "status": "open", "escalation": "started", "expires_at": "2026-11-19T10:00:00Z", "chat_url": "https://app/c/x"}
+        raise AssertionError(f"unexpected call to {path}")
 
 
-def run(question="Which group?", calls=None, session="agent-1", binding="b0b3b0b3-0000-4000-8000-000000000001", **kw):
+def run(question="Which group?", calls=None, session="agent-1", **kw):
     calls = calls or Calls()
-    out = asyncio.run(r.request(question, call=calls, session_id=session, binding_id=binding, **kw))
+    out = asyncio.run(r.request(question, call=calls, session_id=session, **kw))
     return out, calls
 
 
 class Asking(unittest.TestCase):
-    def test_it_registers_the_ask_then_starts_the_workflow(self):
+    def test_it_registers_the_ask_and_reports_that_a_workflow_started(self):
         out, calls = run(wait_minutes=7)
         self.assertEqual(out["success"], True)
         self.assertEqual((out["status"], out["ask_id"], out["escalation"]), ("waiting", "ask-1", "scheduled"))
-        (m1, p1, b1), (m2, p2, b2) = calls.log
-        self.assertEqual((m1, p1), ("POST", r.ASKS_URL))
-        self.assertEqual(b1, {"agent_session_id": "agent-1", "kind": "question", "question": "Which group?", "wait_minutes": 7, "expires_in_hours": 24})
-        self.assertEqual((m2, p2), ("POST", r.BINDING_URL))
-        self.assertEqual(b2, {"workflowBindingId": "b0b3b0b3-0000-4000-8000-000000000001",
-                              "input": {"ask_id": "ask-1", "kind": "question", "wait_minutes": 7, "expires_in_hours": 24}})
+        (method, path, body), = calls.log
+        self.assertEqual((method, path), ("POST", r.ASKS_URL))
+        self.assertEqual(body, {"agent_session_id": "agent-1", "kind": "question", "question": "Which group?", "wait_minutes": 7, "expires_in_hours": 24})
+
+    def test_it_never_calls_the_workflow_service_itself(self):
+        _, calls = run()
+        self.assertEqual([path for _, path, _ in calls.log], [r.ASKS_URL])
 
     def test_options_are_sent_only_when_given(self):
         _, calls = run(kind="approval", options=["Approve", "Reject"])
@@ -44,7 +44,7 @@ class Asking(unittest.TestCase):
         _, calls = run()
         self.assertNotIn("options", calls.log[0][2])
 
-    def test_a_repeat_at_the_same_chat_position_does_not_start_a_second_workflow(self):
+    def test_a_repeat_at_the_same_chat_position_reports_the_first_escalation(self):
         out, calls = run(calls=Calls(register=(200, None)))
         self.assertEqual((out["success"], out["ask_id"], out["escalation"]), (True, "ask-1", "already_scheduled"))
         self.assertEqual(len(calls.log), 1)
@@ -61,7 +61,7 @@ class WhenItCannotRun(unittest.TestCase):
         self.assertEqual(out["success"], False)
         self.assertEqual(calls.log, [])
 
-    def test_a_refused_registration_stops_before_the_workflow(self):
+    def test_a_refused_registration_is_reported_with_the_service_message(self):
         for status, body in ((422, {"code": "INVALID_INPUT", "message": "question is required."}),
                              (404, {"code": "SESSION_NOT_FOUND", "message": "No chat belongs to this session."}),
                              (403, {"code": "NOT_OWNER", "message": "Only the chat owner can use this."}),
@@ -72,19 +72,15 @@ class WhenItCannotRun(unittest.TestCase):
             self.assertEqual(out["error"], body["message"], status)
             self.assertEqual(len(calls.log), 1, status)
 
-    def test_with_no_workflow_configured_the_ask_still_waits_in_the_chat(self):
-        out, calls = run(binding="")
-        self.assertEqual((out["success"], out["status"], out["escalation"]), (True, "waiting", "unavailable"))
-        self.assertEqual(len(calls.log), 1)
-        self.assertIn("End your turn", out["message"])
-
-    def test_a_workflow_that_fails_to_start_does_not_fail_the_ask(self):
-        for trigger in ((500, {}), (0, {"message": "timeout"}), (404, {})):
-            out, _ = run(calls=Calls(trigger=trigger))
-            self.assertEqual((out["success"], out["status"], out["escalation"]), (True, "waiting", "unavailable"), trigger)
+    def test_when_no_workflow_started_the_ask_still_waits_in_the_chat(self):
+        for answer in ({"ask_id": "ask-1", "escalation": "none"}, {"ask_id": "ask-1"}):
+            out, calls = run(calls=Calls(register=(201, answer)))
+            self.assertEqual((out["success"], out["status"], out["escalation"]), (True, "waiting", "unavailable"), answer)
+            self.assertEqual(len(calls.log), 1)
+            self.assertIn("End your turn", out["message"])
 
     def test_nothing_the_model_reads_names_the_agent_host(self):
-        for kwargs in ({}, {"binding": ""}, {"session": ""}, {"calls": Calls(register=(404, {"message": "No chat belongs to this session."}))}):
+        for kwargs in ({}, {"calls": Calls(register=(201, {"ask_id": "a", "escalation": "none"}))}, {"session": ""}, {"calls": Calls(register=(404, {"message": "No chat belongs to this session."}))}):
             out, _ = run(**kwargs)
             self.assertNotIn("goose", str(out).lower())
 

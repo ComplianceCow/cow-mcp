@@ -1,8 +1,8 @@
 """Ask the user something and keep waiting for the answer even when they have left the chat. The ask is registered with the assistant service, which
-remembers where the chat stood, and a workflow is started that asks the user on Slack or Teams if they have not replied after a few minutes."""
+remembers where the chat stood and tells the platform's workflows about it; a workflow the tenant has bound to that event asks the user on Slack or Teams
+if they have not replied after a few minutes."""
 from __future__ import annotations
 
-import os
 from typing import Any, Awaitable, Callable
 
 from fastmcp import Context
@@ -11,9 +11,7 @@ from mcpconfig.config import mcp
 from utils import utils
 
 ASKS_URL = "/v1/assistant-gen-ai/asks"
-BINDING_URL = "/v2/workflow-bindings/execute"
 SESSION_KEY = "agent-session-id"
-BINDING_ENV = "COW_ASK_WORKFLOW_BINDING_ID"
 EXPIRES_IN_HOURS = 24
 
 Call = Callable[[str, str, dict], Awaitable[tuple[int, dict]]]
@@ -52,7 +50,7 @@ def _waiting(ask_id: str, escalation: str, kind: str, wait_minutes: int) -> dict
 
 
 async def request(question: str, kind: str = "question", options: list[str] | None = None, wait_minutes: int = 5, *,
-                  call: Call, session_id: str, binding_id: str) -> dict:
+                  call: Call, session_id: str) -> dict:
     if not session_id:
         return {"success": False, "error": "This can only be used from a chat with the user."}
     body: dict[str, Any] = {"agent_session_id": session_id, "kind": kind, "question": question,
@@ -65,11 +63,7 @@ async def request(question: str, kind: str = "question", options: list[str] | No
     ask_id = answer.get("ask_id", "")
     if status == 200:
         return _waiting(ask_id, "already_scheduled", kind, wait_minutes)
-    if not binding_id:
-        return _waiting(ask_id, "unavailable", kind, wait_minutes)
-    started, _ = await call("POST", BINDING_URL, {"workflowBindingId": binding_id, "input": {
-        "ask_id": ask_id, "kind": kind, "wait_minutes": wait_minutes, "expires_in_hours": EXPIRES_IN_HOURS}})
-    return _waiting(ask_id, "scheduled" if started in (200, 201) else "unavailable", kind, wait_minutes)
+    return _waiting(ask_id, "scheduled" if answer.get("escalation") == "started" else "unavailable", kind, wait_minutes)
 
 
 @mcp.tool()
@@ -90,4 +84,4 @@ async def request_user_input(question: str, kind: str = "question", options: lis
     Returns:
         success, and with it status "waiting", the ask_id and a message saying what to do next (end your turn). With success false, error says why; then just ask in this chat as usual.
     """
-    return await request(question, kind, options, wait_minutes, call=_calling(ctx), session_id=session_id_of(ctx), binding_id=os.environ.get(BINDING_ENV, "").strip())
+    return await request(question, kind, options, wait_minutes, call=_calling(ctx), session_id=session_id_of(ctx))
