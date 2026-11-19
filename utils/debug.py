@@ -3,8 +3,9 @@ import logging
 from logging.handlers import RotatingFileHandler
 
 LOG_FILE_PATH ="/app.log"
-MAX_LOG_FILE_SIZE = 10 * 1024 * 1024
 
+MAX_LOG_FILE_SIZE = int(os.getenv("MAX_LOG_FILE_SIZE", str(10 * 1024 * 1024)))
+BACKUP_COUNT = int(os.getenv("LOG_BACKUP_COUNT", "5"))
 
 current_file_path = __file__
 current_directory = os.path.dirname(os.path.abspath(current_file_path))
@@ -12,7 +13,7 @@ current_directory = os.path.dirname(os.path.abspath(current_file_path))
 file_handler = RotatingFileHandler(
     current_directory+LOG_FILE_PATH,
     maxBytes=MAX_LOG_FILE_SIZE,
-    backupCount=1
+    backupCount=BACKUP_COUNT
 )
 
 logger = logging.getLogger("my_app")
