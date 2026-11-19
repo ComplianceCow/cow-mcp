@@ -10143,7 +10143,7 @@ if constants.ENABLE_CCOW_API_TOOLS:
 
 
     @mcp.tool()
-    async def reconcile_plan_instance(
+    async def check_assessment_readiness(
         assessment_id: str,
         use_default_config: bool = True,
         control_ids: list[str] | None = None,
@@ -10174,7 +10174,7 @@ if constants.ENABLE_CCOW_API_TOOLS:
             response = await utils.make_API_call_to_CCow_and_get_response(
                 f"{constants.URL_PLAN_INSTANCES}/reconcile", "POST", payload, ctx=ctx
             )
-            error = utils.handle_error_response(response, "reconcile_plan_instance")
+            error = utils.handle_error_response(response, "check_assessment_readiness")
             if error:
                 return error
             if not isinstance(response, dict) or not response:
@@ -10183,8 +10183,8 @@ if constants.ENABLE_CCOW_API_TOOLS:
         except (ValueError, TypeError, AttributeError):
             return {"success": False, "error": "assessment_id and control_ids must be valid UUIDs."}
         except Exception:
-            logger.exception("reconcile_plan_instance failed")
-            return {"success": False, "error": "Unable to reconcile the assessment plan. Please retry or contact support."}
+            logger.exception("check_assessment_readiness failed")
+            return {"success": False, "error": "Unable to check assessment readiness. Please retry or contact support."}
 
 
     @mcp.tool(annotations=utils.tool_annotations('Inspect Rule Assessment Inputs', read_only=True))

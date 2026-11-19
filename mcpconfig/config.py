@@ -134,7 +134,7 @@ def get_cc_headers(ctx: Optional[Context]) -> Optional[dict[str, str]]:
 
     cc_headers.setdefault("X-CALLER", "mcp_server-user_intent")
 
-    # Log header names only — values contain auth tokens / secrets.
-    logger.debug(f"[get_cc_headers] returning header keys: {list(cc_headers.keys())}")
+    # Temporary header debugging
+    logger.debug("[get_cc_headers] returning headers: %s", cc_headers)
 
     return cc_headers
