@@ -7390,9 +7390,10 @@ if constants.ENABLE_RULE_CREATION_TASK_CHAIN_PROCESS:
                 description:                # purpose of the input
                 dataType: FILE|HTTP_CONFIG|STRING|INT|FLOAT|BOOLEAN|DATE|DATETIME
                 repeated:                   # true = multiple values allowed, false = single value
-                allowedValues:              # if repeated=true: comma-separated input is split into array
+                allowedValues: []           # Copy the allowed-values list from task details if present; otherwise use [].
                 required:                   # value must be taken from task details.
-                defaultValue: [ACTUAL_USER_VALUE] #values are collected from users, If the dataType is FILE or HTTP_CONFIG then the value should be filepath URL.
+                defaultValue: ACTUAL_USER_VALUE # User-provided value; if repeated=true, split comma-separated input into an array; otherwise use a single value.
+                                                # For FILE or HTTP_CONFIG, each value must be a file URL.
                 format: [ACTUAL_FILE_FORMAT]      # only include for FILE types (json, yaml, toml, xml, etc.)
                 showField: true                   # true = most important field, false = optional/less important
                 outputsMeta__:
@@ -8663,9 +8664,10 @@ else:
                 description:                # purpose of the input
                 dataType: FILE|HTTP_CONFIG|STRING|INT|FLOAT|BOOLEAN|DATE|DATETIME
                 repeated:                   # true = multiple values allowed, false = single value
-                allowedValues:              # if repeated=true: comma-separated input is split into array
+                allowedValues: []           # Copy the allowed-values list from task details if present; otherwise use [].
                 required:                   # value must be taken from task details.
-                defaultValue: [ACTUAL_USER_VALUE] #values are collected from users, If the dataType is FILE or HTTP_CONFIG then the value should be filepath URL.
+                defaultValue: ACTUAL_USER_VALUE # User-provided value; if repeated=true, split comma-separated input into an array; otherwise use a single value.
+                                                # For FILE or HTTP_CONFIG, each value must be a file URL.
                 format: [ACTUAL_FILE_FORMAT]      # only include for FILE types (json, yaml, toml, xml, etc.)
                 showField: true                   # true = most important field, false = optional/less important
                 outputsMeta__:
