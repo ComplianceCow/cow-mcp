@@ -635,7 +635,7 @@ async def fetch_workflow_resource_data(resource: str, ctx: Context | None = None
         return "Facing internal error"
 
 @mcp.tool()
-async def create_workflow(workflow_yaml: str, ctx: Context | None = None) -> str:
+async def create_workflow(workflow_yaml: str, ctx: Context | None = None, readme_content: str | None = None) -> str:
     """
     Create a new workflow using YAML definition. Always display the workflow diagram. 
     Before creation confirm workflow name and creation with the user before executing this tool. 
@@ -676,6 +676,11 @@ async def create_workflow(workflow_yaml: str, ctx: Context | None = None) -> str
                     metadata = {}
                     parsed_yaml["metadata"] = metadata
                 metadata["tags"] = {"Channel": ["MCP_HOST"]}
+                # Add AI-generated README content
+                if readme_content:
+                    metadata["readMeContent"] = base64.b64encode(
+                        readme_content.encode("utf-8")
+                    ).decode("utf-8")
                 workflow_name = metadata.get("name") or ""
                 workflow_description = metadata.get("description") or ""
                 workflow_yaml = yaml.safe_dump(parsed_yaml, sort_keys=False)
@@ -1569,6 +1574,7 @@ async def create_workflow_from_blueprint(
     check_prerequisites: bool = True,
     check_application_scope: bool = True,
     dry_run: bool = True,
+    readme_content: str | None = None,
     ctx: Context | None = None,
 ) -> dict:
     """
@@ -1646,7 +1652,7 @@ async def create_workflow_from_blueprint(
         if not result["ready"]:
             return {"success": False, "dryRun": False, "error": "Nothing was created: the workflow is not ready.", **report}
 
-        message = await create_workflow(blueprint_apply.to_yaml(result["doc"]), ctx)
+        message = await create_workflow(blueprint_apply.to_yaml(result["doc"]), ctx, readme_content=readme_content)
         created = re.search(r"\(ID: ([0-9a-fA-F-]{36})\)", message) if isinstance(message, str) else None
         if not created:
             return {"success": False, "dryRun": False, "error": message, **report}
