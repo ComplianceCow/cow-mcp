@@ -677,6 +677,12 @@ def validate_rule_structure(rule_data: dict[str, Any]) -> dict[str, Any]:
                     f"Allowed: {', '.join(sorted(VALID_INPUT_DATA_TYPES))}."
                 )
 
+            if "allowedValues" in m and not isinstance(m["allowedValues"], list):
+                errors.append(
+                    f"spec.inputsMeta__[{i}] ('{mname}').allowedValues must be an array. "
+                    "Use [] when there are no allowed-value restrictions."
+                )
+
     # inputs (values may be empty during progressive save, but keys must map to meta)
     inputs = spec.get("inputs", {})
     if inputs is None:
