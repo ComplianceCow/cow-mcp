@@ -1463,6 +1463,100 @@ def fetch_action_rules_api(params: dict[str, Any] = None, include_read_me: bool 
 
 # Input planning, per-key persistence and read-back verification.
 
+def build_control_reset_plan(
+    assessment: dict[str, Any],
+    control: dict[str, Any],
+) -> dict[str, Any]:
+    """Plan removal of this control's inputs without changing shared consumers."""
+    clean_assessment = deepcopy(assessment)
+    displayable = str(control.get('displayable') or control.get('alias') or '')
+    if not displayable:
+        raise ValueError('Control displayable is missing')
+    evidences = control.get('evidences')
+    if evidences is None:
+        evidences = []
+    if not isinstance(evidences, list):
+        raise ValueError('Invalid control evidence listing')
+
+    operations = []
+    deleted_keys = []
+    detached_keys = []
+    ambiguous_keys = []
+    for key, definition in (assessment.get('inputs') or {}).items():
+        mappings = definition.get('controlInputsMapping') or []
+        remaining = [
+            mapping for mapping in mappings
+            if str(mapping.get('cowDisplayable', '')) != displayable
+        ]
+        if len(remaining) == len(mappings):
+            if not mappings and key.endswith(f'_{displayable}'):
+                ambiguous_keys.append(key)
+            continue
+        path = '/inputs/' + key.replace('~', '~0').replace('/', '~1')
+        if remaining:
+            updated = deepcopy(definition)
+            updated['controlInputsMapping'] = remaining
+            clean_assessment['inputs'][key] = updated
+            operations.append({'op': 'replace', 'path': path, 'value': updated})
+            detached_keys.append(key)
+        else:
+            del clean_assessment['inputs'][key]
+            operations.append({'op': 'remove', 'path': path})
+            deleted_keys.append(key)
+
+    evidence_ids = []
+    for evidence in evidences:
+        evidence_id = evidence.get('id')
+        if not evidence_id:
+            raise ValueError('Cannot reset evidence without an ID')
+        uuid.UUID(evidence_id)
+        if evidence_id not in evidence_ids:
+            evidence_ids.append(evidence_id)
+    return {
+        'assessment': clean_assessment,
+        'input_operations': operations,
+        'preview': {
+            'delete_input_keys': deleted_keys,
+            'detach_shared_input_keys': detached_keys,
+            'ambiguous_input_keys': ambiguous_keys,
+            'delete_evidence_ids': evidence_ids,
+            'clear_dependency_inputs': list(control.get('dependedInputs') or {}),
+        },
+    }
+
+
+async def apply_control_reset(
+    assessment: dict[str, Any],
+    control: dict[str, Any],
+    reset: dict[str, Any],
+    ctx: Context | None,
+) -> tuple[dict[str, Any], dict[str, Any]]:
+    """Remove inputs and evidence, then unlink the old rule."""
+    assessment_url = f"{constants.URL_PLANS}/{assessment['id']}"
+    control_url = f"{constants.URL_PLAN_CONTROLS}/{control['id']}"
+    if reset['input_operations']:
+        await request_rule_input_api(assessment_url, 'PATCH', reset['input_operations'], ctx)
+    saved_assessment = await request_rule_input_api(assessment_url, ctx=ctx)
+    if (saved_assessment.get('inputs') or {}) != (reset['assessment'].get('inputs') or {}):
+        raise ValueError('Assessment input cleanup could not be verified')
+
+    for evidence_id in reset['preview']['delete_evidence_ids']:
+        await request_rule_input_api(f'{control_url}/evidences/{evidence_id}', 'DELETE', ctx=ctx)
+
+    current_control = await request_rule_input_api(control_url, ctx=ctx)
+    if current_control.get('evidences'):
+        raise ValueError('Control evidence cleanup could not be verified')
+
+    operations = [{'op': 'remove', 'path': '/ruleId'}]
+    if control.get('dependedInputs'):
+        operations.append({'op': 'replace', 'path': '/dependedInputs', 'value': {}})
+    await request_rule_input_api(control_url, 'PATCH', operations, ctx)
+    saved_control = await request_rule_input_api(control_url, ctx=ctx)
+    if saved_control.get('ruleId') or saved_control.get('dependedInputs') or saved_control.get('evidences'):
+        raise ValueError('Control reset could not be verified')
+    return saved_assessment, saved_control
+
+
 async def get_published_rule(rule_id: str, ctx: Context | None) -> dict[str, Any]:
     """Read one published rule and validate its input definitions once."""
     rule_url = constants.URL_GET_CC_RULE_BY_ID.replace('{id}', rule_id)

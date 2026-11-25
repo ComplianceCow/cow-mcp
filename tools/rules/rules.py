@@ -9801,10 +9801,11 @@ if constants.ENABLE_CCOW_API_TOOLS:
     ) -> dict[str, Any]:
         """Attach an existing published rule with safe, control-specific input mappings.
 
-        Omitted inputs use rule defaults on first attachment. Every assessment-sourced
+        Omitted inputs use rule defaults. Every assessment-sourced
         input has its own <input_name>_<control_displayable> key and explicit mapping.
-        Existing independent mappings and values are preserved on retries.
-        input_values contains only overrides: {"value": 14}, raw text files with
+        If a rule is already attached, its inputs, dependencies and evidence are
+        reset before a fresh attachment. Shared input values are kept for other
+        controls. input_values contains only overrides: {"value": 14}, raw text files with
         file_name, or {"use_rule_default": true} to reset an existing value.
         Empty file overrides clear the stored value. Optional empty
         defaults remain empty. Declare dependency inputs separately; empty values do
@@ -9815,7 +9816,7 @@ if constants.ENABLE_CCOW_API_TOOLS:
             assessment_name: Exact assessment name used to verify control membership.
             control_id: Target leaf control UUID.
             input_values: Overrides keyed by exact rule input name. Omit unchanged defaults.
-            create_evidence: Request automatic evidence on first attachment (default True).
+            create_evidence: Request automatic evidence when linking the rule (default True).
             evidence_name: Optional evidence template name; requires create_evidence=True.
             dry_run: Validate and preview without writing (default False).
             pending_dependency_inputs: Inputs supplied by later control-output dependencies.
@@ -9823,8 +9824,7 @@ if constants.ENABLE_CCOW_API_TOOLS:
         Returns:
             dict[str, Any]:
                 needs_input - lists all conflicts without writing. Resubmit only known choices.
-                ready is a read-only preview. attached/unchanged includes verified mappings.
-                A different attached rule is rejected; this tool does not replace rules.
+                ready is a read-only preview. attached/reattached includes verified mappings.
                 partial_failure means a write may have occurred: inspect inputs before retrying.
                 Automatic evidence is requested, not execution-verified. Pending dependencies
                 must be configured and verified before the assessment runs.
@@ -9872,17 +9872,16 @@ if constants.ENABLE_CCOW_API_TOOLS:
                     'status': 'invalid_request',
                     'error': 'Control does not belong to the named assessment',
                 }
-            if target_control.get('ruleId') and target_control['ruleId'] != rule_id:
-                return {
-                    'success': False,
-                    'status': 'invalid_request',
-                    'error': 'A different rule is already attached',
-                }
             published_rule = await rule.get_published_rule(rule_id, ctx)
             rule_inputs = published_rule.get('ruleInputs') or {}
+            reset = None
+            planning_control = target_control
+            if target_control.get('ruleId'):
+                reset = rule.build_control_reset_plan(assessment, target_control)
+                planning_control = {**target_control, 'ruleId': None, 'dependedInputs': {}}
             assessment_inputs, file_uploads, input_bindings, input_conflicts = await rule.build_control_input_plan(
-                assessment,
-                target_control,
+                reset['assessment'] if reset else assessment,
+                planning_control,
                 rule_inputs or {},
                 input_values or {},
                 pending_dependency_inputs or [],
@@ -9901,7 +9900,19 @@ if constants.ENABLE_CCOW_API_TOOLS:
                     'status': 'ready',
                     'changed': False,
                     'bindings': input_bindings,
+                    **({'cleanup': reset['preview']} if reset else {}),
                 }
+            if reset:
+                latest_assessment = await rule.request_rule_input_api(
+                    f'{constants.URL_PLANS}/{assessment_id}', ctx=ctx,
+                )
+                latest_control = await rule.request_rule_input_api(control_url, ctx=ctx)
+                if latest_assessment != assessment or latest_control != target_control:
+                    raise ValueError('Assessment or control changed; refresh before retrying')
+                write_started = True
+                assessment, target_control = await rule.apply_control_reset(
+                    assessment, target_control, reset, ctx,
+                )
             copy_file_keys = {
                 binding['assessment_input_key']
                 for binding in input_bindings
@@ -9911,7 +9922,7 @@ if constants.ENABLE_CCOW_API_TOOLS:
                     or (input_values or {}).get(binding['input_name'], {}).get('use_rule_default') is True
                 )
             }
-            write_started = bool(
+            write_started = write_started or bool(
                 file_uploads or copy_file_keys
                 or assessment_inputs != (assessment.get('inputs') or {})
             )
@@ -10000,7 +10011,7 @@ if constants.ENABLE_CCOW_API_TOOLS:
                     evidence_created = True
             result = {
                 'success': True,
-                'status': 'attached' if write_started else 'unchanged',
+                'status': 'reattached' if reset else ('attached' if write_started else 'unchanged'),
                 'verified': True,
                 'bindings': input_bindings,
                 'pending_dependencies': pending_dependency_inputs or [],
