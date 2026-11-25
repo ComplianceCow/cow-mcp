@@ -528,7 +528,7 @@ if constants.ENABLE_CCOW_API_TOOLS:
             }
 
     @mcp.tool()
-    def fetch_cc_rule_by_name(rule_name: str, ctx: Context | None = None) -> dict:
+    def fetch_cc_rule_by_name(rule_name: str, ctx: Context | None = None) -> dict | list:
         """
         Fetch rule details by rule name from the **compliancecow**.
 
@@ -542,7 +542,7 @@ if constants.ENABLE_CCOW_API_TOOLS:
         try:
 
             rule_response = rule.fetch_cc_rule_by_name(rule_name, ctx)
-            logger.debug(f"fetch_cc_rule_by_name: rule_output: {rule_response}\n")
+            logger.info(f"fetch_cc_rule_by_name: rule_output: {rule_response}\n")
 
             if len(rule_response) == 0:
                 return {
@@ -667,6 +667,7 @@ if constants.ENABLE_CCOW_API_TOOLS:
             Dict with publication status and details
         """
         try:
+            logger.info("publish_rule :::: \n")
             headers = wsutils.create_header(ctx)
             
             # Prepare request data
@@ -1386,6 +1387,7 @@ if constants.ENABLE_CCOW_API_TOOLS:
                 "type": "integration",
                 "configId":appScopeId,
                 "status": "active",
+                "configId":appScopeId,
                 "linkToDefaultCCFPlan": {},
                 "planControls": [
                     {
@@ -2049,6 +2051,8 @@ if constants.ENABLE_CCOW_API_TOOLS:
                 ctx=ctx
             )
 
+            logger.info(f"\ncheck_control_link_exist - output: {output}\n")
+            
             if isinstance(output, str):
                 logger.error(f"check_control_link_exist error: {output}\n")
                 return {"success": False, "exists": False, "error": output}
@@ -2876,6 +2880,7 @@ if constants.ENABLE_CCOW_API_TOOLS:
         Returns:
             List of simplified rule objects containing only name, description, and id
         """
+        logger.info("fetch_cc_rules_list: \n")
         if params is None:
             params = {}
         
@@ -2919,7 +2924,7 @@ if constants.ENABLE_CCOW_API_TOOLS:
                 return [{
                     "error": f"Failed to fetch CC rules list: {str(e)}"
                 }]
-        
+        logger.info(f"fetch_cc_rules_lis - : \n{combined_rules}")
         return combined_rules
 
     @mcp.tool()
@@ -4253,7 +4258,15 @@ def prepare_input_collection_overview(selected_tasks: list[dict[str, str]], ctx:
     - Format: "{task_alias}.{input_name}" for uniqueness.
     - Prevents conflicts when multiple tasks have same input names or same task used multiple times.
     - Maintains clear mapping between task aliases and their specific inputs.
-    - Task aliases should be simple, meaningful step indicators (e.g., "step1", "validation", "processing").
+    
+    TASK ALIAS NAMING RULES (MANDATORY):
+    - task_name MUST be the exact catalog name from fetch_tasks_suggestions / get_task_details. Never modify it.
+    - task_alias MUST describe what the step does in THIS rule: Verb + Object, in PascalCase.
+        Good: FetchGitHubPullRequests, FlattenPullRequestReviews, JoinUsersWithLicenses, EvaluateMFACompliance
+        Bad:  step1, step2, t1, task1, http, jq, validation, processing, final_check
+    - Two uses of the same task MUST get different descriptive aliases
+        (e.g. FetchActiveUsers and FetchDisabledUsers, both ExecuteHttp).
+    - Show the proposed task_name → task_alias list to the user and get confirmation before creating the rule.
 
     OVERVIEW REQUIREMENTS (Preserved):
     1. Analyze ALL selected tasks with their aliases for input requirements.
@@ -4330,9 +4343,9 @@ def prepare_input_collection_overview(selected_tasks: list[dict[str, str]], ctx:
     - selected_tasks: list of dicts with 'task_name' and 'task_alias'
     Example:
     [
-        {"task_name": "data_validation", "task_alias": "step1"},
-        {"task_name": "data_processing", "task_alias": "step2"},
-        {"task_name": "data_validation", "task_alias": "final_check"}
+        {"task_name": "ExecuteHttp", "task_alias": "FetchGitHubPullRequests"},
+        {"task_name": "ExtractDataUsingJQV2", "task_alias": "FlattenPullRequestReviews"},
+        {"task_name": "ExecuteSqlQueryV2", "task_alias": "EvaluateApprovalCompliance"}
     ]
 
     Returns:
@@ -5507,11 +5520,12 @@ def fetch_rule_design_notes(rule_name: str, ctx: Context | None = None) -> dict[
 @mcp.tool()
 async def fetch_rule_readme_content(rule_name: str, ctx: Context | None = None) -> dict[str, Any]:
     """
-    Retrieve the existing README documentation for a rule by its exact name.
+    Retrieve the saved README documentation for a rule by its exact name.
 
-    Fetches the rule's saved README and returns its complete Markdown content as
-    readable text. Use this tool to understand a rule's purpose, prerequisites,
-    configuration, and usage before using it.
+    Returns the rule's complete README as Markdown text, covering its purpose,
+    prerequisites, configuration, usage, and output structure. Call this tool
+    before using or modifying a rule so you understand what it does, what it
+    needs, and what shape of output it produces.
 
     Args:
         rule_name (str): Exact name of the rule whose README should be retrieved.
@@ -6286,7 +6300,12 @@ def fetch_output_file(file_url: str, ctx: Context | None = None) -> dict[str, An
 @mcp.tool()
 def fetch_applications(ctx: Context | None = None) -> dict[str, Any]:
     """ 
-    Fetch all available applications from the system.
+    Fetch all available application types registered in the system.
+
+    Use this tool to discover which application types exist and which credential
+    types each one supports. Call it before creating or configuring an application
+    or credential, so you can pick a valid application type and a compatible
+    credential type.
     
     Returns:
         Dict containing list of applications with their details
@@ -6313,6 +6332,8 @@ def fetch_applications(ctx: Context | None = None) -> dict[str, Any]:
             meta = item.get("meta", {})
             labels = meta.get("labels", {})
             app_types = labels.get("appType", [])
+            spec = item.get("spec", {})
+            credential_types = spec.get("credentialTypes", [])
             
             # Skip if no appType available
             if not app_types:
@@ -6320,9 +6341,10 @@ def fetch_applications(ctx: Context | None = None) -> dict[str, Any]:
                 
             applications.append({
                 "application_class_name": meta.get("name", "Unknown"),
-                "app_type": app_types[0]
+                "app_type": app_types[0],
+                "credential_types":credential_types,
             })
-
+        logger.info(f"fetch_applications: applications={applications}\n")
         return {
             "success": True,
             "applications": applications
@@ -7402,37 +7424,62 @@ if constants.ENABLE_RULE_CREATION_TASK_CHAIN_PROCESS:
                 required: true
                 defaultValue: [ACTUAL_RULE_OUTPUT_VALUE]
                 tasks:
-                - name: Step1TaskName # Original task names
-                alias: step1 # Meaningful task aliases (simple descriptors)
-                type: task
-                appTags:
-                    appType: [COPY_FROM_TASK_DEFINITION] # Keep original task appType
-                    environment: [logical] # Array
-                    execlevel: [app] # Array
-                purpose: What this task does for Step 1
-                - name: Step2TaskName
-                alias: validation # Another meaningful alias
-                type: task
-                appTags:
-                    appType: [COPY_FROM_TASK_DEFINITION]
-                    environment: [logical] # Array
-                    execlevel: [app] # Array
-                purpose: What this task does for validation
+                - name: ExecuteHttp                        # Exact catalog task name - never modify
+                  alias: FetchGitHubPullRequests           # Descriptive Verb+Object alias in PascalCase - never step1/t1
+                  type: task
+                  appTags:
+                      appType: [COPY_FROM_TASK_DEFINITION] # Keep original task appType
+                      environment: [logical]
+                      execlevel: [app]
+                  purpose: Fetch merged pull requests from the GitHub API
+                - name: ExtractDataUsingJQV2
+                  alias: FlattenPullRequestReviews         # Describes what THIS step does to the data
+                  type: task
+                  appTags:
+                      appType: [COPY_FROM_TASK_DEFINITION]
+                      environment: [logical]
+                      execlevel: [app]
+                  purpose: Flatten the pull request response and keep only PR id, author and reviewer fields
+                - name: ExecuteSqlQueryV2
+                  alias: CountApprovalsPerPullRequest
+                  type: task
+                  appTags:
+                      appType: [COPY_FROM_TASK_DEFINITION]
+                      environment: [logical]
+                      execlevel: [app]
+                  purpose: Count approving reviews for each pull request
+                - name: TransformDataWithJQ
+                  alias: EvaluateApprovalCompliance        # Last task - produces the compliance outputs
+                  type: task
+                  appTags:
+                      appType: [COPY_FROM_TASK_DEFINITION]
+                      environment: [logical]
+                      execlevel: [app]
+                  purpose: Mark each pull request COMPLIANT or NON_COMPLIANT based on the approval threshold
                 ioMap:
-                - step1.Input.TaskInput:=*.Input.InputName  # Use task aliases in I/O mapping
-                - validation.Input.TaskInput:=step1.Output.TaskOutput
-                # MANDATORY: Always include these three outputs from the last task
-                - '*.Output.FinalOutput:=validation.Output.TaskOutput'
-                - '*.Output.CompliancePCT_:=validation.Output.CompliancePCT_'    # Compliance percentage from last task
-                - '*.Output.ComplianceStatus_:=validation.Output.ComplianceStatus_'  # Compliance status from last task
-                - '*.Output.LogFile:=validation.Output.LogFile'  # Log file from last task
+                - FetchGitHubPullRequests.Input.RequestConfigFile:=*.Input.RequestConfigFile
+                - FlattenPullRequestReviews.Input.InputFile:=FetchGitHubPullRequests.Output.OutputFile
+                - FlattenPullRequestReviews.Input.JQConfigFile:=*.Input.JQConfigFile
+                - CountApprovalsPerPullRequest.Input.InputFile1:=FlattenPullRequestReviews.Output.OutputFile
+                - CountApprovalsPerPullRequest.Input.SQLConfig:=*.Input.SQLConfig
+                - EvaluateApprovalCompliance.Input.InputFile:=CountApprovalsPerPullRequest.Output.OutputFile
+                # MANDATORY: Always include these outputs from the last task
+                - '*.Output.PullRequestApprovalCompliance:=EvaluateApprovalCompliance.Output.OutputFile'
+                - '*.Output.CompliancePCT_:=EvaluateApprovalCompliance.Output.CompliancePCT_'
+                - '*.Output.ComplianceStatus_:=EvaluateApprovalCompliance.Output.ComplianceStatus_'
+                - '*.Output.LogFile:=EvaluateApprovalCompliance.Output.LogFile'
         ```
-
+        TASK ALIAS RULES:
+        - name = exact catalog task name; alias = what this step does in THIS rule.
+        - Format: Verb + Object in PascalCase (Fetch..., Flatten..., Join..., Count..., Filter..., Evaluate...).
+        - Every alias in a rule must be unique, including repeated uses of the same task.
+        - Never use step1, t1, task1, http, jq, validation, processing, or similar generic aliases.
+                 
         STEP 3 - I/O MAPPING WITH TASK ALIASES (Preserved):
         - Use golang-style assignment: destination:=source
         - 3-part structure: PLACE.DIRECTION.ATTRIBUTE_NAME
         - Always use EXACT attribute names from task specifications
-        - Use meaningful task aliases instead of generic names
+        - Use the descriptive Verb+Object aliases defined in spec.tasks
         - Ensure sequential data flow: Rule → Task1 → Task2 → Rule
         - Mandatory compliance outputs from last task
 
@@ -7778,6 +7825,7 @@ if constants.ENABLE_RULE_CREATION_TASK_CHAIN_PROCESS:
         """
         
         try:
+            logger.info("1.fetch_rule: \n")
             headers = wsutils.create_header(ctx)
             
             get_rule_resp = wsutils.get(
@@ -8356,7 +8404,7 @@ if constants.ENABLE_RULE_CREATION_TASK_CHAIN_PROCESS:
             3. Never perform partial patches. Always rewrite the full final
             rule in rule_structure and return the entire updated object.
 
-        RULE METADATA HANDLING:
+            RULE METADATA HANDLING:
             --------------------------------------------------------------------
             - meta.name: 
                 * NEVER auto-rename the rule during updates
@@ -8375,6 +8423,7 @@ if constants.ENABLE_RULE_CREATION_TASK_CHAIN_PROCESS:
             - If user explicitly says "rename the rule to X" or "change the rule name to X"
             - Then and only then update meta.name with the user-provided name
             - Otherwise, always preserve the existing rule name
+            - Any task added during an update MUST get a descriptive Verb+Object alias (see prepare_input_collection_overview). Existing aliases are not renamed unless the user asks.
 
             OUTPUT REQUIREMENTS
             --------------------------------------------------------------------
@@ -8676,32 +8725,58 @@ else:
                 required: true
                 defaultValue: [ACTUAL_RULE_OUTPUT_VALUE]
                 tasks:
-                - name: Step1TaskName # Original task names
-                alias: step1 # Meaningful task aliases (simple descriptors)
-                type: task
-                appTags:
-                    appType: [COPY_FROM_TASK_DEFINITION] # Keep original task appType
-                    environment: [logical] # Array
-                    execlevel: [app] # Array
-                purpose: What this task does for Step 1
-                - name: Step2TaskName
-                alias: validation # Another meaningful alias
-                type: task
-                appTags:
-                    appType: [COPY_FROM_TASK_DEFINITION]
-                    environment: [logical] # Array
-                    execlevel: [app] # Array
-                purpose: What this task does for validation
+                - name: ExecuteHttp                        # Exact catalog task name - never modify
+                  alias: FetchGitHubPullRequests           # Descriptive Verb+Object alias in PascalCase - never step1/t1
+                  type: task
+                  appTags:
+                      appType: [COPY_FROM_TASK_DEFINITION] # Keep original task appType
+                      environment: [logical]
+                      execlevel: [app]
+                  purpose: Fetch merged pull requests from the GitHub API
+                - name: ExtractDataUsingJQV2
+                  alias: FlattenPullRequestReviews         # Describes what THIS step does to the data
+                  type: task
+                  appTags:
+                      appType: [COPY_FROM_TASK_DEFINITION]
+                      environment: [logical]
+                      execlevel: [app]
+                  purpose: Flatten the pull request response and keep only PR id, author and reviewer fields
+                - name: ExecuteSqlQueryV2
+                  alias: CountApprovalsPerPullRequest
+                  type: task
+                  appTags:
+                      appType: [COPY_FROM_TASK_DEFINITION]
+                      environment: [logical]
+                      execlevel: [app]
+                  purpose: Count approving reviews for each pull request
+                - name: TransformDataWithJQ
+                  alias: EvaluateApprovalCompliance        # Last task - produces the compliance outputs
+                  type: task
+                  appTags:
+                      appType: [COPY_FROM_TASK_DEFINITION]
+                      environment: [logical]
+                      execlevel: [app]
+                  purpose: Mark each pull request COMPLIANT or NON_COMPLIANT based on the approval threshold
                 ioMap:
-                - step1.Input.TaskInput:=*.Input.InputName  # Use task aliases in I/O mapping
-                - validation.Input.TaskInput:=step1.Output.TaskOutput
-                # MANDATORY: Always include these three outputs from the last task
-                - '*.Output.FinalOutput:=validation.Output.TaskOutput'
-                - '*.Output.CompliancePCT_:=validation.Output.CompliancePCT_'    # Compliance percentage from last task
-                - '*.Output.ComplianceStatus_:=validation.Output.ComplianceStatus_'  # Compliance status from last task
-                - '*.Output.LogFile:=validation.Output.LogFile'  # Log file from last task
+                - FetchGitHubPullRequests.Input.RequestConfigFile:=*.Input.RequestConfigFile
+                - FlattenPullRequestReviews.Input.InputFile:=FetchGitHubPullRequests.Output.OutputFile
+                - FlattenPullRequestReviews.Input.JQConfigFile:=*.Input.JQConfigFile
+                - CountApprovalsPerPullRequest.Input.InputFile1:=FlattenPullRequestReviews.Output.OutputFile
+                - CountApprovalsPerPullRequest.Input.SQLConfig:=*.Input.SQLConfig
+                - EvaluateApprovalCompliance.Input.InputFile:=CountApprovalsPerPullRequest.Output.OutputFile
+                # MANDATORY: Always include these outputs from the last task
+                - '*.Output.PullRequestApprovalCompliance:=EvaluateApprovalCompliance.Output.OutputFile'
+                - '*.Output.CompliancePCT_:=EvaluateApprovalCompliance.Output.CompliancePCT_'
+                - '*.Output.ComplianceStatus_:=EvaluateApprovalCompliance.Output.ComplianceStatus_'
+                - '*.Output.LogFile:=EvaluateApprovalCompliance.Output.LogFile'
         ```
-
+        
+        TASK ALIAS RULES:
+         - name = exact catalog task name; alias = what this step does in THIS rule.
+         - Format: Verb + Object in PascalCase (Fetch..., Flatten..., Join..., Count..., Filter..., Evaluate...).
+         - Every alias in a rule must be unique, including repeated uses of the same task.
+         - Never use step1, t1, task1, http, jq, validation, processing, or similar generic aliases.
+                    
         STEP 3 - I/O MAPPING WITH TASK ALIASES (Preserved):
         - Use golang-style assignment: destination:=source
         - 3-part structure: PLACE.DIRECTION.ATTRIBUTE_NAME
@@ -9025,6 +9100,7 @@ else:
         """
         
         try:
+            logger.info("2.fetch_rule: \n")
             headers = wsutils.create_header(ctx)
             
             get_rule_resp = wsutils.get(
