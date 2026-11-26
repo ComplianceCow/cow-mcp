@@ -3553,8 +3553,8 @@ def collect_template_input(task_name: str, input_name: str, user_content: Any, c
         task_input = None
         available_task_inputs=[]
         for inp in task.inputs:
+            available_task_inputs.append(inp.name)
             if inp.name == input_name:
-                available_task_inputs.append(inp.name)
                 task_input = inp
                 break
 
@@ -3624,6 +3624,10 @@ def confirm_template_input(rule_name: str, task_name: str, rule_input_name: str,
     4. Calls create_rule() to save the updated rule
     5. Rule status will be auto-detected (DRAFT → collecting_inputs → READY_FOR_CREATION)
 
+    RULE INPUT NAMING (ENFORCED):
+    - rule_input_name must be the task input name itself, or '<TaskAlias>_<input_name>'
+      when two tasks share the same input name. Any other name is rejected.
+
     UI DISPLAY REQUIREMENT:
     - The file URL must ALWAYS be displayed to the user in the UI, allowing the user to view or download the file directly.
     
@@ -3633,7 +3637,8 @@ def confirm_template_input(rule_name: str, task_name: str, rule_input_name: str,
                    Example: rule_name = "MeaningfulRuleName"
         task_name: Name of the task this input belongs to
         input_name: Name of the input parameter
-        rule_input_name: Must be one of the values defined in the rule structure's inputs
+        rule_input_name: Must be one of the values defined in the rule structure's inputs.
+                         Must equal input_name or '<TaskAlias>_<input_name>'.
         confirmed_content: The content user confirmed
 
     Returns:
@@ -3658,6 +3663,16 @@ def confirm_template_input(rule_name: str, task_name: str, rule_input_name: str,
 
         if not task_input:
             return {"success": False, "error": f"Input '{input_name}' not found in task '{task_name}'. Available inputs are: {available_task_inputs}"}
+
+        # Rule inputs must belong to a real task input; never invent new rule inputs
+        if rule_input_name != input_name and not rule_input_name.endswith(f"_{input_name}"):
+            return {
+                "success": False,
+                "error": (
+                    f"rule_input_name '{rule_input_name}' does not belong to task input '{input_name}'. "
+                    f"Use '{input_name}', or '<TaskAlias>_{input_name}' when two tasks share the name."
+                ),
+            }
 
         # Check if this is a FILE or HTTP_CONFIG type input that needs upload (preserved logic)
         if task_input.dataType.upper() in ["FILE", "HTTP_CONFIG"]:
@@ -4060,10 +4075,15 @@ def confirm_parameter_input(task_name: str, input_name: str, rule_input_name:str
     4. Calls create_rule() to save the updated rule
     5. Rule status will be auto-detected based on completion
 
+    RULE INPUT NAMING (ENFORCED):
+    - rule_input_name must be the task input name itself, or '<TaskAlias>_<input_name>'
+      when two tasks share the same input name. Any other name is rejected.
+
     Args:
         task_name: Name of the task this input belongs to
         input_name: Name of the input parameter
-        rule_input_name: Must be one of the values defined in the rule structure's inputs
+        rule_input_name: Must be one of the values defined in the rule structure's inputs.
+                         Must equal input_name or '<TaskAlias>_<input_name>'.
         confirmed_value: The value user confirmed
         explanation: Add explanation only if dataType is JQ_EXPRESSION or SQL_EXPRESSION. This field provides details about the confirmed_value.
         confirmation_type: Type of confirmation ("default" or "final")
@@ -4092,6 +4112,16 @@ def confirm_parameter_input(task_name: str, input_name: str, rule_input_name:str
         if not task_input:
             return {"success": False, "error": f"Input '{input_name}' not found in task '{task_name}'. Available inputs are: {available_task_inputs}"}
 
+        # Rule inputs must belong to a real task input; never invent new rule inputs
+        if rule_input_name != input_name and not rule_input_name.endswith(f"_{input_name}"):
+            return {
+                "success": False,
+                "error": (
+                    f"rule_input_name '{rule_input_name}' does not belong to task input '{input_name}'. "
+                    f"Use '{input_name}', or '<TaskAlias>_{input_name}' when two tasks share the name."
+                ),
+            }
+
         # Validate the confirmed value (preserved validation)
         validation_result = rule.validate_parameter_value(confirmed_value, task_input.dataType)
         if not validation_result["valid"]:
@@ -4110,7 +4140,7 @@ def confirm_parameter_input(task_name: str, input_name: str, rule_input_name:str
                     rule_structure = current_rule["rule_structure"]
                     
                     # Add parameter to rule structure
-                    rule_structure["spec"]["inputs"][rule_input_name] = validation_result["converted_value"]
+                    rule_structure["spec"].setdefault("inputs", {})[rule_input_name] = validation_result["converted_value"]
                     
                     # Add/update parameter metadata
                     input_meta = {
@@ -4130,7 +4160,7 @@ def confirm_parameter_input(task_name: str, input_name: str, rule_input_name:str
                         input_meta["format"] = input_meta["defaultValue"].split(".")[-1]
 
                     # Update metadata list
-                    existing_meta = rule_structure["spec"]["inputsMeta__"]
+                    existing_meta = rule_structure["spec"].get("inputsMeta__", [])
                     rule_structure["spec"]["inputsMeta__"] = [m for m in existing_meta if m["name"] != rule_input_name]
                     rule_structure["spec"]["inputsMeta__"].append(input_meta)
                     
@@ -4856,6 +4886,15 @@ def execute_task(task_name: str, task_inputs: dict[str, Any], application: dict[
         - **Every executed task must have its results shown to the user immediately.**
 
     ===============================================================================
+    TASK INPUTS (ENFORCED)
+    ===============================================================================
+    - task_inputs may contain ONLY the task's own input names (see get_task_details).
+    - Unknown input names are rejected, not silently dropped.
+    - Values the task reads from a file input (for example InputFile or RequestConfigFile)
+      must be written inside that file, as the task README describes. Never pass them
+      as separate inputs.
+
+    ===============================================================================
     APPLICATION CONFIGURATION
     ===============================================================================
     Application credentials are REQUIRED if the task's appType is NOT 'nocredapp'.
@@ -4922,6 +4961,7 @@ def execute_task(task_name: str, task_inputs: dict[str, Any], application: dict[
         task_name: Name of the task to execute
         task_inputs: Dictionary containing key-value pairs of task inputs
                     Format: {"input_name": "value" or file_url}
+                    Only the task's own input names are accepted; unknown keys are rejected.
         application: Optional application configuration for tasks requiring credentials
                     Format: {
                         "appName": "ApplicationClassName",
@@ -4961,6 +5001,26 @@ def execute_task(task_name: str, task_inputs: dict[str, Any], application: dict[
         task_inputs_spec = task_details.get("inputs", [])
         task_app_tags = task_details.get("appTags", {})
         task_app_types = task_app_tags.get("appType", [])
+
+        # Reject inputs the task does not define instead of silently dropping them
+        valid_input_names = [spec["name"] for spec in task_inputs_spec]
+        unknown_inputs = sorted(set(task_inputs or {}) - set(valid_input_names))
+        if unknown_inputs:
+            return {
+                "success": False,
+                "execution_status": "FAILED",
+                "task_name": task_name,
+                "error": f"Task '{task_name}' has no input(s) named {unknown_inputs}.",
+                "unknown_inputs": unknown_inputs,
+                "valid_inputs": valid_input_names,
+                "next_action": "fix_task_inputs",
+                "hint": (
+                    "Pass only the task's own inputs. Values the task reads from a file input "
+                    "(for example InputFile or RequestConfigFile) must be written inside that file, "
+                    "as the task README describes. Re-read get_task_details(task_name) and call "
+                    "get_template_guidance() for its template inputs."
+                ),
+            }
 
         # Step 2: Check if task requires application credentials
         # Application is required only if appType is NOT 'nocredapp'
@@ -7022,6 +7082,77 @@ def validate_input_name(input_name: str) -> str:
     return input_name
 
 
+def validate_rule_input_wiring(rule_structure: dict[str, Any], ctx: Context | None = None) -> list[str]:
+    """
+    Check that rule inputs and ioMap targets match the selected tasks' real inputs.
+
+    - Every '<Alias>.Input.<Name>' target must be an input of that task.
+    - Every '*.Input.<Name>' source must exist in spec.inputs.
+    - Once ioMap is defined, every spec.inputs key must feed at least one task input.
+
+    get_task_details is resolved at call time, so this works with either value of
+    ENABLE_RULE_CREATION_TASK_CHAIN_PROCESS.
+
+    Returns:
+        A list of human-readable errors. An empty list means the wiring is valid.
+    """
+    spec = rule_structure.get("spec", {}) or {}
+    tasks = spec.get("tasks", []) or []
+    io_map = spec.get("ioMap", []) or []
+    rule_inputs = spec.get("inputs", {}) or {}
+    errors: list[str] = []
+
+    task_by_alias = {task.get("alias"): task for task in tasks if task.get("alias")}
+    input_names_cache: dict[str, set[str] | None] = {}
+
+    def task_input_names(task_name: str) -> set[str] | None:
+        if task_name not in input_names_cache:
+            details = get_task_details(task_name, ctx)
+            if details.get("error"):
+                input_names_cache[task_name] = None
+            else:
+                input_names_cache[task_name] = {inp["name"] for inp in details.get("inputs", [])}
+        return input_names_cache[task_name]
+
+    referenced_rule_inputs: set[str] = set()
+
+    for mapping in io_map:
+        if not isinstance(mapping, str) or ":=" not in mapping:
+            continue
+        cleaned = mapping.strip().strip("'\"")
+        left, right = (side.strip() for side in cleaned.split(":=", 1))
+
+        if right.startswith("*.Input."):
+            referenced_rule_inputs.add(right[len("*.Input."):])
+
+        left_parts = left.split(".")
+        if len(left_parts) >= 3 and left_parts[0] != "*" and left_parts[1] == "Input":
+            task = task_by_alias.get(left_parts[0])
+            if task:
+                valid_inputs = task_input_names(task.get("name", ""))
+                if valid_inputs is not None and left_parts[2] not in valid_inputs:
+                    errors.append(
+                        f"'{left_parts[2]}' is not an input of task '{task.get('name')}' "
+                        f"(alias '{left_parts[0]}'). Valid inputs: {sorted(valid_inputs)}. "
+                        "Values the task reads from a file input belong inside that file."
+                    )
+
+    for name in sorted(referenced_rule_inputs):
+        if name not in rule_inputs:
+            errors.append(f"ioMap uses '*.Input.{name}', but '{name}' is not in spec.inputs.")
+
+    if io_map:
+        unused_inputs = sorted(set(rule_inputs) - referenced_rule_inputs)
+        if unused_inputs:
+            errors.append(
+                f"Rule inputs {unused_inputs} are not mapped to any task input. "
+                "Remove them, or map each to a real task input. Do not add rule inputs "
+                "for values that belong inside a task's file input."
+            )
+
+    return errors
+
+
 def is_valid_uuid(value: str) -> bool:
     """
     Check if the given string is a valid UUID.
@@ -7238,6 +7369,17 @@ if constants.ENABLE_RULE_CREATION_TASK_CHAIN_PROCESS:
         - Analyze appTags to determine the application type
         - Review all metadata and configuration options
         - Use this information for accurate task matching and rule structure creation
+
+        INPUT UNDERSTANDING (MANDATORY BEFORE DESIGNING RULE INPUTS):
+        - Read `description` and `readme_content` before mapping any input.
+        - has_template = true  → call get_template_guidance(task_name, input_name) and read the
+          template together with the README.
+        - has_template = false → there is no template; use readme_content and description to learn
+          what the input expects (value or file, format, structure, how the task reads it).
+          If they do not explain it, ask the user. Never guess.
+        - A rule input may only feed an input listed in `inputs`. Values the task reads from a file
+          input (e.g. InputFile, RequestConfigFile) go inside that file, not into new rule inputs.
+        - Inputs fed by an earlier task's output are mapped in ioMap, not added as rule inputs.
         
         ============================================================================
         INPUT–OUTPUT STRUCTURE RESOLUTION (NEW – REQUIRED BEHAVIOR)
@@ -7330,6 +7472,13 @@ if constants.ENABLE_RULE_CREATION_TASK_CHAIN_PROCESS:
 
         CRITICAL REQUIREMENT - INPUTS META:
         - `spec.inputsMeta__` is **mandatory** for all rules, and rule creation cannot proceed without it.
+
+        RULE INPUT WIRING (ENFORCED):
+        - Every '<Alias>.Input.<Name>' in ioMap must be a real input of that task.
+        - Every '*.Input.<Name>' in ioMap must exist in spec.inputs.
+        - Once ioMap is defined, every spec.inputs key must feed at least one task input.
+        - Values a task reads from a file input (e.g. InputFile, RequestConfigFile) go inside that
+          file; they are never separate rule inputs.
 
         AUTOMATIC STATUS DETECTION:
         - DRAFT: Rule has tasks but missing inputs or I/O mapping (5-85% complete)
@@ -7493,6 +7642,7 @@ if constants.ENABLE_RULE_CREATION_TASK_CHAIN_PROCESS:
         □ Input/output specifications validation
         □ Mandatory compliance outputs present
         □ Sequential data flow in I/O mappings
+        □ Every rule input feeds a real task input (no invented rule inputs)
 
         Args:
             rule_structure: Complete rule structure with any level of completion
@@ -7583,13 +7733,20 @@ if constants.ENABLE_RULE_CREATION_TASK_CHAIN_PROCESS:
                                                 f"Valid outputs: {valid_output_names}"
                                             )  
 
+            # Check that rule inputs feed real task inputs
+            io_mapping_errors.extend(validate_rule_input_wiring(rule_structure, ctx))
+
             # Return validation errors if any I/O mapping issues found
             if io_mapping_errors:
                 return {
                     "success": False,
                     "error": "I/O mapping validation failed",
                     "validation_errors": io_mapping_errors,
-                    "message": "Some I/O mappings reference outputs that don't exist in the specified tasks"
+                    "message": (
+                        "The rule's inputs or I/O mappings do not match the selected tasks' inputs "
+                        "and outputs. Re-read each task with get_task_details (README and templates) "
+                        "and fix the input plan."
+                    )
                 }    
 
             # NEW: AUTOMATIC STATUS DETECTION based on rule content
@@ -8425,6 +8582,11 @@ if constants.ENABLE_RULE_CREATION_TASK_CHAIN_PROCESS:
             - Otherwise, always preserve the existing rule name
             - Any task added during an update MUST get a descriptive Verb+Object alias (see prepare_input_collection_overview). Existing aliases are not renamed unless the user asks.
 
+            RULE INPUT WIRING (ENFORCED BY create_rule):
+            - Inputs of a new or changed task must follow the task's README and templates
+              (see get_task_details). Never add rule inputs for values that belong inside a
+              task's file input. Unmapped or invented rule inputs are rejected.
+
             OUTPUT REQUIREMENTS
             --------------------------------------------------------------------
             - Modify rule_structure IN PLACE.
@@ -8567,6 +8729,17 @@ else:
         - Review all metadata and configuration options
         - Use this information for accurate task matching and rule structure creation
 
+        INPUT UNDERSTANDING (MANDATORY BEFORE DESIGNING RULE INPUTS):
+        - Read `description` and `readme_content` before mapping any input.
+        - has_template = true  → call get_template_guidance(task_name, input_name) and read the
+          template together with the README.
+        - has_template = false → there is no template; use readme_content and description to learn
+          what the input expects (value or file, format, structure, how the task reads it).
+          If they do not explain it, ask the user. Never guess.
+        - A rule input may only feed an input listed in `inputs`. Values the task reads from a file
+          input (e.g. InputFile, RequestConfigFile) go inside that file, not into new rule inputs.
+        - Inputs fed by an earlier task's output are mapped in ioMap, not added as rule inputs.
+
         INTENTION-BASED OUTPUT CHAINING:
         - ANALYZE output purpose: Is this meant for direct user consumption or further processing?
         - ASSESS completion level: Does this output fulfill the user's end goal or serve as a stepping stone?
@@ -8636,6 +8809,13 @@ else:
 
         CRITICAL REQUIREMENT - INPUTS META:
         - `spec.inputsMeta__` is **mandatory** for all rules, and rule creation cannot proceed without it.
+
+        RULE INPUT WIRING (ENFORCED):
+        - Every '<Alias>.Input.<Name>' in ioMap must be a real input of that task.
+        - Every '*.Input.<Name>' in ioMap must exist in spec.inputs.
+        - Once ioMap is defined, every spec.inputs key must feed at least one task input.
+        - Values a task reads from a file input (e.g. InputFile, RequestConfigFile) go inside that
+          file; they are never separate rule inputs.
 
         AUTOMATIC STATUS DETECTION:
         - DRAFT: Rule has tasks but missing inputs or I/O mapping (5-85% complete)
@@ -8795,6 +8975,7 @@ else:
         □ Input/output specifications validation
         □ Mandatory compliance outputs present
         □ Sequential data flow in I/O mappings
+        □ Every rule input feeds a real task input (no invented rule inputs)
 
         Args:
             rule_structure: Complete rule structure with any level of completion
@@ -8883,13 +9064,20 @@ else:
                                                 f"Valid outputs: {valid_output_names}"
                                             )  
 
+            # Check that rule inputs feed real task inputs
+            io_mapping_errors.extend(validate_rule_input_wiring(rule_structure, ctx))
+
             # Return validation errors if any I/O mapping issues found
             if io_mapping_errors:
                 return {
                     "success": False,
                     "error": "I/O mapping validation failed",
                     "validation_errors": io_mapping_errors,
-                    "message": "Some I/O mappings reference outputs that don't exist in the specified tasks"
+                    "message": (
+                        "The rule's inputs or I/O mappings do not match the selected tasks' inputs "
+                        "and outputs. Re-read each task with get_task_details (README and templates) "
+                        "and fix the input plan."
+                    )
                 }    
 
             # NEW: AUTOMATIC STATUS DETECTION based on rule content
